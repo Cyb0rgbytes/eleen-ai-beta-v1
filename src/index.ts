@@ -49,45 +49,6 @@ export default {
 	},
 } satisfies ExportedHandler<Env>;
 
-export assets {
-  fetch() {
-    return new Response(
-      `
-      <!doctype html>
-      <html>
-        <head>
-          <style>
-            body {
-              margin: 0;
-              height: 100vh;
-              background-image: url('/background.png');
-              background-size: cover;
-              background-position: center;
-              font-family: system-ui, sans-serif;
-            }
-
-            .logo {
-              width: 180px;
-              margin: 24px;
-            }
-          </style>
-        </head>
-
-        <body>
-          <img src="/logo.png" class="logo" alt="Logo" />
-          <h1 style="color: white; margin: 24px;">
-            Cloudflare AI Worker
-          </h1>
-        </body>
-      </html>
-      `,
-      {
-        headers: { "Content-Type": "text/html" },
-      }
-    );
-  },
-};
-
 /**
  * Handles chat API requests
  */
