@@ -49,7 +49,7 @@ export default {
 	},
 } satisfies ExportedHandler<Env>;
 
-export default {
+export assets {
   fetch() {
     return new Response(
       `
