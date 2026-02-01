@@ -1,0 +1,6 @@
+name = "eleen-ai-beta-v1"
+main = "src/index.js"  # or the path to your main Worker file
+compatibility_date = "2026-02-01"
+
+[assets]
+directory = "./public"  # Directory with your static files (HTML, images, etc.)
