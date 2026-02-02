@@ -1,7 +1,8 @@
 /**
- * LLM Chat App Frontend
- *
- * Handles the chat UI interactions and communication with the backend API.
+ * EleenAI Chat Frontend
+ * 
+ * Handles chat UI interactions and communication with backend API.
+ * Works with or without authentication.
  */
 
 // DOM elements
@@ -14,100 +15,123 @@ const typingIndicator = document.getElementById("typing-indicator");
 let chatHistory = [
     {
         role: "assistant",
-        content:
-            "Welcome to the ELEENAI Gateway. I'm your conduit to the realm of artificial intelligence. How may I assist you on this journey?",
+        content: "Welcome to the ELEENAI Gateway! I'm your conduit to the realm of artificial intelligence. How may I assist you on this journey?\n\n✨ You can start chatting right away, or login for enhanced features!"
     },
 ];
 let isProcessing = false;
-let auth0Client = null;
 
-// Auto-resize textarea as user types
-userInput.addEventListener("input", function () {
-    this.style.height = "auto";
-    this.style.height = this.scrollHeight + "px";
+// Initialize chat when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    initializeChat();
 });
-
-// Send message on Enter (without Shift)
-userInput.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-    }
-});
-
-// Send button click handler
-sendButton.addEventListener("click", sendMessage);
 
 /**
- * Initialize chat with Auth0
+ * Initialize chat functionality
  */
-async function initializeChat() {
-    try {
-        // Try to get Auth0 client from parent window or create a new one
-        if (window.auth0Client) {
-            auth0Client = window.auth0Client;
-        } else {
-            // Fallback: Check if user is authenticated via token
-            const token = localStorage.getItem('auth_token');
-            if (!token) {
-                console.log('User not authenticated');
-                return;
-            }
+function initializeChat() {
+    // Auto-resize textarea as user types
+    userInput.addEventListener("input", function () {
+        this.style.height = "auto";
+        this.style.height = this.scrollHeight + "px";
+    });
+
+    // Send message on Enter (without Shift)
+    userInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
         }
-        
-        // Enable chat interface
-        userInput.disabled = false;
-        userInput.placeholder = "Enter your query to open the gateway...";
-        sendButton.disabled = false;
-        userInput.focus();
-        
-    } catch (error) {
-        console.error('Failed to initialize chat:', error);
-        userInput.disabled = true;
-        userInput.placeholder = "Authentication error. Please refresh the page.";
-        sendButton.disabled = true;
-    }
+    });
+
+    // Send button click handler
+    sendButton.addEventListener("click", sendMessage);
+
+    // Clear button (optional, add to UI if needed)
+    const clearButton = document.createElement('button');
+    clearButton.id = 'clear-chat';
+    clearButton.innerHTML = '<i class="fas fa-trash-alt"></i> Clear';
+    clearButton.style.cssText = `
+        position: absolute;
+        top: 1rem;
+        left: 1rem;
+        background: rgba(138, 43, 226, 0.2);
+        border: 1px solid rgba(138, 43, 226, 0.4);
+        color: var(--text-color);
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        backdrop-filter: blur(10px);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        z-index: 10;
+    `;
+    clearButton.addEventListener('click', clearChat);
+    document.querySelector('.chat-container').appendChild(clearButton);
 }
 
 /**
- * Get authentication token
+ * Get authentication token if available
  */
 async function getAuthToken() {
     try {
-        if (auth0Client) {
-            // Get token silently from Auth0
-            return await auth0Client.getTokenSilently();
-        } else {
-            // Fallback to localStorage token
-            const token = localStorage.getItem('auth_token');
-            if (token) {
-                // Verify token is not expired (simple check)
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+            // Basic token validation
+            try {
                 const payload = JSON.parse(atob(token.split('.')[1]));
                 const now = Math.floor(Date.now() / 1000);
                 if (payload.exp && payload.exp > now) {
                     return token;
                 } else {
-                    // Token expired
+                    console.log('Token expired');
                     localStorage.removeItem('auth_token');
-                    throw new Error('Token expired');
+                    // Try to refresh token if auth0 client exists
+                    if (window.auth0Client) {
+                        try {
+                            const newToken = await window.auth0Client.getTokenSilently();
+                            localStorage.setItem('auth_token', newToken);
+                            return newToken;
+                        } catch (refreshError) {
+                            console.warn('Could not refresh token:', refreshError);
+                        }
+                    }
                 }
+            } catch (e) {
+                console.warn('Invalid token format');
+                localStorage.removeItem('auth_token');
             }
-            throw new Error('No token found');
         }
+        return null;
     } catch (error) {
-        console.error('Failed to get auth token:', error);
-        // Trigger re-authentication
-        if (window.login) {
-            window.login();
-        } else {
-            alert('Please login to continue.');
-        }
-        throw error;
+        console.error('Error getting auth token:', error);
+        return null;
     }
 }
 
 /**
- * Sends a message to the chat API and processes the response
+ * Get user info from token
+ */
+async function getUserInfo() {
+    try {
+        const token = await getAuthToken();
+        if (token) {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            return {
+                id: payload.sub,
+                email: payload.email,
+                name: payload.name
+            };
+        }
+    } catch (error) {
+        console.error('Error getting user info:', error);
+    }
+    return null;
+}
+
+/**
+ * Send message to backend API
  */
 async function sendMessage() {
     const message = userInput.value.trim();
@@ -134,9 +158,6 @@ async function sendMessage() {
     chatHistory.push({ role: "user", content: message });
 
     try {
-        // Get authentication token
-        const token = await getAuthToken();
-        
         // Create new assistant response element
         const assistantMessageEl = document.createElement("div");
         assistantMessageEl.className = "message assistant-message";
@@ -147,288 +168,295 @@ async function sendMessage() {
         // Scroll to bottom
         chatMessages.scrollTop = chatMessages.scrollHeight;
 
-        // Send request to API with authentication
+        // Get auth token if available
+        const token = await getAuthToken();
+        const userInfo = await getUserInfo();
+
+        // Prepare request headers
+        const headers = {
+            "Content-Type": "application/json"
+        };
+
+        // Add auth header if token exists
+        if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        // Prepare request body
+        const requestBody = {
+            messages: chatHistory,
+            timestamp: new Date().toISOString(),
+            user_agent: navigator.userAgent
+        };
+
+        // Add user info if available
+        if (userInfo) {
+            requestBody.user_id = userInfo.id;
+            requestBody.user_email = userInfo.email;
+        }
+
+        // Send request to API
         const response = await fetch("/api/chat", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`
-            },
-            body: JSON.stringify({
-                messages: chatHistory,
-                user_id: await getUserId() // Optional: Send user ID for personalization
-            }),
+            headers: headers,
+            body: JSON.stringify(requestBody),
         });
 
         // Handle authentication errors
         if (response.status === 401) {
             // Token expired or invalid
             localStorage.removeItem('auth_token');
-            if (window.login) {
-                window.login();
-            }
-            throw new Error("Authentication required. Please login again.");
+            // Retry without auth token
+            return await retryRequestWithoutAuth(requestBody);
         }
 
         // Handle other errors
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`API Error: ${response.status} - ${errorText}`);
+            throw new Error(`API Error: ${response.status}`);
         }
-        
+
         if (!response.body) {
-            throw new Error("Response body is null");
+            throw new Error("No response body");
         }
 
         // Process streaming response
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let responseText = "";
-        let buffer = "";
-        const flushAssistantText = () => {
-            assistantTextEl.textContent = responseText;
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        };
+        await processStreamResponse(response, assistantTextEl);
 
-        let sawDone = false;
+    } catch (error) {
+        console.error("Chat error:", error);
+        handleChatError(error);
+    } finally {
+        // Clean up
+        typingIndicator.classList.remove("visible");
+        isProcessing = false;
+        userInput.disabled = false;
+        sendButton.disabled = false;
+        
+        // Re-focus input
+        setTimeout(() => userInput.focus(), 100);
+        
+        // Limit chat history (keep last 15 messages + initial greeting)
+        if (chatHistory.length > 16) {
+            chatHistory = [
+                chatHistory[0], // Keep initial greeting
+                ...chatHistory.slice(-15) // Keep last 15 messages
+            ];
+        }
+    }
+}
+
+/**
+ * Retry request without authentication
+ */
+async function retryRequestWithoutAuth(requestBody) {
+    try {
+        // Remove user info from request
+        delete requestBody.user_id;
+        delete requestBody.user_email;
+        
+        const response = await fetch("/api/chat", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(requestBody),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Retry failed: ${response.status}`);
+        }
+
+        return response;
+    } catch (retryError) {
+        throw new Error(`Could not complete request: ${retryError.message}`);
+    }
+}
+
+/**
+ * Process streaming response
+ */
+async function processStreamResponse(response, assistantTextEl) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let responseText = "";
+    let buffer = "";
+    
+    const flushAssistantText = () => {
+        assistantTextEl.textContent = responseText;
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    };
+
+    try {
         while (true) {
             const { done, value } = await reader.read();
 
             if (done) {
-                // Process any remaining complete events in buffer
-                const parsed = consumeSseEvents(buffer + "\n\n");
-                for (const data of parsed.events) {
-                    if (data === "[DONE]") {
-                        break;
-                    }
-                    try {
-                        const jsonData = JSON.parse(data);
-                        // Handle both Workers AI format (response) and OpenAI format (choices[0].delta.content)
-                        let content = "";
-                        if (
-                            typeof jsonData.response === "string" &&
-                            jsonData.response.length > 0
-                        ) {
-                            content = jsonData.response;
-                        } else if (jsonData.choices?.[0]?.delta?.content) {
-                            content = jsonData.choices[0].delta.content;
-                        }
-                        if (content) {
-                            responseText += content;
-                            flushAssistantText();
-                        }
-                    } catch (e) {
-                        console.error("Error parsing SSE data as JSON:", e, data);
-                    }
+                // Process any remaining data
+                const events = parseSSEEvents(buffer + "\n\n");
+                for (const data of events.events) {
+                    if (data === "[DONE]") break;
+                    processResponseData(data, responseText, flushAssistantText);
                 }
                 break;
             }
 
             // Decode chunk
             buffer += decoder.decode(value, { stream: true });
-            const parsed = consumeSseEvents(buffer);
-            buffer = parsed.buffer;
-            for (const data of parsed.events) {
+            const events = parseSSEEvents(buffer);
+            buffer = events.buffer;
+            
+            for (const data of events.events) {
                 if (data === "[DONE]") {
-                    sawDone = true;
                     buffer = "";
                     break;
                 }
-                try {
-                    const jsonData = JSON.parse(data);
-                    // Handle both Workers AI format (response) and OpenAI format (choices[0].delta.content)
-                    let content = "";
-                    if (
-                        typeof jsonData.response === "string" &&
-                        jsonData.response.length > 0
-                    ) {
-                        content = jsonData.response;
-                    } else if (jsonData.choices?.[0]?.delta?.content) {
-                        content = jsonData.choices[0].delta.content;
-                    }
-                    if (content) {
-                        responseText += content;
-                        flushAssistantText();
-                    }
-                } catch (e) {
-                    console.error("Error parsing SSE data as JSON:", e, data);
-                }
+                processResponseData(data, responseText, flushAssistantText);
             }
-            if (sawDone) {
-                break;
-            }
-        }
-
-        // Add completed response to chat history
-        if (responseText.length > 0) {
-            chatHistory.push({ role: "assistant", content: responseText });
-        }
-        
-        // Limit chat history to prevent token overflow (optional)
-        if (chatHistory.length > 20) {
-            chatHistory = [
-                chatHistory[0], // Keep initial greeting
-                ...chatHistory.slice(-19) // Keep last 19 messages
-            ];
-        }
-        
-    } catch (error) {
-        console.error("Error:", error);
-        
-        // Handle different types of errors
-        if (error.message.includes("Authentication") || error.message.includes("401")) {
-            addMessageToChat(
-                "assistant",
-                "⚠️ Authentication required. Please login to continue the conversation."
-            );
-            // Show login button
-            userInput.placeholder = "Click the Login button above to continue...";
-        } else if (error.message.includes("Failed to fetch")) {
-            addMessageToChat(
-                "assistant",
-                "🌐 Connection error. Please check your internet connection and try again."
-            );
-        } else {
-            addMessageToChat(
-                "assistant",
-                "Sorry, there was an error processing your request. Please try again."
-            );
         }
     } finally {
-        // Hide typing indicator
-        typingIndicator.classList.remove("visible");
+        reader.releaseLock();
+    }
 
-        // Re-enable input (if user is still authenticated)
-        isProcessing = false;
-        const token = localStorage.getItem('auth_token');
-        if (token) {
-            userInput.disabled = false;
-            sendButton.disabled = false;
-            userInput.focus();
-        } else {
-            // Keep disabled if not authenticated
-            userInput.placeholder = "Please login to access the gateway...";
-        }
+    // Add completed response to chat history
+    if (responseText.length > 0) {
+        chatHistory.push({ role: "assistant", content: responseText });
     }
 }
 
 /**
- * Helper function to add message to chat
+ * Process response data from SSE
  */
-function addMessageToChat(role, content) {
-    const messageEl = document.createElement("div");
-    messageEl.className = `message ${role}-message`;
-    
-    // Sanitize content to prevent XSS
-    const sanitizedContent = content
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;')
-        .replace(/\n/g, '<br>');
-    
-    messageEl.innerHTML = `<p>${sanitizedContent}</p>`;
-    chatMessages.appendChild(messageEl);
-
-    // Scroll to bottom
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-/**
- * Get user ID from Auth0 token
- */
-async function getUserId() {
+function processResponseData(data, responseText, flushCallback) {
     try {
-        const token = await getAuthToken();
-        if (token) {
-            // Decode JWT payload to get user info
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            return payload.sub || payload.email || 'anonymous';
+        const jsonData = JSON.parse(data);
+        let content = "";
+        
+        // Handle different response formats
+        if (typeof jsonData.response === "string" && jsonData.response.length > 0) {
+            content = jsonData.response;
+        } else if (jsonData.choices?.[0]?.delta?.content) {
+            content = jsonData.choices[0].delta.content;
+        } else if (jsonData.content) {
+            content = jsonData.content;
         }
-    } catch (error) {
-        console.error('Failed to get user ID:', error);
+        
+        if (content) {
+            responseText += content;
+            flushCallback();
+        }
+    } catch (e) {
+        console.warn("Could not parse SSE data:", e, data);
     }
-    return 'anonymous';
 }
 
 /**
- * SSE event parser
+ * Parse Server-Sent Events
  */
-function consumeSseEvents(buffer) {
+function parseSSEEvents(buffer) {
     let normalized = buffer.replace(/\r/g, "");
     const events = [];
     let eventEndIndex;
+    
     while ((eventEndIndex = normalized.indexOf("\n\n")) !== -1) {
         const rawEvent = normalized.slice(0, eventEndIndex);
         normalized = normalized.slice(eventEndIndex + 2);
 
         const lines = rawEvent.split("\n");
         const dataLines = [];
+        
         for (const line of lines) {
             if (line.startsWith("data:")) {
                 dataLines.push(line.slice("data:".length).trimStart());
             }
         }
+        
         if (dataLines.length === 0) continue;
         events.push(dataLines.join("\n"));
     }
+    
     return { events, buffer: normalized };
 }
 
 /**
- * Clear chat history (can be called from console or UI)
+ * Handle chat errors
  */
-function clearChat() {
-    chatHistory = [
-        {
-            role: "assistant",
-            content: "Welcome back! How can I assist you today?",
-        },
-    ];
-    chatMessages.innerHTML = '';
-    addMessageToChat("assistant", chatHistory[0].content);
+function handleChatError(error) {
+    let errorMessage = "Sorry, there was an error processing your request. Please try again.";
+    
+    if (error.message.includes("Failed to fetch")) {
+        errorMessage = "🌐 Connection error. Please check your internet connection.";
+    } else if (error.message.includes("401")) {
+        errorMessage = "⚠️ Session expired. You can continue chatting without login.";
+    } else if (error.message.includes("429")) {
+        errorMessage = "⏳ Too many requests. Please wait a moment before trying again.";
+    }
+    
+    addMessageToChat("assistant", errorMessage);
 }
 
 /**
- * Export functions for global access
+ * Add message to chat UI
+ */
+function addMessageToChat(role, content) {
+    const messageEl = document.createElement("div");
+    messageEl.className = `message ${role}-message`;
+    
+    // Format content with line breaks and basic sanitization
+    const formattedContent = content
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>')
+        .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: var(--secondary-color); text-decoration: underline;">$1</a>');
+    
+    messageEl.innerHTML = `<p>${formattedContent}</p>`;
+    chatMessages.appendChild(messageEl);
+
+    // Scroll to bottom with smooth animation
+    setTimeout(() => {
+        chatMessages.scrollTo({
+            top: chatMessages.scrollHeight,
+            behavior: 'smooth'
+        });
+    }, 100);
+}
+
+/**
+ * Clear chat history
+ */
+function clearChat() {
+    if (!confirm("Are you sure you want to clear the chat history?")) return;
+    
+    chatHistory = [
+        {
+            role: "assistant",
+            content: "Welcome back! How can I assist you today?"
+        },
+    ];
+    
+    chatMessages.innerHTML = '';
+    addMessageToChat("assistant", chatHistory[0].content);
+    
+    // Show notification
+    if (window.showNotification) {
+        window.showNotification("Chat cleared");
+    }
+}
+
+/**
+ * Export functions for debugging
  */
 window.chatFunctions = {
-    initializeChat,
+    sendMessage,
     clearChat,
-    sendMessage
+    getAuthToken,
+    getUserInfo,
+    chatHistory: () => chatHistory
 };
 
-// Initialize chat when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    // Check if we're authenticated
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-        initializeChat();
-    } else {
-        userInput.disabled = true;
-        userInput.placeholder = "Please login to access the gateway...";
-        sendButton.disabled = true;
-    }
-    
-    // Listen for authentication changes
-    window.addEventListener('storage', function(e) {
-        if (e.key === 'auth_token') {
-            if (e.newValue) {
-                initializeChat();
-            } else {
-                userInput.disabled = true;
-                userInput.placeholder = "Please login to access the gateway...";
-                sendButton.disabled = true;
-                chatMessages.innerHTML = '';
-                chatHistory = [
-                    {
-                        role: "assistant",
-                        content: "Welcome to the ELEENAI Gateway. Please login to continue.",
-                    },
-                ];
-                addMessageToChat("assistant", chatHistory[0].content);
-            }
-        }
-    });
+// Global error handler for chat
+window.addEventListener('error', function(e) {
+    console.error('Chat error:', e.error);
 });
+
+console.log('EleenAI Chat initialized successfully');
