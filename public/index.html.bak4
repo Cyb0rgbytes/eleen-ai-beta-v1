@@ -6,7 +6,6 @@
     <title>Eleen AI Chat Assistant</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* [Keep all your CSS exactly as before - it's good] */
         :root {
             --primary-color: #8a2be2;
             --primary-hover: #9b42f5;
@@ -622,208 +621,176 @@
         </footer>
     </div>
 
+    <!-- Auth0 SPA SDK -->
+    <script src="https://cdn.auth0.com/js/auth0-spa-js/2.1/auth0-spa-js.production.js"></script>
+    
     <!-- Chat app script -->
     <script src="chat.js"></script>
     
     <script>
-        // ============================================
-        // SIMPLIFIED AUTH0 IMPLEMENTATION
-        // ============================================
-        
         // Auth0 Configuration
-        const AUTH0_DOMAIN = 'eleenai.uk.auth0.com';
-        const CLIENT_ID = 'NkSrwOm9pE6JmNejx4A6kEsFN9XsbGcY';
-        const REDIRECT_URI = window.location.origin;
-        
-        // Simple notification function
+        const auth0Config = {
+            domain: 'eleenai.uk.auth0.com',
+            client_id: 'NkSrwOm9pE6JmNejx4A6kEsFN9XsbGcY',
+            authorizationParams: {
+                redirect_uri: window.location.origin,
+                audience: 'https://eleenai.uk.auth0.com/api/v2/',
+                scope: 'openid profile email'
+            }
+        };
+
+        // Global auth0 client instance
+        window.auth0Client = null;
+
+        // Show notification
         function showNotification(message, duration = 3000) {
             const notification = document.getElementById('auth-notification');
             const notificationText = document.getElementById('notification-text');
             
-            if (notification && notificationText) {
-                notificationText.textContent = message;
-                notification.style.display = 'flex';
-                
-                setTimeout(() => {
-                    notification.style.display = 'none';
-                }, duration);
-            } else {
-                console.log('Notification:', message);
-            }
+            notificationText.textContent = message;
+            notification.style.display = 'flex';
+            
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, duration);
         }
-        
-        // Parse URL hash fragment (for Auth0 callback)
-        function parseHashFragment() {
-            const hash = window.location.hash.substring(1);
-            if (!hash) return null;
-            
-            const params = new URLSearchParams(hash);
-            const accessToken = params.get('access_token');
-            const idToken = params.get('id_token');
-            const expiresIn = params.get('expires_in');
-            
-            if (accessToken) {
-                return {
-                    accessToken,
-                    idToken,
-                    expiresIn: parseInt(expiresIn || '86400')
-                };
-            }
-            return null;
-        }
-        
-        // Handle Auth0 callback
-        function handleAuthCallback() {
-            const authData = parseHashFragment();
-            
-            if (authData) {
-                // Store tokens
-                localStorage.setItem('auth_token', authData.accessToken);
-                localStorage.setItem('id_token', authData.idToken);
-                localStorage.setItem('token_expiry', Date.now() + (authData.expiresIn * 1000));
-                
-                // Clean URL
-                window.history.replaceState({}, document.title, window.location.pathname);
-                
-                // Update UI
-                updateAuthUI();
-                
-                showNotification('Login successful!');
-                return true;
-            }
-            return false;
-        }
-        
-        // Check if token is valid
-        function isTokenValid() {
-            const token = localStorage.getItem('auth_token');
-            const expiry = localStorage.getItem('token_expiry');
-            
-            if (!token) return false;
-            
-            if (expiry) {
-                const now = Date.now();
-                return now < parseInt(expiry);
-            }
-            
-            return true; // If no expiry, assume valid
-        }
-        
-        // Get user info from token
-        async function getUserInfo() {
-            const token = localStorage.getItem('auth_token');
-            
-            if (!token || !isTokenValid()) {
-                return null;
-            }
-            
+
+        // Initialize Auth0
+        async function initializeAuth0() {
             try {
-                // Decode JWT to get user info
-                const payload = token.split('.')[1];
-                const decoded = JSON.parse(atob(payload));
+                // Create Auth0 client
+                window.auth0Client = await createAuth0Client(auth0Config);
                 
-                return {
-                    name: decoded.name || decoded.nickname || decoded.email,
-                    email: decoded.email,
-                    picture: decoded.picture,
-                    id: decoded.sub
-                };
+                // Check for auth callback
+                const query = window.location.search;
+                if (query.includes('code=') || query.includes('error=')) {
+                    try {
+                        await window.auth0Client.handleRedirectCallback();
+                        showNotification('Successfully logged in!');
+                        // Clean URL
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    } catch (error) {
+                        console.error('Auth callback error:', error);
+                        showNotification('Login failed. Please try again.', 5000);
+                    }
+                }
+                
+                // Update UI based on auth state
+                await updateAuthUI();
+                
             } catch (error) {
-                console.error('Failed to decode token:', error);
-                return null;
+                console.error('Auth0 initialization error:', error);
+                // Continue without auth - chat still works
             }
         }
-        
+
         // Update authentication UI
         async function updateAuthUI() {
-            const loginButton = document.getElementById('login-button');
-            const logoutButton = document.getElementById('logout-button');
-            const userInfo = document.getElementById('user-info');
-            const userAvatar = document.getElementById('user-avatar');
-            const userName = document.getElementById('user-name');
-            
-            if (isTokenValid()) {
-                const user = await getUserInfo();
+            try {
+                if (!window.auth0Client) return;
                 
-                if (user) {
+                const isAuthenticated = await window.auth0Client.isAuthenticated();
+                const loginButton = document.getElementById('login-button');
+                const logoutButton = document.getElementById('logout-button');
+                const userInfo = document.getElementById('user-info');
+                const userInput = document.getElementById('user-input');
+                const sendButton = document.getElementById('send-button');
+                
+                if (isAuthenticated) {
                     // User is logged in
                     loginButton.style.display = 'none';
                     logoutButton.style.display = 'flex';
                     userInfo.style.display = 'flex';
                     
-                    userName.textContent = user.name || user.email || 'User';
-                    userAvatar.src = user.picture || 
-                        `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=8a2be2&color=fff`;
+                    // Get user profile
+                    const user = await window.auth0Client.getUser();
+                    document.getElementById('user-name').textContent = user.name || user.email;
+                    document.getElementById('user-avatar').src = user.picture || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(user.name || 'User');
                     
-                    // Enable enhanced features
-                    document.getElementById('user-input').placeholder = "Enter your query... (Enhanced features enabled)";
+                    // Get and store token
+                    try {
+                        const token = await window.auth0Client.getTokenSilently();
+                        localStorage.setItem('auth_token', token);
+                        console.log('Token obtained and stored');
+                    } catch (tokenError) {
+                        console.warn('Could not get token silently:', tokenError);
+                    }
+                    
+                } else {
+                    // User is not logged in
+                    loginButton.style.display = 'flex';
+                    logoutButton.style.display = 'none';
+                    userInfo.style.display = 'none';
+                    
+                    // Clear stored token
+                    localStorage.removeItem('auth_token');
                 }
-            } else {
-                // User is not logged in
-                loginButton.style.display = 'flex';
-                logoutButton.style.display = 'none';
-                userInfo.style.display = 'none';
                 
-                // Clear invalid tokens
-                localStorage.removeItem('auth_token');
-                localStorage.removeItem('id_token');
-                localStorage.removeItem('token_expiry');
+                // Always enable chat interface (works without login)
+                userInput.disabled = false;
+                sendButton.disabled = false;
+                userInput.placeholder = "Enter your query to open the gateway...";
                 
-                // Regular chat works without login
-                document.getElementById('user-input').placeholder = "Enter your query to open the gateway...";
+            } catch (error) {
+                console.error('Error updating auth UI:', error);
             }
-            
-            // Always enable chat (works without login)
-            document.getElementById('user-input').disabled = false;
-            document.getElementById('send-button').disabled = false;
         }
-        
-        // Login function - SIMPLE VERSION
-        function login() {
-            console.log('Starting login process...');
-            
-            // Direct Auth0 URL (no SDK needed)
-            const authUrl = `https://${AUTH0_DOMAIN}/authorize?` +
-                `response_type=token%20id_token&` +
-                `client_id=${CLIENT_ID}&` +
-                `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
-                `scope=openid%20profile%20email&` +
-                `nonce=${Math.random().toString(36).substring(2)}`;
-            
-            window.location.href = authUrl;
+
+        // Login function
+        async function login() {
+            try {
+                if (!window.auth0Client) {
+                    await initializeAuth0();
+                }
+                await window.auth0Client.loginWithRedirect({
+                    authorizationParams: {
+                        screen_hint: 'signup' // Shows signup option
+                    }
+                });
+            } catch (error) {
+                console.error('Login error:', error);
+                showNotification('Login failed. Please try again.', 5000);
+            }
         }
-        
+
         // Logout function
-        function logout() {
-            // Clear all auth data
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('id_token');
-            localStorage.removeItem('token_expiry');
-            
-            // Update UI
-            updateAuthUI();
-            
-            // Show notification
-            showNotification('Logged out successfully');
-            
-            // Optionally redirect to Auth0 logout
-            // const logoutUrl = `https://${AUTH0_DOMAIN}/v2/logout?client_id=${CLIENT_ID}&returnTo=${encodeURIComponent(REDIRECT_URI)}`;
-            // window.location.href = logoutUrl;
+        async function logout() {
+            try {
+                if (!window.auth0Client) {
+                    await initializeAuth0();
+                }
+                
+                // Clear local storage
+                localStorage.removeItem('auth_token');
+                
+                // Logout from Auth0
+                await window.auth0Client.logout({
+                    logoutParams: {
+                        returnTo: window.location.origin
+                    }
+                });
+                
+            } catch (error) {
+                console.error('Logout error:', error);
+                // Force clear UI anyway
+                await updateAuthUI();
+                showNotification('Logged out successfully');
+            }
         }
-        
-        // ============================================
-        // CHAT UI FUNCTIONALITY
-        // ============================================
-        
-        // Auto-resize textarea
-        function initChatUI() {
+
+        // Event listeners for auth buttons
+        document.getElementById('login-button').addEventListener('click', login);
+        document.getElementById('logout-button').addEventListener('click', logout);
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Auto-resize textarea
             const textarea = document.getElementById('user-input');
-            
             textarea.addEventListener('input', function () {
                 this.style.height = 'auto';
                 this.style.height = (this.scrollHeight) + 'px';
             });
-            
+
             // Send message on Enter (without Shift)
             textarea.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -834,54 +801,34 @@
                     }
                 }
             });
-            
+
             // Initial resize
             textarea.style.height = 'auto';
             textarea.style.height = (textarea.scrollHeight) + 'px';
+            
+            // Focus the input field
             textarea.focus();
-        }
-        
-        // ============================================
-        // INITIALIZATION
-        // ============================================
-        
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('EleenAI Gateway initializing...');
             
-            // Initialize chat UI
-            initChatUI();
+            // Initialize Auth0
+            await initializeAuth0();
             
-            // Handle Auth0 callback if present
-            if (handleAuthCallback()) {
-                console.log('Auth callback handled');
-            }
-            
-            // Update auth UI
-            updateAuthUI();
-            
-            // Set up button event listeners
-            document.getElementById('login-button').addEventListener('click', login);
-            document.getElementById('logout-button').addEventListener('click', logout);
-            
-            // Handle logo image error
-            const logoImg = document.querySelector('.logo-image');
-            if (logoImg) {
-                logoImg.addEventListener('error', function() {
-                    if (this.src.includes('/public/')) {
-                        this.src = 'logo.png';
-                    }
-                });
-            }
-            
-            console.log('EleenAI Gateway ready!');
+            // Show welcome message in console
+            console.log('EleenAI Gateway initialized. Chat ready!');
         });
-        
-        // Export functions for debugging
-        window.auth = {
+
+        // Handle logo image error fallback
+        const logoImg = document.querySelector('.logo-image');
+        logoImg.addEventListener('error', function() {
+            if (this.src.includes('/public/')) {
+                this.src = 'logo.png';
+            }
+        });
+
+        // Export functions for global access
+        window.authFunctions = {
             login,
             logout,
-            getUserInfo,
-            isTokenValid
+            updateAuthUI
         };
     </script>
 </body>
