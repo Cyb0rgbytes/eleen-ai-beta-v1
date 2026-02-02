@@ -32,5 +32,8 @@
 		"dev": "wrangler dev",
 		"start": "wrangler dev",
 		"test": "vitest"
+	},
+	"dependencies": {
+		"@auth0/nextjs-auth0": "^4.14.1"
 	}
 }

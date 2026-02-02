@@ -522,6 +522,28 @@
                 this.src = 'logo.png';
             }
         });
+
+	<html>
+  <body>
+    <button id="login">Login</button>
+
+    <script>
+      const AUTH0_DOMAIN = "eleenai.uk.auth0.com";
+      const CLIENT_ID = "NkSrwOm9pE6JmNejx4A6kEsFN9XsbGcY";
+      const REDIRECT_URI = window.location.origin + "/callback";
+
+      document.getElementById("login").onclick = () => {
+        window.location.href =
+          "https://" + AUTH0_DOMAIN + "/authorize?" +
+          "response_type=token id_token&" +
+          "client_id=" + CLIENT_ID + "&" +
+          "redirect_uri=" + encodeURIComponent(REDIRECT_URI) + "&" +
+          "scope=openid profile email";
+      };
+    </script>
+  </body>
+</html>
+
     </script>
 </body>
 </html>
