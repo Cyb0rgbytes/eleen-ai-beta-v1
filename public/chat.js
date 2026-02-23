@@ -85,8 +85,24 @@ async function sendMessage() {
             timestamp: new Date().toISOString()
         };
         
-        // Get auth token if available
-        const authToken = localStorage.getItem('auth_token');
+        // Get a fresh, short-lived session token from Clerk.
+        // This replaces the old manual localStorage approach which was unstable.
+        let authToken = null;
+        try {
+            if (window.Clerk?.session) {
+                authToken = await window.Clerk.session.getToken();
+            }
+        } catch (e) {
+            console.warn('Could not get Clerk session token:', e);
+        }
+        
+        if (!authToken) {
+            addMessageToChat('assistant', 'Please sign in to start chatting.');
+            isProcessing = false;
+            userInput.disabled = false;
+            sendButton.disabled = false;
+            return;
+        }
         
         // Prepare headers
         const headers = {
