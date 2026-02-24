@@ -7,7 +7,10 @@
 	"name": "eleen-ai-beta-v1",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-10-08",
-	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+	"compatibility_flags": [
+		"nodejs_compat",
+		"global_fetch_strictly_public"
+	],
 	"assets": {
 		"binding": "ASSETS",
 		"directory": "./public"
@@ -18,5 +21,11 @@
 	"ai": {
 		"binding": "AI"
 	},
-	"upload_source_maps": true
+	"upload_source_maps": true,
+	// Clerk Auth - Add your keys from https://dashboard.clerk.com
+	// For local dev, set these in a .dev.vars file (never commit secrets!)
+	// For production, set via: wrangler secret put CLERK_SECRET_KEY
+	"vars": {
+		"CLERK_PUBLISHABLE_KEY": "pk_test_cGxlYXNpbmctbW9sbHktODYuY2xlcmsuYWNjb3VudHMuZGV2JA"
+	}
 }

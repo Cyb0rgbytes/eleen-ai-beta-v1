@@ -1,0 +1,6 @@
+# Local development secrets for Wrangler
+# Copy this file to .dev.vars and fill in your actual keys.
+# NEVER commit .dev.vars to version control!
+# Get these keys from: https://dashboard.clerk.com
+CLERK_SECRET_KEY=sk_test_REPLACE_ME
+CLERK_PUBLISHABLE_KEY=pk_test_REPLACE_ME
