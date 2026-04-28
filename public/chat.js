@@ -1,6 +1,7 @@
 /**
  * EleenAI Chat Frontend
  * Simple, reliable chat functionality
+ * Supports both authenticated and guest (unauthenticated) users.
  */
 
 console.log('Chat.js loading...');
@@ -13,6 +14,41 @@ let chatHistory = [
     }
 ];
 let isProcessing = false;
+
+// Guest mode config
+const GUEST_MESSAGE_LIMIT = 15;
+const GUEST_STORAGE_KEY = 'eleen_guest_msg_count';
+
+/**
+ * Get guest message count from localStorage
+ */
+function getGuestMessageCount() {
+    try {
+        return parseInt(localStorage.getItem(GUEST_STORAGE_KEY) || '0', 10);
+    } catch (e) {
+        return 0;
+    }
+}
+
+/**
+ * Increment guest message count
+ */
+function incrementGuestMessageCount() {
+    try {
+        const count = getGuestMessageCount() + 1;
+        localStorage.setItem(GUEST_STORAGE_KEY, String(count));
+        return count;
+    } catch (e) {
+        return 0;
+    }
+}
+
+/**
+ * Check if user is authenticated via Clerk
+ */
+function isAuthenticated() {
+    return !!(window.Clerk?.session);
+}
 
 /**
  * Initialize chat
@@ -32,6 +68,40 @@ function initializeChat() {
     sendButton.addEventListener('click', sendMessage);
     
     console.log('Chat initialized successfully');
+}
+
+/**
+ * Show guest limit reached prompt in the chat
+ */
+function showGuestLimitPrompt() {
+    const chatMessages = document.getElementById('chat-messages');
+    if (!chatMessages) return;
+
+    const promptEl = document.createElement('div');
+    promptEl.className = 'guest-limit-prompt';
+    promptEl.innerHTML = `
+        <p><strong>✨ You've used all ${GUEST_MESSAGE_LIMIT} free messages!</strong><br>
+        Sign in to unlock unlimited conversations and enhanced features.</p>
+        <button class="auth-button" onclick="window.Clerk?.openSignIn()">
+            <i class="fas fa-sign-in-alt"></i>
+            <span>Sign In to Continue</span>
+        </button>
+    `;
+    chatMessages.appendChild(promptEl);
+
+    // Disable input
+    const userInput = document.getElementById('user-input');
+    const sendButton = document.getElementById('send-button');
+    if (userInput) {
+        userInput.disabled = true;
+        userInput.placeholder = 'Sign in to continue chatting...';
+    }
+    if (sendButton) sendButton.disabled = true;
+
+    // Scroll to bottom
+    setTimeout(() => {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }, 10);
 }
 
 /**
@@ -55,6 +125,16 @@ async function sendMessage() {
         return;
     }
     
+    // Check guest limit (only for unauthenticated users)
+    const authenticated = isAuthenticated();
+    if (!authenticated) {
+        const guestCount = getGuestMessageCount();
+        if (guestCount >= GUEST_MESSAGE_LIMIT) {
+            showGuestLimitPrompt();
+            return;
+        }
+    }
+
     console.log('Processing message:', message.substring(0, 50) + '...');
     
     // Update UI state
@@ -85,38 +165,33 @@ async function sendMessage() {
             timestamp: new Date().toISOString()
         };
         
-        // Get a fresh, short-lived session token from Clerk.
-        // This replaces the old manual localStorage approach which was unstable.
-        let authToken = null;
-        try {
-            if (window.Clerk?.session) {
-                authToken = await window.Clerk.session.getToken();
-            }
-        } catch (e) {
-            console.warn('Could not get Clerk session token:', e);
-        }
-        
-        if (!authToken) {
-            addMessageToChat('assistant', 'Please sign in to start chatting.');
-            isProcessing = false;
-            userInput.disabled = false;
-            sendButton.disabled = false;
-            return;
-        }
-        
-        // Prepare headers
+        // Determine endpoint and headers based on auth state
+        let endpoint = '/api/chat';
         const headers = {
             'Content-Type': 'application/json'
         };
-        
-        if (authToken) {
-            headers['Authorization'] = `Bearer ${authToken}`;
+
+        if (authenticated) {
+            // Authenticated: use the main endpoint with token
+            try {
+                const authToken = await window.Clerk.session.getToken();
+                if (authToken) {
+                    headers['Authorization'] = `Bearer ${authToken}`;
+                }
+            } catch (e) {
+                console.warn('Could not get Clerk session token:', e);
+            }
+        } else {
+            // Guest: use the guest endpoint (no auth required)
+            endpoint = '/api/chat/guest';
+            // Track guest message count
+            incrementGuestMessageCount();
         }
         
-        console.log('Sending request to /api/chat');
+        console.log(`Sending request to ${endpoint}`);
         
         // Send request
-        const response = await fetch('/api/chat', {
+        const response = await fetch(endpoint, {
             method: 'POST',
             headers: headers,
             body: JSON.stringify(requestData)
@@ -174,6 +249,24 @@ async function sendMessage() {
                 chatHistory[0],
                 ...chatHistory.slice(-19)
             ];
+        }
+
+        // After guest message, check if limit is now reached
+        if (!isAuthenticated()) {
+            const count = getGuestMessageCount();
+            if (count >= GUEST_MESSAGE_LIMIT) {
+                // Show remaining count warning on the next interaction
+                const userInputEl = document.getElementById('user-input');
+                if (userInputEl) {
+                    userInputEl.placeholder = 'Sign in for unlimited access...';
+                }
+            } else {
+                const remaining = GUEST_MESSAGE_LIMIT - count;
+                const userInputEl = document.getElementById('user-input');
+                if (userInputEl) {
+                    userInputEl.placeholder = `Ask me anything... (${remaining} free message${remaining !== 1 ? 's' : ''} left)`;
+                }
+            }
         }
     }
 }

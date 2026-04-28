@@ -33,6 +33,14 @@ export default {
 			return env.ASSETS.fetch(request);
 		}
 
+		// --- Guest chat route: no auth required ---
+		if (url.pathname === "/api/chat/guest") {
+			if (request.method === "POST") {
+				return handleChatRequest(request, env, "guest", 512);
+			}
+			return new Response("Method not allowed", { status: 405 });
+		}
+
 		// --- Auth Guard: verify Clerk session for all /api/ routes ---
 		const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY });
 
@@ -63,7 +71,7 @@ export default {
 		// --- Authenticated API Routes ---
 		if (url.pathname === "/api/chat") {
 			if (request.method === "POST") {
-				return handleChatRequest(request, env, userId);
+				return handleChatRequest(request, env, userId, 1024);
 			}
 			return new Response("Method not allowed", { status: 405 });
 		}
@@ -75,11 +83,13 @@ export default {
 /**
  * Handles chat API requests.
  * `userId` is available for future personalization (e.g., per-user history).
+ * `maxTokens` controls the response length (lower for guest users).
  */
 async function handleChatRequest(
 	request: Request,
 	env: Env,
 	userId: string,
+	maxTokens: number = 1024,
 ): Promise<Response> {
 	try {
 		const { messages = [] } = (await request.json()) as {
@@ -95,7 +105,7 @@ async function handleChatRequest(
 			MODEL_ID,
 			{
 				messages,
-				max_tokens: 1024,
+				max_tokens: maxTokens,
 				stream: true,
 			},
 		);
