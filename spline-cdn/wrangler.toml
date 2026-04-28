@@ -1,0 +1,14 @@
+```toml
+name       = "spline-cdn"
+main       = "src/index.js"
+compatibility_date = "2024-09-23"
+
+[[r2_buckets]]
+binding    = "SPLINE_BUCKET"
+bucket_name = "spline-assets"
+
+routes = [
+  { pattern = "eleenai.xyz/models/*",  zone_name = "eleenai.xyz" },
+  { pattern = "csecnix.com/models/*",  zone_name = "csecnix.com" },
+]
+```
