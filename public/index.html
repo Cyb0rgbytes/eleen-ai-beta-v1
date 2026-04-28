@@ -7,6 +7,11 @@
     <meta name="description" content="EleenAI — Your gateway to the realm of artificial intelligence. Chat with an AI assistant powered by CSECNIX Technologies.">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Preconnect to Spline CDN for faster 3D scene loading -->
+    <link rel="preconnect" href="https://prod.spline.design" crossorigin>
+    <link rel="preconnect" href="https://unpkg.com" crossorigin>
+    <link rel="dns-prefetch" href="https://prod.spline.design">
+    <link rel="dns-prefetch" href="https://unpkg.com">
     <script type="module" src="https://unpkg.com/@splinetool/viewer@1.12.88/build/spline-viewer.js"></script>
     <!-- Clerk JS SDK for Authentication -->
     <script 
@@ -81,22 +86,89 @@
             width: 100%;
             height: 100%;
             z-index: 0;
-            opacity: 0;
-            transition: opacity 2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-        }
-
-        #spline-bg.loaded {
-            opacity: 1;
         }
 
         #spline-bg spline-viewer {
             width: 100%;
             height: 100%;
             display: block;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        #spline-bg.loaded spline-viewer {
+            opacity: 1;
+        }
+
+        /* Animated loading placeholder — shows instantly while 3D loads */
+        #spline-bg::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background:
+                radial-gradient(ellipse at 30% 50%, rgba(108, 99, 255, 0.15) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 40%, rgba(0, 229, 255, 0.1) 0%, transparent 55%),
+                radial-gradient(ellipse at 50% 80%, rgba(255, 110, 199, 0.08) 0%, transparent 50%);
+            animation: placeholderPulse 3s ease-in-out infinite;
+            transition: opacity 0.8s ease;
+        }
+
+        #spline-bg.loaded::before {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        @keyframes placeholderPulse {
+            0%, 100% {
+                opacity: 0.6;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 1;
+                transform: scale(1.03);
+            }
+        }
+
+        /* Loading indicator dot */
+        #spline-loader {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: rgba(168, 168, 216, 0.5);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.7rem;
+            letter-spacing: 0.5px;
+            z-index: 3;
+            transition: opacity 0.5s ease;
+        }
+
+        #spline-loader.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #spline-loader .dot {
+            width: 6px;
+            height: 6px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            animation: loaderDot 1.2s ease-in-out infinite;
+        }
+
+        @keyframes loaderDot {
+            0%, 100% { opacity: 0.3; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
         }
 
         @media (prefers-reduced-motion: reduce) {
             #spline-bg { display: none; }
+            #spline-loader { display: none; }
         }
 
         .gateway-container {
@@ -665,6 +737,12 @@
         <spline-viewer url="https://prod.spline.design/Ei9RdBHHWiUIwPlz/scene.splinecode"></spline-viewer>
     </div>
 
+    <!-- Loading indicator -->
+    <div id="spline-loader">
+        <span class="dot"></span>
+        Loading 3D scene
+    </div>
+
     <div class="gateway-glow"></div>
     
     <div class="gateway-container">
@@ -866,17 +944,17 @@
 
             // Spline 3D background fade-in
             const splineBg = document.getElementById('spline-bg');
+            const splineLoader = document.getElementById('spline-loader');
             if (splineBg) {
                 const viewer = splineBg.querySelector('spline-viewer');
+                const onLoaded = () => {
+                    splineBg.classList.add('loaded');
+                    if (splineLoader) splineLoader.classList.add('hidden');
+                };
                 if (viewer) {
-                    // Fade in once the spline scene fires its load event
-                    viewer.addEventListener('load', () => {
-                        splineBg.classList.add('loaded');
-                    });
-                    // Fallback: fade in after 6s even if the event doesn't fire
-                    setTimeout(() => {
-                        splineBg.classList.add('loaded');
-                    }, 6000);
+                    viewer.addEventListener('load', onLoaded);
+                    // Shorter fallback — show after 3s even if event doesn't fire
+                    setTimeout(onLoaded, 3000);
                 }
             }
 
