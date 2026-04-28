@@ -255,7 +255,9 @@ async function sendMessage() {
         
             if (contentType && contentType.includes('text/event-stream')) {
                 // Handle streaming response
-                await handleStreamResponse(response);
+                const streamedText = await handleStreamResponse(response);
+                // Check for image generation tags in streamed response
+                await processImageTags(streamedText, authenticated);
             } else {
                 // Handle JSON response
                 const data = await response.json();
@@ -263,6 +265,8 @@ async function sendMessage() {
                 
                 addMessageToChat('assistant', responseText);
                 chatHistory.push({ role: 'assistant', content: responseText });
+                // Check for image generation tags
+                await processImageTags(responseText, authenticated);
             }
         } // end else (regular chat flow)
     } catch (error) {
@@ -387,6 +391,72 @@ async function handleStreamResponse(response) {
         if (responseText.trim()) {
             chatHistory.push({ role: 'assistant', content: responseText });
             console.log('Added response to history');
+        }
+    }
+
+    return responseText;
+}
+
+/**
+ * Process [IMG_GEN]prompt[/IMG_GEN] tags in AI responses.
+ * When detected, automatically generates and displays the image.
+ */
+async function processImageTags(text, authenticated) {
+    const imgTagRegex = /\[IMG_GEN\](.*?)\[\/IMG_GEN\]/gs;
+    const match = imgTagRegex.exec(text);
+    
+    if (!match) return;
+    
+    const imagePrompt = match[1].trim();
+    if (!imagePrompt) return;
+    
+    console.log(`Auto-generating image from tag: "${imagePrompt}"`);
+    
+    // Show generating indicator
+    const typingIndicator = document.getElementById('typing-indicator');
+    if (typingIndicator) {
+        typingIndicator.textContent = '🎨 Generating image...';
+        typingIndicator.classList.add('visible');
+    }
+    
+    try {
+        // Determine endpoint based on auth state
+        let imgEndpoint = '/api/image/generate';
+        const imgHeaders = { 'Content-Type': 'application/json' };
+        
+        if (authenticated) {
+            try {
+                const authToken = await window.Clerk.session.getToken();
+                if (authToken) {
+                    imgHeaders['Authorization'] = `Bearer ${authToken}`;
+                }
+            } catch (e) {
+                console.warn('Could not get Clerk session token:', e);
+            }
+        } else {
+            imgEndpoint = '/api/image/generate/guest';
+        }
+        
+        const response = await fetch(imgEndpoint, {
+            method: 'POST',
+            headers: imgHeaders,
+            body: JSON.stringify({ prompt: imagePrompt })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Image generation failed: HTTP ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        const imageUrl = URL.createObjectURL(blob);
+        addImageToChat(imageUrl, imagePrompt);
+        
+    } catch (error) {
+        console.error('Auto image generation failed:', error);
+        addMessageToChat('assistant', '⚠️ Image generation failed. Please try again.');
+    } finally {
+        if (typingIndicator) {
+            typingIndicator.classList.remove('visible');
         }
     }
 }
