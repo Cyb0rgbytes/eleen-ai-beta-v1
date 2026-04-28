@@ -142,6 +142,9 @@ async function sendMessage() {
     userInput.disabled = true;
     sendButton.disabled = true;
     
+    // Check if this is an image generation command
+    const isImageCommand = message.toLowerCase().startsWith('/imagine ');
+
     try {
         // Add user message to UI
         addMessageToChat('user', message);
@@ -153,71 +156,115 @@ async function sendMessage() {
         // Show typing indicator
         const typingIndicator = document.getElementById('typing-indicator');
         if (typingIndicator) {
+            typingIndicator.textContent = isImageCommand 
+                ? '🎨 Generating image...' 
+                : 'Opening gateway to the AI Chat Realm...';
             typingIndicator.classList.add('visible');
         }
         
         // Add to history
         chatHistory.push({ role: 'user', content: message });
-        
-        // Prepare request
-        const requestData = {
-            messages: chatHistory,
-            timestamp: new Date().toISOString()
-        };
-        
-        // Determine endpoint and headers based on auth state
-        let endpoint = '/api/chat';
-        const headers = {
-            'Content-Type': 'application/json'
-        };
 
-        if (authenticated) {
-            // Authenticated: use the main endpoint with token
-            try {
-                const authToken = await window.Clerk.session.getToken();
-                if (authToken) {
-                    headers['Authorization'] = `Bearer ${authToken}`;
-                }
-            } catch (e) {
-                console.warn('Could not get Clerk session token:', e);
-            }
-        } else {
-            // Guest: use the guest endpoint (no auth required)
-            endpoint = '/api/chat/guest';
-            // Track guest message count
-            incrementGuestMessageCount();
-        }
-        
-        console.log(`Sending request to ${endpoint}`);
-        
-        // Send request
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(requestData)
-        });
-        
-        console.log('Response status:', response.status);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        // Handle response
-        const contentType = response.headers.get('content-type');
-        
-        if (contentType && contentType.includes('text/event-stream')) {
-            // Handle streaming response
-            await handleStreamResponse(response);
-        } else {
-            // Handle JSON response
-            const data = await response.json();
-            const responseText = data.response || data.choices?.[0]?.message?.content || data.content || 'I received your message.';
+        if (isImageCommand) {
+            // --- IMAGE GENERATION FLOW ---
+            const prompt = message.substring('/imagine '.length).trim();
             
-            addMessageToChat('assistant', responseText);
-            chatHistory.push({ role: 'assistant', content: responseText });
-        }
+            // Determine endpoint based on auth state
+            let imgEndpoint = '/api/image/generate';
+            const imgHeaders = { 'Content-Type': 'application/json' };
+
+            if (authenticated) {
+                try {
+                    const authToken = await window.Clerk.session.getToken();
+                    if (authToken) {
+                        imgHeaders['Authorization'] = `Bearer ${authToken}`;
+                    }
+                } catch (e) {
+                    console.warn('Could not get Clerk session token:', e);
+                }
+            } else {
+                imgEndpoint = '/api/image/generate/guest';
+                incrementGuestMessageCount();
+            }
+
+            console.log(`Generating image: "${prompt}"`);
+
+            const response = await fetch(imgEndpoint, {
+                method: 'POST',
+                headers: imgHeaders,
+                body: JSON.stringify({ prompt })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Image generation failed: HTTP ${response.status}`);
+            }
+
+            const blob = await response.blob();
+            const imageUrl = URL.createObjectURL(blob);
+            addImageToChat(imageUrl, prompt);
+            chatHistory.push({ role: 'assistant', content: `[Generated image: ${prompt}]` });
+
+        } else {
+            // --- REGULAR CHAT FLOW ---
+            // Prepare request
+            const requestData = {
+                messages: chatHistory,
+                timestamp: new Date().toISOString()
+            };
+            
+            // Determine endpoint and headers based on auth state
+            let endpoint = '/api/chat';
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+
+            if (authenticated) {
+                // Authenticated: use the main endpoint with token
+                try {
+                    const authToken = await window.Clerk.session.getToken();
+                    if (authToken) {
+                        headers['Authorization'] = `Bearer ${authToken}`;
+                    }
+                } catch (e) {
+                    console.warn('Could not get Clerk session token:', e);
+                }
+            } else {
+                // Guest: use the guest endpoint (no auth required)
+                endpoint = '/api/chat/guest';
+                // Track guest message count
+                incrementGuestMessageCount();
+            }
+            
+            console.log(`Sending request to ${endpoint}`);
+            
+            // Send request
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(requestData)
+            });
         
+            console.log('Response status:', response.status);
+        
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        
+            // Handle response
+            const contentType = response.headers.get('content-type');
+        
+            if (contentType && contentType.includes('text/event-stream')) {
+                // Handle streaming response
+                await handleStreamResponse(response);
+            } else {
+                // Handle JSON response
+                const data = await response.json();
+                const responseText = data.response || data.choices?.[0]?.message?.content || data.content || 'I received your message.';
+                
+                addMessageToChat('assistant', responseText);
+                chatHistory.push({ role: 'assistant', content: responseText });
+            }
+        } // end else (regular chat flow)
     } catch (error) {
         console.error('Error in sendMessage:', error);
         
@@ -365,6 +412,33 @@ function addMessageToChat(role, content) {
         .replace(/\n/g, '<br>');
     
     messageEl.innerHTML = `<p>${formattedContent}</p>`;
+    chatMessages.appendChild(messageEl);
+    
+    // Scroll to bottom
+    setTimeout(() => {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }, 10);
+}
+
+/**
+ * Add generated image to chat UI
+ */
+function addImageToChat(imageUrl, prompt) {
+    const chatMessages = document.getElementById('chat-messages');
+    
+    if (!chatMessages) {
+        console.error('Chat messages element not found!');
+        return;
+    }
+    
+    const messageEl = document.createElement('div');
+    messageEl.className = 'message assistant-message';
+    messageEl.innerHTML = `
+        <div class="chat-image-wrapper">
+            <img src="${imageUrl}" alt="${prompt}" class="chat-image" onclick="window.open('${imageUrl}', '_blank')" />
+            <p class="chat-image-caption">🎨 <em>${prompt}</em></p>
+        </div>
+    `;
     chatMessages.appendChild(messageEl);
     
     // Scroll to bottom

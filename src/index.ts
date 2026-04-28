@@ -9,9 +9,12 @@
 import { createClerkClient } from "@clerk/backend";
 import { Env, ChatMessage } from "./types";
 
-// Model ID for Workers AI model
+// Model ID for Workers AI text model
 // See: https://developers.cloudflare.com/workers-ai/models/
 const MODEL_ID = "@cf/meta/llama-3.1-8b-instruct-fp8";
+
+// Model ID for Workers AI image generation
+const IMAGE_MODEL_ID = "@cf/black-forest-labs/flux-1-schnell";
 
 // Default system prompt
 const SYSTEM_PROMPT =
@@ -37,6 +40,14 @@ export default {
 		if (url.pathname === "/api/chat/guest") {
 			if (request.method === "POST") {
 				return handleChatRequest(request, env, "guest", 512);
+			}
+			return new Response("Method not allowed", { status: 405 });
+		}
+
+		// --- Guest image generation: no auth required ---
+		if (url.pathname === "/api/image/generate/guest") {
+			if (request.method === "POST") {
+				return handleImageGenerate(request, env);
 			}
 			return new Response("Method not allowed", { status: 405 });
 		}
@@ -72,6 +83,13 @@ export default {
 		if (url.pathname === "/api/chat") {
 			if (request.method === "POST") {
 				return handleChatRequest(request, env, userId, 1024);
+			}
+			return new Response("Method not allowed", { status: 405 });
+		}
+
+		if (url.pathname === "/api/image/generate") {
+			if (request.method === "POST") {
+				return handleImageGenerate(request, env);
 			}
 			return new Response("Method not allowed", { status: 405 });
 		}
@@ -121,6 +139,50 @@ async function handleChatRequest(
 		console.error("Error processing chat request:", error);
 		return new Response(
 			JSON.stringify({ error: "Failed to process request" }),
+			{
+				status: 500,
+				headers: { "content-type": "application/json" },
+			},
+		);
+	}
+}
+/**
+ * Handles image generation requests.
+ * Uses Flux-1-Schnell for fast text-to-image generation.
+ */
+async function handleImageGenerate(
+	request: Request,
+	env: Env,
+): Promise<Response> {
+	try {
+		const { prompt } = (await request.json()) as { prompt: string };
+
+		if (!prompt || prompt.trim().length === 0) {
+			return new Response(
+				JSON.stringify({ error: "Prompt is required" }),
+				{
+					status: 400,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		}
+
+		const result = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
+			prompt: prompt.trim(),
+			num_steps: 4,
+		});
+
+		// result is image bytes from the Flux model
+		return new Response(result as ReadableStream, {
+			headers: {
+				"content-type": "image/png",
+				"cache-control": "public, max-age=3600",
+			},
+		});
+	} catch (error) {
+		console.error("Error generating image:", error);
+		return new Response(
+			JSON.stringify({ error: "Failed to generate image" }),
 			{
 				status: 500,
 				headers: { "content-type": "application/json" },
