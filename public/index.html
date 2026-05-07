@@ -12,11 +12,13 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Preconnect to R2 for faster 3D scene loading -->
-    <link rel="preconnect" href="https://pub-ccb4a15f7d9f41658dcb3f3213a4ce3f.r2.dev" crossorigin>
+    <!-- Preconnect to asset CDN and Spline viewer host for faster 3D scene loading -->
+    <link rel="preconnect" href="https://assets.eleenai.xyz" crossorigin>
     <link rel="preconnect" href="https://unpkg.com" crossorigin>
-    <link rel="dns-prefetch" href="https://pub-ccb4a15f7d9f41658dcb3f3213a4ce3f.r2.dev">
+    <link rel="dns-prefetch" href="https://assets.eleenai.xyz">
     <link rel="dns-prefetch" href="https://unpkg.com">
+    <!-- Prefetch the .spline file so the download starts before the viewer JS even loads -->
+    <link rel="prefetch" href="https://assets.eleenai.xyz/r_4_x_bot.spline" as="fetch" crossorigin>
     <script type="module" src="https://unpkg.com/@splinetool/viewer@1.12.88/build/spline-viewer.js" fetchpriority="high"></script>
     <!-- Clerk JS SDK for Authentication -->
     <script 
@@ -852,7 +854,7 @@
     
     <!-- Spline 3D Background (interactive, mouse-responsive) loaded from R2 -->
     <div id="spline-bg">
-        <spline-viewer url="https://pub-ccb4a15f7d9f41658dcb3f3213a4ce3f.r2.dev/r_4_x_bot.spline"></spline-viewer>
+        <spline-viewer loading="eager" url="https://assets.eleenai.xyz/r_4_x_bot.spline"></spline-viewer>
     </div>
 
     <!-- Loading indicator -->
