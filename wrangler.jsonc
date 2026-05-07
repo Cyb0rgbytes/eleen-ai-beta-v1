@@ -24,8 +24,7 @@
 	"kv_namespaces": [
 		{
 			"binding": "ELEEN_MEMORY",
-			// TODO: Replace with real ID from `npx wrangler kv:namespace create ELEEN_MEMORY`
-			"id": "TO_BE_CREATED"
+			"id": "66feaec842224318820adb53c0c99492"
 		}
 	],
 	"upload_source_maps": true,
