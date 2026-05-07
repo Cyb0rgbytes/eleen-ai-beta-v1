@@ -27,7 +27,6 @@
         type="text/javascript">
     </script>
     <style>
-        /* [Keep all your CSS exactly as before - it's good] */
         :root {
             --primary-color: #6C63FF;
             --primary-hover: #8B83FF;
@@ -66,6 +65,8 @@
             position: relative;
             overflow-x: hidden;
             background: var(--dark-bg);
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
         }
 
         body::before {
@@ -384,7 +385,6 @@
         }
 
         .message p {
-            white-space: pre-line;
             margin: 0;
             overflow-wrap: anywhere;
             line-height: 1.7;
@@ -489,7 +489,6 @@
         }
         .message-feedback button:hover { color: var(--text-color); transform: scale(1.1); }
         .message-feedback button.active { color: var(--secondary-color); }
-
 
         .message-input {
             display: flex;

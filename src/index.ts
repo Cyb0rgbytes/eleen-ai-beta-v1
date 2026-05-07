@@ -13,8 +13,11 @@ import { Env, ChatMessage } from "./types";
 // See: https://developers.cloudflare.com/workers-ai/models/
 const MODEL_ID = "@cf/meta/llama-3.1-8b-instruct-fp8";
 
-// Model ID for Workers AI image generation
-const IMAGE_MODEL_ID = "@cf/black-forest-labs/flux-1-schnell";
+// Fallback image model when Gemini is unavailable
+const FALLBACK_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell";
+
+// Maximum size for stored memory profile (bytes)
+const MAX_MEMORY_SIZE = 2048;
 
 // Advanced System prompt with personality, memory, and multi-modal instructions
 const SYSTEM_PROMPT = `You are EleenAI, an advanced, highly intelligent, and friendly AI assistant powered by CSECNIX Technologies.
@@ -136,17 +139,19 @@ async function handleChatRequest(
 		};
 
 		// 1. Contextual Memory Injection
-		let memoryContext = "";
+		let rawMemory = "";
 		if (userId !== "guest" && env.ELEEN_MEMORY) {
 			try {
-				const memory = await env.ELEEN_MEMORY.get(userId);
-				if (memory) {
-					memoryContext = `\n\nCONTEXT FROM PREVIOUS SESSIONS (DO NOT explicitly mention you are reading this unless relevant):\n${memory}`;
-				}
+				rawMemory = (await env.ELEEN_MEMORY.get(userId)) || "";
 			} catch (e) {
 				console.warn("Could not fetch memory for user", userId, e);
 			}
 		}
+
+		// Build the memory context string that gets appended to the system prompt
+		const memoryContext = rawMemory
+			? `\n\nCONTEXT FROM PREVIOUS SESSIONS (DO NOT explicitly mention you are reading this unless relevant):\n${rawMemory}`
+			: "";
 
 		// Prepend system prompt only if not already present
 		if (!messages.some((msg) => msg.role === "system")) {
@@ -164,8 +169,9 @@ async function handleChatRequest(
 		);
 
 		// 3. Background Memory Update (Non-blocking)
+		// Pass rawMemory (the clean KV value) so comparison works correctly
 		if (userId !== "guest" && env.ELEEN_MEMORY) {
-			ctx.waitUntil(updateMemory(env, userId, messages, memoryContext));
+			ctx.waitUntil(updateMemory(env, userId, messages, rawMemory));
 		}
 
 		return new Response(stream, {
@@ -188,39 +194,55 @@ async function handleChatRequest(
 }
 
 /**
- * Background task to update user's long-term memory in KV
+ * Background task to update user's long-term memory in KV.
+ * Runs via ctx.waitUntil() so it never blocks the response stream.
+ *
+ * @param rawMemory - The raw string stored in KV (without any prompt prefix).
  */
-async function updateMemory(env: Env, userId: string, messages: ChatMessage[], currentMemory: string) {
+async function updateMemory(
+	env: Env,
+	userId: string,
+	messages: ChatMessage[],
+	rawMemory: string,
+) {
 	try {
-		// Only consider the last few interactions to find new information
+		// Only consider the last few user/assistant turns
 		const recentMessages = messages
-			.filter(m => m.role !== 'system')
+			.filter(m => m.role !== "system")
 			.slice(-4)
 			.map(m => `${m.role.toUpperCase()}: ${m.content}`)
-			.join('\n');
-		
-		const summaryPrompt = `You are a memory manager for an AI assistant. 
-Current Memory Profile: ${currentMemory || 'None'}
+			.join("\n");
+
+		if (!recentMessages.trim()) return;
+
+		const summaryPrompt = `You are a memory manager for an AI assistant.
+Current Memory Profile: ${rawMemory || "None"}
 Recent Conversation:
 ${recentMessages}
 
-Extract any NEW important facts about the user, their preferences, their name, or the core topics discussed. 
-Keep the profile extremely concise, bulleted, and in third-person. 
+Extract any NEW important facts about the user, their preferences, their name, or the core topics discussed.
+Keep the profile extremely concise, bulleted, and in third-person.
 If there is nothing new or important to add, output the Current Memory Profile exactly as is.`;
 
 		const response = await env.AI.run(MODEL_ID, {
 			messages: [{ role: "user", content: summaryPrompt }],
-			max_tokens: 256
+			max_tokens: 256,
 		});
-		
+
 		const newMemory = (response as any).response;
-		if (newMemory && newMemory.trim() !== currentMemory.trim()) {
-			await env.ELEEN_MEMORY.put(userId, newMemory.trim());
+		if (!newMemory || !newMemory.trim()) return;
+
+		const trimmed = newMemory.trim();
+
+		// Only write if the memory actually changed AND is within size limits
+		if (trimmed !== rawMemory.trim() && trimmed.length <= MAX_MEMORY_SIZE) {
+			await env.ELEEN_MEMORY.put(userId, trimmed);
 		}
 	} catch (e) {
-		console.error("Memory update failed", e);
+		console.error("Memory update failed:", e);
 	}
 }
+
 /**
  * Handles image generation requests.
  * Attempts to use Gemini 2.5 Flash, falls back to Flux-1-Schnell if Gemini fails or is unconfigured.
@@ -239,31 +261,31 @@ async function handleImageGenerate(
 			);
 		}
 
-		// Try Gemini First if API key is present
+		// Try Gemini first if API key is present
 		if (env.GEMINI_API_KEY) {
 			try {
 				const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`;
-				
+
 				const geminiResponse = await fetch(geminiUrl, {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
 						contents: [{ parts: [{ text: `Generate a high quality, detailed image exactly as described: ${prompt.trim()}` }] }],
 						generationConfig: {
-							responseModalities: ["IMAGE"]
-						}
-					})
+							responseModalities: ["IMAGE"],
+						},
+					}),
 				});
 
 				if (geminiResponse.ok) {
 					const data = await geminiResponse.json() as any;
 					const parts = data.candidates?.[0]?.content?.parts;
 					const imagePart = parts?.find((p: any) => p.inlineData);
-					
-					if (imagePart && imagePart.inlineData) {
+
+					if (imagePart?.inlineData) {
 						const base64Data = imagePart.inlineData.data;
 						const mimeType = imagePart.inlineData.mimeType || "image/jpeg";
-						
+
 						// Convert base64 to binary ArrayBuffer
 						const binaryString = atob(base64Data);
 						const bytes = new Uint8Array(binaryString.length);
@@ -279,7 +301,7 @@ async function handleImageGenerate(
 						});
 					}
 				} else {
-					console.warn("Gemini API failed or rejected image generation, falling back to Flux.", await geminiResponse.text());
+					console.warn("Gemini API rejected request, falling back to Flux:", geminiResponse.status);
 				}
 			} catch (geminiError) {
 				console.error("Gemini generation error:", geminiError);
@@ -289,12 +311,11 @@ async function handleImageGenerate(
 
 		// Fallback to Cloudflare Workers AI Flux-1-Schnell
 		console.log("Using Flux-1-Schnell for image generation");
-		const result = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
+		const result = await env.AI.run(FALLBACK_IMAGE_MODEL, {
 			prompt: prompt.trim(),
 			num_steps: 4,
 		});
 
-		// result is image bytes from the Flux model
 		return new Response(result as ReadableStream, {
 			headers: {
 				"content-type": "image/png",

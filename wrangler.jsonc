@@ -24,7 +24,8 @@
 	"kv_namespaces": [
 		{
 			"binding": "ELEEN_MEMORY",
-			"id": "placeholder_for_kv_id_will_be_auto_created" // This is fine for dev/local, wrangler prompts to create it or handles it. Actually, for wrangler deploy to work, you need a real ID, but we'll leave it as a placeholder and let wrangler guide the user or assume it'll be updated. Wait, for dev it works without an ID, or we can use preview_id.
+			// TODO: Replace with real ID from `npx wrangler kv:namespace create ELEEN_MEMORY`
+			"id": "TO_BE_CREATED"
 		}
 	],
 	"upload_source_maps": true,
