@@ -16,9 +16,19 @@ const MODEL_ID = "@cf/meta/llama-3.1-8b-instruct-fp8";
 // Model ID for Workers AI image generation
 const IMAGE_MODEL_ID = "@cf/black-forest-labs/flux-1-schnell";
 
-// Default system prompt with image generation capability
-const SYSTEM_PROMPT = `You are a helpful, friendly assistant called EleenAI. Provide concise and accurate responses.
+// Advanced System prompt with personality, memory, and multi-modal instructions
+const SYSTEM_PROMPT = `You are EleenAI, an advanced, highly intelligent, and friendly AI assistant powered by CSECNIX Technologies.
 
+CORE CAPABILITIES & PERSONALITY:
+1. Tone Adaptation: Adjust your tone to match the user. Be professional, casual, or technical as appropriate. Always be concise but incredibly helpful.
+2. Multi-turn Reasoning: Think step-by-step for complex queries. Reference previous parts of the conversation.
+3. Graceful Fallback: If you don't know something, or cannot perform an action (like browsing the live internet or executing external code), state it clearly. Do not hallucinate.
+4. Proactive Suggestions: Anticipate what the user might want next. At the end of your response, you can optionally provide 1-3 follow-up suggestions using the format: [SUGGEST]Option 1|Option 2[/SUGGEST].
+
+RICH RESPONSES:
+Use Markdown extensively! Use **bold** for emphasis, \`code\` for technical terms, and \`\`\`language blocks\`\`\` for code. Use bullet points and headers to make your responses scannable.
+
+IMAGE GENERATION:
 You have the ability to generate images. When the user asks you to create, generate, draw, design, make, paint, or produce any kind of image, picture, illustration, photo, artwork, or visual, you MUST respond with exactly this format:
 
 [IMG_GEN]a detailed description of the image to generate[/IMG_GEN]
@@ -26,9 +36,9 @@ You have the ability to generate images. When the user asks you to create, gener
 Include a brief friendly message before the tag. For example:
 "Here's your image! [IMG_GEN]a majestic golden retriever sitting in a sunlit meadow with wildflowers, photorealistic, warm lighting[/IMG_GEN]"
 
-Make the description inside the tag detailed and descriptive for best image quality. Always include style hints like "photorealistic", "digital art", "anime style", etc.
+Make the description inside the tag highly detailed and descriptive for best image quality. Always include style hints like "photorealistic", "digital art", "anime style", "cinematic lighting", etc.
 
-If the user is NOT asking for an image, respond normally without the tag.`;
+If the user is NOT asking for an image, respond normally without the [IMG_GEN] tag.`;
 
 export default {
 	/**
@@ -49,7 +59,7 @@ export default {
 		// --- Guest chat route: no auth required ---
 		if (url.pathname === "/api/chat/guest") {
 			if (request.method === "POST") {
-				return handleChatRequest(request, env, "guest", 512);
+				return handleChatRequest(request, env, ctx, "guest", 512);
 			}
 			return new Response("Method not allowed", { status: 405 });
 		}
@@ -92,7 +102,7 @@ export default {
 		// --- Authenticated API Routes ---
 		if (url.pathname === "/api/chat") {
 			if (request.method === "POST") {
-				return handleChatRequest(request, env, userId, 1024);
+				return handleChatRequest(request, env, ctx, userId, 1024);
 			}
 			return new Response("Method not allowed", { status: 405 });
 		}
@@ -110,12 +120,13 @@ export default {
 
 /**
  * Handles chat API requests.
- * `userId` is available for future personalization (e.g., per-user history).
- * `maxTokens` controls the response length (lower for guest users).
+ * `userId` is used for personalized memory across sessions.
+ * `maxTokens` controls the response length.
  */
 async function handleChatRequest(
 	request: Request,
 	env: Env,
+	ctx: ExecutionContext,
 	userId: string,
 	maxTokens: number = 1024,
 ): Promise<Response> {
@@ -124,11 +135,25 @@ async function handleChatRequest(
 			messages: ChatMessage[];
 		};
 
-		// Prepend system prompt only if not already present
-		if (!messages.some((msg) => msg.role === "system")) {
-			messages.unshift({ role: "system", content: SYSTEM_PROMPT });
+		// 1. Contextual Memory Injection
+		let memoryContext = "";
+		if (userId !== "guest" && env.ELEEN_MEMORY) {
+			try {
+				const memory = await env.ELEEN_MEMORY.get(userId);
+				if (memory) {
+					memoryContext = `\n\nCONTEXT FROM PREVIOUS SESSIONS (DO NOT explicitly mention you are reading this unless relevant):\n${memory}`;
+				}
+			} catch (e) {
+				console.warn("Could not fetch memory for user", userId, e);
+			}
 		}
 
+		// Prepend system prompt only if not already present
+		if (!messages.some((msg) => msg.role === "system")) {
+			messages.unshift({ role: "system", content: SYSTEM_PROMPT + memoryContext });
+		}
+
+		// 2. Run the AI Model
 		const stream = await env.AI.run(
 			MODEL_ID,
 			{
@@ -137,6 +162,11 @@ async function handleChatRequest(
 				stream: true,
 			},
 		);
+
+		// 3. Background Memory Update (Non-blocking)
+		if (userId !== "guest" && env.ELEEN_MEMORY) {
+			ctx.waitUntil(updateMemory(env, userId, messages, memoryContext));
+		}
 
 		return new Response(stream, {
 			headers: {
@@ -156,9 +186,44 @@ async function handleChatRequest(
 		);
 	}
 }
+
+/**
+ * Background task to update user's long-term memory in KV
+ */
+async function updateMemory(env: Env, userId: string, messages: ChatMessage[], currentMemory: string) {
+	try {
+		// Only consider the last few interactions to find new information
+		const recentMessages = messages
+			.filter(m => m.role !== 'system')
+			.slice(-4)
+			.map(m => `${m.role.toUpperCase()}: ${m.content}`)
+			.join('\n');
+		
+		const summaryPrompt = `You are a memory manager for an AI assistant. 
+Current Memory Profile: ${currentMemory || 'None'}
+Recent Conversation:
+${recentMessages}
+
+Extract any NEW important facts about the user, their preferences, their name, or the core topics discussed. 
+Keep the profile extremely concise, bulleted, and in third-person. 
+If there is nothing new or important to add, output the Current Memory Profile exactly as is.`;
+
+		const response = await env.AI.run(MODEL_ID, {
+			messages: [{ role: "user", content: summaryPrompt }],
+			max_tokens: 256
+		});
+		
+		const newMemory = (response as any).response;
+		if (newMemory && newMemory.trim() !== currentMemory.trim()) {
+			await env.ELEEN_MEMORY.put(userId, newMemory.trim());
+		}
+	} catch (e) {
+		console.error("Memory update failed", e);
+	}
+}
 /**
  * Handles image generation requests.
- * Uses Flux-1-Schnell for fast text-to-image generation.
+ * Attempts to use Gemini 2.5 Flash, falls back to Flux-1-Schnell if Gemini fails or is unconfigured.
  */
 async function handleImageGenerate(
 	request: Request,
@@ -170,13 +235,60 @@ async function handleImageGenerate(
 		if (!prompt || prompt.trim().length === 0) {
 			return new Response(
 				JSON.stringify({ error: "Prompt is required" }),
-				{
-					status: 400,
-					headers: { "content-type": "application/json" },
-				},
+				{ status: 400, headers: { "content-type": "application/json" } },
 			);
 		}
 
+		// Try Gemini First if API key is present
+		if (env.GEMINI_API_KEY) {
+			try {
+				const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`;
+				
+				const geminiResponse = await fetch(geminiUrl, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						contents: [{ parts: [{ text: `Generate a high quality, detailed image exactly as described: ${prompt.trim()}` }] }],
+						generationConfig: {
+							responseModalities: ["IMAGE"]
+						}
+					})
+				});
+
+				if (geminiResponse.ok) {
+					const data = await geminiResponse.json() as any;
+					const parts = data.candidates?.[0]?.content?.parts;
+					const imagePart = parts?.find((p: any) => p.inlineData);
+					
+					if (imagePart && imagePart.inlineData) {
+						const base64Data = imagePart.inlineData.data;
+						const mimeType = imagePart.inlineData.mimeType || "image/jpeg";
+						
+						// Convert base64 to binary ArrayBuffer
+						const binaryString = atob(base64Data);
+						const bytes = new Uint8Array(binaryString.length);
+						for (let i = 0; i < binaryString.length; i++) {
+							bytes[i] = binaryString.charCodeAt(i);
+						}
+
+						return new Response(bytes.buffer, {
+							headers: {
+								"content-type": mimeType,
+								"cache-control": "public, max-age=3600",
+							},
+						});
+					}
+				} else {
+					console.warn("Gemini API failed or rejected image generation, falling back to Flux.", await geminiResponse.text());
+				}
+			} catch (geminiError) {
+				console.error("Gemini generation error:", geminiError);
+				// Proceed to fallback
+			}
+		}
+
+		// Fallback to Cloudflare Workers AI Flux-1-Schnell
+		console.log("Using Flux-1-Schnell for image generation");
 		const result = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
 			prompt: prompt.trim(),
 			num_steps: 4,
@@ -193,10 +305,7 @@ async function handleImageGenerate(
 		console.error("Error generating image:", error);
 		return new Response(
 			JSON.stringify({ error: "Failed to generate image" }),
-			{
-				status: 500,
-				headers: { "content-type": "application/json" },
-			},
+			{ status: 500, headers: { "content-type": "application/json" } },
 		);
 	}
 }

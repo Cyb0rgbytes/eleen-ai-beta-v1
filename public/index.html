@@ -5,14 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Eleen AI Chat Assistant</title>
     <meta name="description" content="EleenAI — Your gateway to the realm of artificial intelligence. Chat with an AI assistant powered by CSECNIX Technologies.">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Preload critical assets -->
+    <link rel="preload" href="/logo.png" as="image">
+    <link rel="preload" href="/chat.js" as="script">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Preconnect to Spline CDN for faster 3D scene loading -->
-    <link rel="preconnect" href="https://prod.spline.design" crossorigin>
+    
+    <!-- Preconnect to R2 for faster 3D scene loading -->
+    <link rel="preconnect" href="https://pub-ccb4a15f7d9f41658dcb3f3213a4ce3f.r2.dev" crossorigin>
     <link rel="preconnect" href="https://unpkg.com" crossorigin>
-    <link rel="dns-prefetch" href="https://prod.spline.design">
+    <link rel="dns-prefetch" href="https://pub-ccb4a15f7d9f41658dcb3f3213a4ce3f.r2.dev">
     <link rel="dns-prefetch" href="https://unpkg.com">
-    <script type="module" src="https://unpkg.com/@splinetool/viewer@1.12.88/build/spline-viewer.js"></script>
+    <script type="module" src="https://unpkg.com/@splinetool/viewer@1.12.88/build/spline-viewer.js" fetchpriority="high"></script>
     <!-- Clerk JS SDK for Authentication -->
     <script 
         async 
@@ -401,6 +406,91 @@
             border-left: 2px solid rgba(0, 229, 255, 0.4);
         }
 
+        /* --- Markdown Styles --- */
+        .message strong { font-weight: 600; color: #fff; }
+        .message em { font-style: italic; opacity: 0.9; }
+        .message code {
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+            background: rgba(0,0,0,0.3);
+            padding: 0.15rem 0.3rem;
+            border-radius: 4px;
+            font-size: 0.85em;
+            color: #ff9ee2;
+        }
+        .message pre {
+            background: rgba(5, 5, 15, 0.6);
+            border: 1px solid rgba(255,255,255,0.05);
+            padding: 0.8rem;
+            border-radius: var(--radius-sm);
+            overflow-x: auto;
+            margin: 0.5rem 0;
+        }
+        .message pre code {
+            background: transparent;
+            padding: 0;
+            color: #A8A8D8;
+        }
+        .message ul {
+            padding-left: 1.2rem;
+            margin: 0.5rem 0;
+        }
+        .message a {
+            color: var(--secondary-color);
+            text-decoration: none;
+            border-bottom: 1px solid rgba(0, 229, 255, 0.3);
+            transition: all 0.2s ease;
+        }
+        .message a:hover {
+            border-bottom-color: var(--secondary-color);
+            text-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+        }
+
+        /* --- Suggestion Chips --- */
+        .suggestion-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.8rem;
+        }
+        .suggestion-chip {
+            background: rgba(108, 99, 255, 0.15);
+            border: 1px solid rgba(108, 99, 255, 0.3);
+            color: var(--text-color);
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+        .suggestion-chip:hover {
+            background: rgba(108, 99, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        /* --- Feedback UI --- */
+        .message-feedback {
+            display: flex;
+            gap: 0.4rem;
+            margin-top: 0.5rem;
+            justify-content: flex-end;
+            opacity: 0.4;
+            transition: opacity 0.2s ease;
+        }
+        .message:hover .message-feedback { opacity: 1; }
+        .message-feedback button {
+            background: transparent;
+            border: none;
+            color: var(--text-light);
+            cursor: pointer;
+            padding: 0.2rem;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+        .message-feedback button:hover { color: var(--text-color); transform: scale(1.1); }
+        .message-feedback button.active { color: var(--secondary-color); }
+
+
         .message-input {
             display: flex;
             padding: 1rem;
@@ -761,9 +851,9 @@
         <span id="notification-text"></span>
     </div>
     
-    <!-- Spline 3D Background (interactive, mouse-responsive) -->
+    <!-- Spline 3D Background (interactive, mouse-responsive) loaded from R2 -->
     <div id="spline-bg">
-        <spline-viewer url="https://prod.spline.design/Ei9RdBHHWiUIwPlz/scene.splinecode"></spline-viewer>
+        <spline-viewer url="https://pub-ccb4a15f7d9f41658dcb3f3213a4ce3f.r2.dev/r_4_x_bot.spline"></spline-viewer>
     </div>
 
     <!-- Loading indicator -->

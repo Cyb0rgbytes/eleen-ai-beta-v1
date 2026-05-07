@@ -24,6 +24,16 @@ export interface Env {
 	 * Clerk publishable key (safe to expose to the browser).
 	 */
 	CLERK_PUBLISHABLE_KEY: string;
+
+	/**
+	 * Gemini API Key for image generation
+	 */
+	GEMINI_API_KEY: string;
+
+	/**
+	 * KV Namespace for long-term memory
+	 */
+	ELEEN_MEMORY: KVNamespace;
 }
 
 /**

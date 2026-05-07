@@ -372,7 +372,17 @@ async function handleStreamResponse(response) {
                         
                         if (content) {
                             responseText += content;
-                            assistantTextEl.textContent = responseText;
+                            
+                            // Check if there are suggestions, we strip them out of the streaming display for now
+                            let displayContent = responseText;
+                            const suggestRegex = /\[SUGGEST\](.*?)\[\/SUGGEST\]/g;
+                            let match;
+                            while ((match = suggestRegex.exec(responseText)) !== null) {
+                                displayContent = displayContent.replace(match[0], '');
+                            }
+                            
+                            // Render markdown progressively
+                            assistantTextEl.innerHTML = parseMarkdown(displayContent);
                             
                             // Scroll to bottom
                             const chatMessages = document.getElementById('chat-messages');
@@ -387,10 +397,45 @@ async function handleStreamResponse(response) {
     } finally {
         reader.releaseLock();
         
-        // Add to history
+        // Add to history and do final render
         if (responseText.trim()) {
             chatHistory.push({ role: 'assistant', content: responseText });
             console.log('Added response to history');
+            
+            // Final render with suggestions and feedback
+            let displayContent = responseText;
+            let suggestions = [];
+            const suggestRegex = /\[SUGGEST\](.*?)\[\/SUGGEST\]/g;
+            let match;
+            while ((match = suggestRegex.exec(responseText)) !== null) {
+                suggestions = match[1].split('|').map(s => s.trim());
+                displayContent = displayContent.replace(match[0], '');
+            }
+            
+            let innerHTML = `<p>${parseMarkdown(displayContent)}</p>`;
+            
+            if (suggestions.length > 0) {
+                innerHTML += '<div class="suggestion-chips">';
+                suggestions.forEach(sug => {
+                    if(sug) {
+                        const safeSug = sug.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                        innerHTML += `<button class="suggestion-chip" onclick="document.getElementById('user-input').value='${safeSug}'; document.getElementById('send-button').click();">${sug}</button>`;
+                    }
+                });
+                innerHTML += '</div>';
+            }
+            
+            innerHTML += `
+            <div class="message-feedback">
+                <button onclick="submitFeedback(this, 'up')" title="Good response"><i class="far fa-thumbs-up"></i></button>
+                <button onclick="submitFeedback(this, 'down')" title="Bad response"><i class="far fa-thumbs-down"></i></button>
+            </div>`;
+            
+            assistantMessageEl.innerHTML = innerHTML;
+            
+            // Final scroll
+            const chatMessages = document.getElementById('chat-messages');
+            if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
         }
     }
 
@@ -462,6 +507,84 @@ async function processImageTags(text, authenticated) {
 }
 
 /**
+ * Simple markdown parser
+ */
+function parseMarkdown(text) {
+    if (!text) return '';
+    
+    // First escape HTML to prevent XSS
+    let html = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    
+    // Code blocks
+    html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    
+    // Bold
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    
+    // Italic
+    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    
+    // Links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    
+    // Bullet points (simple)
+    html = html.replace(/^(\s*)-\s+(.*)$/gm, '<li>$2</li>');
+    html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+    
+    // Line breaks (for non-code block areas)
+    // We split by pre/code blocks, apply br, then rejoin
+    const parts = html.split(/(<pre>.*?<\/pre>)/g);
+    html = parts.map((part, i) => {
+        if (i % 2 !== 0) return part; // It's a code block, leave alone
+        return part.replace(/\n/g, '<br>');
+    }).join('');
+    
+    // Clean up empty paragraphs or double br
+    html = html.replace(/<br><br><br>/g, '<br><br>');
+    
+    return html;
+}
+
+/**
+ * Handles user feedback (thumbs up/down)
+ */
+function submitFeedback(btn, type) {
+    const feedbackContainer = btn.parentElement;
+    
+    // Visual update
+    feedbackContainer.querySelectorAll('button').forEach(b => {
+        b.classList.remove('active');
+        // change icon back to outline
+        const icon = b.querySelector('i');
+        if (icon) icon.className = icon.className.replace('fas', 'far');
+    });
+    
+    btn.classList.add('active');
+    const icon = btn.querySelector('i');
+    if (icon) icon.className = icon.className.replace('far', 'fas');
+    
+    // In a real app, this would send an API request to log the feedback
+    console.log(`Feedback submitted: ${type}`);
+    
+    // Inject feedback context into local chat history so the model learns in-session
+    if (chatHistory.length > 0) {
+        // Find the last assistant message and append feedback note
+        for (let i = chatHistory.length - 1; i >= 0; i--) {
+            if (chatHistory[i].role === 'assistant') {
+                // If we already appended feedback, remove it first to avoid duplicates
+                const baseContent = chatHistory[i].content.replace(/\n\n\[User rated this response as: (Good|Bad)\]$/, '');
+                const rating = type === 'up' ? 'Good' : 'Bad';
+                chatHistory[i].content = baseContent + `\n\n[User rated this response as: ${rating}]`;
+                break;
+            }
+        }
+    }
+}
+
+/**
  * Add message to chat UI
  */
 function addMessageToChat(role, content) {
@@ -475,13 +598,44 @@ function addMessageToChat(role, content) {
     const messageEl = document.createElement('div');
     messageEl.className = `message ${role}-message`;
     
-    // Format content
-    const formattedContent = content
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/\n/g, '<br>');
+    // Extract suggestions if any
+    let displayContent = content;
+    let suggestions = [];
+    const suggestRegex = /\[SUGGEST\](.*?)\[\/SUGGEST\]/g;
+    let match;
+    while ((match = suggestRegex.exec(content)) !== null) {
+        suggestions = match[1].split('|').map(s => s.trim());
+        displayContent = displayContent.replace(match[0], ''); // Remove from display
+    }
     
-    messageEl.innerHTML = `<p>${formattedContent}</p>`;
+    // Format content with Markdown
+    const formattedContent = parseMarkdown(displayContent);
+    
+    let innerHTML = `<p>${formattedContent}</p>`;
+    
+    // Add suggestions if present and it's assistant
+    if (role === 'assistant' && suggestions.length > 0) {
+        innerHTML += '<div class="suggestion-chips">';
+        suggestions.forEach(sug => {
+            if(sug) {
+                // Escape quotes for the onclick handler
+                const safeSug = sug.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                innerHTML += `<button class="suggestion-chip" onclick="document.getElementById('user-input').value='${safeSug}'; document.getElementById('send-button').click();">${sug}</button>`;
+            }
+        });
+        innerHTML += '</div>';
+    }
+    
+    // Add feedback buttons for assistant messages
+    if (role === 'assistant') {
+        innerHTML += `
+        <div class="message-feedback">
+            <button onclick="submitFeedback(this, 'up')" title="Good response"><i class="far fa-thumbs-up"></i></button>
+            <button onclick="submitFeedback(this, 'down')" title="Bad response"><i class="far fa-thumbs-down"></i></button>
+        </div>`;
+    }
+    
+    messageEl.innerHTML = innerHTML;
     chatMessages.appendChild(messageEl);
     
     // Scroll to bottom
