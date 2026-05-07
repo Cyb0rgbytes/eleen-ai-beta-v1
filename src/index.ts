@@ -264,7 +264,8 @@ async function handleImageGenerate(
 		// Try Gemini first if API key is present
 		if (env.GEMINI_API_KEY) {
 			try {
-				const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`;
+				// Use gemini-2.0-flash-exp which supports native image generation
+				const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${env.GEMINI_API_KEY}`;
 
 				const geminiResponse = await fetch(geminiUrl, {
 					method: "POST",
@@ -272,7 +273,7 @@ async function handleImageGenerate(
 					body: JSON.stringify({
 						contents: [{ parts: [{ text: `Generate a high quality, detailed image exactly as described: ${prompt.trim()}` }] }],
 						generationConfig: {
-							responseModalities: ["IMAGE"],
+							responseModalities: ["IMAGE", "TEXT"],
 						},
 					}),
 				});
@@ -284,7 +285,7 @@ async function handleImageGenerate(
 
 					if (imagePart?.inlineData) {
 						const base64Data = imagePart.inlineData.data;
-						const mimeType = imagePart.inlineData.mimeType || "image/jpeg";
+						const mimeType = imagePart.inlineData.mimeType || "image/png";
 
 						// Convert base64 to binary ArrayBuffer
 						const binaryString = atob(base64Data);
@@ -301,7 +302,8 @@ async function handleImageGenerate(
 						});
 					}
 				} else {
-					console.warn("Gemini API rejected request, falling back to Flux:", geminiResponse.status);
+					const errBody = await geminiResponse.text().catch(() => "");
+					console.warn("Gemini API rejected request, falling back to Flux:", geminiResponse.status, errBody);
 				}
 			} catch (geminiError) {
 				console.error("Gemini generation error:", geminiError);
@@ -310,13 +312,26 @@ async function handleImageGenerate(
 		}
 
 		// Fallback to Cloudflare Workers AI Flux-1-Schnell
+		// Returns { image: "base64string" } — NOT a ReadableStream
 		console.log("Using Flux-1-Schnell for image generation");
-		const result = await env.AI.run(FALLBACK_IMAGE_MODEL, {
+		const result = (await env.AI.run(FALLBACK_IMAGE_MODEL, {
 			prompt: prompt.trim(),
 			num_steps: 4,
-		});
+		})) as { image: string };
 
-		return new Response(result as ReadableStream, {
+		if (!result?.image) {
+			console.error("Flux returned unexpected format:", typeof result, JSON.stringify(result).substring(0, 200));
+			throw new Error("Flux model returned no image data");
+		}
+
+		// Decode the base64 image string to binary
+		const binaryString = atob(result.image);
+		const bytes = new Uint8Array(binaryString.length);
+		for (let i = 0; i < binaryString.length; i++) {
+			bytes[i] = binaryString.charCodeAt(i);
+		}
+
+		return new Response(bytes.buffer, {
 			headers: {
 				"content-type": "image/png",
 				"cache-control": "public, max-age=3600",
