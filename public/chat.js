@@ -117,6 +117,12 @@ function parseMarkdown(text) {
 }
 
 /**
+ * Regex that matches [IMG_GEN]...[/IMG_GEN] or [IMG_GEN]...[IMG_GEN]
+ * (LLMs often forget the slash in the closing tag)
+ */
+const IMG_GEN_REGEX = /\[IMG_GEN\](.*?)\[\/?IMG_GEN\]/gs;
+
+/**
  * Strip [SUGGEST]…[/SUGGEST] tags from text and return { cleanText, suggestions }.
  */
 function extractSuggestions(text) {
@@ -129,6 +135,13 @@ function extractSuggestions(text) {
         return '';
     });
     return { cleanText, suggestions };
+}
+
+/**
+ * Strip [IMG_GEN]…[/IMG_GEN] tags from displayed text so users see clean messages.
+ */
+function stripImageTags(text) {
+    return text.replace(IMG_GEN_REGEX, '').trim();
 }
 
 /**
@@ -381,9 +394,9 @@ async function handleStreamResponse(response) {
                     if (content) {
                         responseText += content;
 
-                        // Strip suggestion tags during streaming for cleaner display
+                        // Strip suggestion and image tags during streaming for cleaner display
                         const { cleanText } = extractSuggestions(responseText);
-                        assistantTextEl.innerHTML = parseMarkdown(cleanText);
+                        assistantTextEl.innerHTML = parseMarkdown(stripImageTags(cleanText));
 
                         // Keep scrolled to bottom
                         const chatMessages = document.getElementById('chat-messages');
@@ -402,7 +415,7 @@ async function handleStreamResponse(response) {
 
             // Final render with suggestions and feedback buttons
             const { cleanText, suggestions } = extractSuggestions(responseText);
-            assistantMessageEl.innerHTML = buildAssistantHTML(cleanText, suggestions);
+            assistantMessageEl.innerHTML = buildAssistantHTML(stripImageTags(cleanText), suggestions);
 
             const chatMessages = document.getElementById('chat-messages');
             if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -415,7 +428,8 @@ async function handleStreamResponse(response) {
 // ─── Auto Image Generation from [IMG_GEN] tags ──────────────────────────────
 
 async function processImageTags(text, authenticated) {
-    const match = /\[IMG_GEN\](.*?)\[\/IMG_GEN\]/s.exec(text);
+    const match = IMG_GEN_REGEX.exec(text);
+    IMG_GEN_REGEX.lastIndex = 0; // reset stateful regex
     if (!match) return;
 
     const imagePrompt = match[1].trim();
