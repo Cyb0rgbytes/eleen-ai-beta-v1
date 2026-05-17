@@ -14,6 +14,11 @@ export interface Env {
 	ASSETS: { fetch: (request: Request) => Promise<Response> };
 
 	/**
+	 * Binding for R2 Spline assets bucket.
+	 */
+	SPLINE_ASSETS: R2Bucket;
+
+	/**
 	 * Clerk secret key for server-side session verification.
 	 * Set via `wrangler secret put CLERK_SECRET_KEY` for production.
 	 * Set in `.dev.vars` for local development.

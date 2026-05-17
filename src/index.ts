@@ -84,6 +84,39 @@ export default {
 	): Promise<Response> {
 		const url = new URL(request.url);
 
+		// ── Serve R2 Assets (Spline) ─────────────────────────────────────
+		if (url.hostname === "assets.eleenai.xyz" || url.pathname.endsWith(".splinecode")) {
+			if (request.method === "OPTIONS") {
+				return new Response(null, {
+					headers: {
+						"Access-Control-Allow-Origin": "*",
+						"Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+						"Access-Control-Allow-Headers": "*",
+						"Access-Control-Max-Age": "86400",
+					}
+				});
+			}
+
+			if (request.method !== "GET" && request.method !== "HEAD") {
+				return new Response("Method not allowed", { status: 405 });
+			}
+
+			const objectKey = url.pathname.slice(1);
+			const object = await env.SPLINE_ASSETS.get(objectKey);
+
+			if (!object) {
+				return new Response("Object Not Found", { status: 404 });
+			}
+
+			const headers = new Headers();
+			object.writeHttpMetadata(headers);
+			headers.set("etag", object.httpEtag);
+			headers.set("Access-Control-Allow-Origin", "*");
+			headers.set("Cache-Control", "public, max-age=31536000"); // Cache for 1 year
+
+			return new Response(object.body, { headers });
+		}
+
 		// Serve static assets (frontend)
 		if (url.pathname === "/" || !url.pathname.startsWith("/api/")) {
 			return env.ASSETS.fetch(request);

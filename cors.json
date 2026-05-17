@@ -1,0 +1,10 @@
+{
+  "rules": [
+    {
+      "AllowedOrigins": ["http://localhost:8787", "https://eleenai.xyz"],
+      "AllowedMethods": ["GET", "HEAD", "OPTIONS"],
+      "AllowedHeaders": ["Content-Type", "Authorization", "Accept", "*"],
+      "MaxAgeSeconds": 3000
+    }
+  ]
+}

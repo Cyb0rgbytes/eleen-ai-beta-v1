@@ -27,6 +27,12 @@
 			"id": "66feaec842224318820adb53c0c99492"
 		}
 	],
+	"r2_buckets": [
+		{
+			"binding": "SPLINE_ASSETS",
+			"bucket_name": "spline-assets"
+		}
+	],
 	"upload_source_maps": true,
 	// Clerk Auth - Add your keys from https://dashboard.clerk.com
 	// For local dev, set these in a .dev.vars file (never commit secrets!)
