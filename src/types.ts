@@ -1,5 +1,5 @@
 /**
- * Type definitions for the LLM chat application.
+ * Type definitions for the EleenAI chat application.
  */
 
 export interface Env {
@@ -26,7 +26,7 @@ export interface Env {
 	CLERK_PUBLISHABLE_KEY: string;
 
 	/**
-	 * Gemini API Key for image generation
+	 * Gemini API Key for image generation, vision, and grounding.
 	 */
 	GEMINI_API_KEY: string;
 
@@ -42,4 +42,24 @@ export interface Env {
 export interface ChatMessage {
 	role: "system" | "user" | "assistant";
 	content: string;
+}
+
+/**
+ * File attachment sent alongside a chat message.
+ */
+export interface Attachment {
+	/** Base64-encoded file data */
+	data: string;
+	/** MIME type, e.g. "image/png", "application/pdf" */
+	mimeType: string;
+	/** Original filename */
+	name: string;
+}
+
+/**
+ * Shape of the POST body for /api/chat and /api/chat/guest.
+ */
+export interface ChatRequestBody {
+	messages: ChatMessage[];
+	attachments?: Attachment[];
 }

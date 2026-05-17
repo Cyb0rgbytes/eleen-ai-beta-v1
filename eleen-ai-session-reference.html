@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Eleen AI — Implementation Session Reference</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #080c10;
+    --surface: #0e1419;
+    --surface2: #141c24;
+    --border: #1e2d3d;
+    --border2: #243447;
+    --accent: #00d4ff;
+    --accent2: #7c5cfc;
+    --green: #00e5a0;
+    --amber: #f5a623;
+    --red: #ff5f5f;
+    --text: #e8f0fe;
+    --muted: #6b8099;
+    --mono: 'JetBrains Mono', monospace;
+    --display: 'Syne', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* GRID BACKGROUND */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap { max-width: 900px; margin: 0 auto; padding: 3rem 1.5rem; position: relative; z-index: 1; }
+
+  /* HEADER */
+  header { margin-bottom: 3rem; border-bottom: 1px solid var(--border2); padding-bottom: 2rem; }
+  .header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  h1 { font-family: var(--display); font-size: 2.2rem; font-weight: 800; letter-spacing: -0.02em; }
+  h1 span { color: var(--accent); }
+  .badge-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 0.75rem; }
+  .badge { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 10px; border-radius: 4px; border: 1px solid; }
+  .badge-blue { color: var(--accent); border-color: var(--accent); background: rgba(0,212,255,0.08); }
+  .badge-purple { color: var(--accent2); border-color: var(--accent2); background: rgba(124,92,252,0.08); }
+  .badge-green { color: var(--green); border-color: var(--green); background: rgba(0,229,160,0.08); }
+  .badge-amber { color: var(--amber); border-color: var(--amber); background: rgba(245,166,35,0.08); }
+  .meta { font-size: 12px; color: var(--muted); margin-top: 0.5rem; }
+
+  /* PROGRESS */
+  .progress-section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 2rem; }
+  .progress-title { font-family: var(--display); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 1rem; }
+  .progress-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 1rem; }
+  .stat { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; }
+  .stat-n { font-family: var(--display); font-size: 1.6rem; font-weight: 800; }
+  .stat-n.done { color: var(--green); }
+  .stat-n.left { color: var(--amber); }
+  .stat-n.pct { color: var(--accent); }
+  .stat-l { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
+  .bar-wrap { height: 4px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .bar-fill { height: 4px; background: linear-gradient(90deg, var(--accent2), var(--accent)); border-radius: 99px; transition: width 0.6s ease; }
+
+  /* SECTION */
+  .section { margin-bottom: 2rem; }
+  .section-header {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 10px 10px 0 0; padding: 0.9rem 1.25rem;
+    cursor: pointer; user-select: none;
+  }
+  .section-header:hover { background: var(--surface2); }
+  .section-icon { width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+  .section-title { font-family: var(--display); font-size: 14px; font-weight: 600; flex: 1; }
+  .section-count { font-size: 11px; color: var(--muted); }
+  .section-chevron { color: var(--muted); font-size: 12px; transition: transform 0.2s; }
+  .section-chevron.open { transform: rotate(180deg); }
+  .steps-wrap { border: 1px solid var(--border); border-top: none; border-radius: 0 0 10px 10px; overflow: hidden; display: none; }
+  .steps-wrap.open { display: block; }
+
+  /* STEP */
+  .step { display: flex; gap: 12px; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .step:last-child { border-bottom: none; }
+  .step:hover { background: var(--surface2); }
+  .step-check {
+    width: 20px; height: 20px; border-radius: 4px; border: 1.5px solid var(--border2);
+    cursor: pointer; flex-shrink: 0; margin-top: 1px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; font-size: 11px;
+  }
+  .step-check.done { background: var(--green); border-color: var(--green); color: #000; }
+  .step-body { flex: 1; min-width: 0; }
+  .step-label { font-size: 13px; color: var(--text); line-height: 1.5; }
+  .step-label.done { color: var(--muted); text-decoration: line-through; }
+  .step-file { font-size: 10px; color: var(--accent2); margin-top: 3px; }
+  .step-note { font-size: 11px; color: var(--amber); margin-top: 4px; padding: 4px 8px; background: rgba(245,166,35,0.06); border-left: 2px solid var(--amber); border-radius: 0 4px 4px 0; }
+
+  /* CODE */
+  .code-block { position: relative; margin-top: 10px; background: #060a0d; border: 1px solid var(--border); border-radius: 6px; padding: 12px 40px 12px 12px; font-size: 11px; white-space: pre; overflow-x: auto; color: #a8d8ea; line-height: 1.7; }
+  .copy-btn { position: absolute; top: 8px; right: 8px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 4px; padding: 3px 8px; font-size: 10px; color: var(--muted); cursor: pointer; font-family: var(--mono); transition: all 0.15s; }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* NOTES */
+  .notes-section { background: var(--surface); border: 1px solid var(--border2); border-radius: 10px; padding: 1.25rem 1.5rem; margin-bottom: 2rem; }
+  .notes-title { font-family: var(--display); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 1rem; }
+  .note-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text); }
+  .note-item:last-child { border-bottom: none; }
+  .note-dot { color: var(--accent); flex-shrink: 0; margin-top: 2px; }
+  .note-text { flex: 1; line-height: 1.6; }
+  .note-text strong { color: var(--accent); font-weight: 500; }
+
+  /* CONTEXT */
+  .context-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 2rem; }
+  @media(max-width:600px) { .context-grid { grid-template-columns: 1fr; } }
+  .ctx-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.25rem; }
+  .ctx-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .ctx-value { font-size: 12px; color: var(--text); line-height: 1.6; }
+  .ctx-value code { color: var(--accent); background: rgba(0,212,255,0.08); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+
+  /* FOOTER */
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+  .footer-text { font-size: 11px; color: var(--muted); }
+  .reset-btn { font-size: 11px; color: var(--muted); background: none; border: 1px solid var(--border); border-radius: 4px; padding: 4px 12px; cursor: pointer; font-family: var(--mono); transition: all 0.15s; }
+  .reset-btn:hover { color: var(--red); border-color: var(--red); }
+
+  /* PROMPT BOX */
+  .prompt-box { background: var(--surface2); border: 1px solid var(--border2); border-radius: 10px; padding: 1.25rem 1.5rem; margin-bottom: 2rem; }
+  .prompt-label { font-size: 10px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; margin-bottom: 8px; }
+  .prompt-text { font-size: 12px; color: var(--text); line-height: 1.8; }
+  .prompt-text code { color: var(--accent); background: rgba(0,212,255,0.08); padding: 1px 5px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="header-top">
+      <div>
+        <h1>Eleen <span>AI</span> — Session Reference</h1>
+        <div class="badge-row">
+          <span class="badge badge-blue">Cloudflare Workers</span>
+          <span class="badge badge-purple">TypeScript</span>
+          <span class="badge badge-green">R2 + KV</span>
+          <span class="badge badge-amber">Spline 3D</span>
+        </div>
+        <p class="meta">Generated: May 17, 2026 &nbsp;·&nbsp; Repo: github.com/Cyb0rgbytes/eleen-ai-beta-v1 &nbsp;·&nbsp; Domain: eleenai.xyz</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- PROGRESS -->
+  <div class="progress-section">
+    <div class="progress-title">Overall Progress</div>
+    <div class="progress-grid">
+      <div class="stat"><div class="stat-n done" id="s-done">0</div><div class="stat-l">Steps Done</div></div>
+      <div class="stat"><div class="stat-n left" id="s-left">18</div><div class="stat-l">Remaining</div></div>
+      <div class="stat"><div class="stat-n pct" id="s-pct">0%</div><div class="stat-l">Complete</div></div>
+    </div>
+    <div class="bar-wrap"><div class="bar-fill" id="bar" style="width:0%"></div></div>
+  </div>
+
+  <!-- PROJECT CONTEXT -->
+  <div class="context-grid">
+    <div class="ctx-card">
+      <div class="ctx-label">Project Files</div>
+      <div class="ctx-value">
+        <code>src/index.ts</code> — Worker entry point<br>
+        <code>public/index.html</code> — Chat UI<br>
+        <code>public/chat.js</code> — Frontend logic<br>
+        <code>wrangler.jsonc</code> — CF config<br>
+        <code>src/types.ts</code> — TypeScript types
+      </div>
+    </div>
+    <div class="ctx-card">
+      <div class="ctx-label">Infrastructure</div>
+      <div class="ctx-value">
+        <code>eleenai.xyz</code> — Main domain<br>
+        <code>assets.eleenai.xyz</code> — R2 CDN subdomain<br>
+        <code>spline-assets</code> — R2 bucket name<br>
+        <code>r_4_x_bot.splinecode</code> — Spline file<br>
+        <code>ELEEN_MEMORY</code> — KV namespace (exists)
+      </div>
+    </div>
+    <div class="ctx-card">
+      <div class="ctx-label">AI Stack</div>
+      <div class="ctx-value">
+        Model: <code>@cf/meta/llama-3.1-8b-instruct-fp8</code><br>
+        Auth: Clerk (session + Bearer token)<br>
+        Image: Gemini 2.0 Flash → Flux fallback<br>
+        Memory: KV per userId (already live)
+      </div>
+    </div>
+    <div class="ctx-card">
+      <div class="ctx-label">Status at Session Start</div>
+      <div class="ctx-value">
+        ✓ Clerk auth working<br>
+        ✓ KV memory working<br>
+        ✓ Image generation working<br>
+        ✗ Spline 3D not loading<br>
+        ✗ R2 asset route missing
+      </div>
+    </div>
+  </div>
+
+  <!-- KEY NOTES FROM SESSION -->
+  <div class="notes-section">
+    <div class="notes-title">Key Findings from This Session</div>
+    <div class="note-item"><span class="note-dot">›</span><span class="note-text"><strong>wrangler.jsonc already edited</strong> — R2 binding + routes added after the <code>"vars"</code> block. Comma added to previous last line.</span></div>
+    <div class="note-item"><span class="note-dot">›</span><span class="note-text"><strong>src/index.ts R2 handler location</strong> — Add immediately after <code>const url = new URL(request.url);</code> on line 68, before the static assets check.</span></div>
+    <div class="note-item"><span class="note-dot">›</span><span class="note-text"><strong>ELEEN_MEMORY KV already exists</strong> — Feature 1 (memory) is partially implemented. Use existing KV binding, don't recreate it.</span></div>
+    <div class="note-item"><span class="note-dot">›</span><span class="note-text"><strong>src/index.ts is advanced</strong> — Has Clerk auth, image gen (Gemini + Flux), memory update background tasks. Be careful not to break auth guard when adding new routes.</span></div>
+    <div class="note-item"><span class="note-dot">›</span><span class="note-text"><strong>New routes must go BEFORE Clerk auth guard</strong> — <code>/api/enhance-prompt</code> and <code>/api/suggest-followups</code> should be public (no auth required), so add them in the guest routes section.</span></div>
+    <div class="note-item"><span class="note-dot">›</span><span class="note-text"><strong>SPLINE_ASSETS binding</strong> — Must be added to <code>src/types.ts</code> Env interface. File not yet reviewed — paste it to Claude to get the exact line.</span></div>
+    <div class="note-item"><span class="note-dot">›</span><span class="note-text"><strong>public/index.html not yet reviewed</strong> — Next step is to paste that file to find exact Spline embed line to replace.</span></div>
+    <div class="note-item"><span class="note-dot">›</span><span class="note-text"><strong>GitHub MCP not available</strong> — Not in Claude's connector registry. Must paste files manually or use Claude Code terminal.</span></div>
+  </div>
+
+  <!-- STEPS -->
+  <div id="sections"></div>
+
+  <!-- CONTINUE PROMPT -->
+  <div class="prompt-box">
+    <div class="prompt-label">Prompt to Resume This Session with Claude</div>
+    <div class="prompt-text">
+      I am implementing upgrades to my Cloudflare Workers AI project called <code>Eleen AI</code> at <code>eleenai.xyz</code> (repo: <code>github.com/Cyb0rgbytes/eleen-ai-beta-v1</code>).<br><br>
+      Progress so far: <code>wrangler.jsonc</code> R2 binding added. <code>src/index.ts</code> R2 asset handler added after line 68. Still need to: add SPLINE_ASSETS to <code>src/types.ts</code>, replace Spline embed in <code>public/index.html</code>, add Spline CSS + loader script, then implement 5 features (memory, mode selector, prompt enhancer, followup chips, message actions). The project already has Clerk auth, KV memory (ELEEN_MEMORY), and Gemini image generation. New API routes must be added BEFORE the Clerk auth guard. Please continue from where we left off.
+    </div>
+  </div>
+
+  <footer>
+    <span class="footer-text">Eleen AI Session Reference &nbsp;·&nbsp; eleenai.xyz &nbsp;·&nbsp; May 17 2026</span>
+    <button class="reset-btn" onclick="resetAll()">Reset progress</button>
+  </footer>
+
+</div>
+
+<script>
+const SECTIONS = [
+  {
+    id:'spline', title:'Fix 3D Spline background', icon:'🔷', color:'rgba(0,212,255,0.15)',
+    steps:[
+      {label:'Add R2 binding + routes to wrangler.jsonc', file:'wrangler.jsonc', done:true, note:'DONE — Added after "vars" block with comma fix'},
+      {label:'Add R2 asset route handler at top of fetch handler', file:'src/index.ts', done:true, note:'DONE — Added after line 68, before static assets check'},
+      {label:'Add SPLINE_ASSETS: R2Bucket to Env interface', file:'src/types.ts', note:'Paste types.ts to Claude to get exact line'},
+      {label:'Remove old Spline embed, add shimmer container HTML', file:'public/index.html', note:'Paste index.html to Claude to get exact line'},
+      {label:'Add Spline CSS (shimmer animation + canvas fade-in)', file:'public/index.html <style>'},
+      {label:'Add deferred Spline loader script as last script in body', file:'public/index.html'},
+    ]
+  },
+  {
+    id:'mem', title:'Feature 1 — Conversation memory', icon:'🧠', color:'rgba(124,92,252,0.15)',
+    steps:[
+      {label:'Verify existing KV memory in handleChatRequest passes full messages array', file:'src/index.ts', note:'ELEEN_MEMORY already exists — just verify slice(-20) is applied'},
+      {label:'Ensure conversationHistory array is maintained in frontend', file:'public/chat.js'},
+    ]
+  },
+  {
+    id:'mode', title:'Feature 2 — Reasoning mode selector', icon:'⚡', color:'rgba(0,229,160,0.15)',
+    steps:[
+      {label:'Replace SYSTEM_PROMPT with BASE + MODE_PREFIX map, accept mode in body', file:'src/index.ts'},
+      {label:'Add mode selector buttons above input box', file:'public/index.html'},
+      {label:'Wire mode selector to currentMode variable', file:'public/chat.js'},
+    ]
+  },
+  {
+    id:'enhance', title:'Feature 3 — Prompt enhancer', icon:'✨', color:'rgba(245,166,35,0.15)',
+    steps:[
+      {label:'Add /api/enhance-prompt route BEFORE Clerk auth guard', file:'src/index.ts', note:'Must be in guest/public routes section'},
+      {label:'Add enhance button + wire fetch call', file:'public/index.html + chat.js'},
+    ]
+  },
+  {
+    id:'followups', title:'Feature 4 — Follow-up suggestion chips', icon:'💡', color:'rgba(0,212,255,0.15)',
+    steps:[
+      {label:'Add /api/suggest-followups route BEFORE Clerk auth guard', file:'src/index.ts', note:'Must be in guest/public routes section'},
+      {label:'Render suggestion chips after each AI response completes', file:'public/chat.js'},
+    ]
+  },
+  {
+    id:'actions', title:'Feature 5 — Message actions', icon:'🎯', color:'rgba(124,92,252,0.15)',
+    steps:[
+      {label:'Add addMessageActions() — copy, regenerate, read aloud', file:'public/chat.js'},
+      {label:'Add .msg-actions CSS hover reveal styles', file:'public/index.html <style>'},
+    ]
+  },
+];
+
+const KEY = 'eleen_ref_v1';
+function load() { try { return JSON.parse(localStorage.getItem(KEY)||'{}'); } catch { return {}; } }
+function save(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch {} }
+let state = load();
+
+function total() { return SECTIONS.reduce((a,s)=>a+s.steps.length,0); }
+function doneCount() { return Object.values(state).filter(Boolean).length; }
+
+function updateProgress() {
+  const t = total(), d = doneCount(), pct = Math.round(d/t*100);
+  document.getElementById('s-done').textContent = d;
+  document.getElementById('s-left').textContent = t-d;
+  document.getElementById('s-pct').textContent = pct+'%';
+  document.getElementById('bar').style.width = pct+'%';
+}
+
+function resetAll() {
+  if(!confirm('Reset all progress?')) return;
+  state = {};
+  save(state);
+  document.querySelectorAll('.step-check').forEach(el=>{ el.classList.remove('done'); el.textContent=''; });
+  document.querySelectorAll('.step-label').forEach(el=>el.classList.remove('done'));
+  updateProgress();
+}
+
+function copyCode(btn, text) {
+  navigator.clipboard.writeText(text).then(()=>{ btn.textContent='copied!'; setTimeout(()=>btn.textContent='copy',1500); });
+}
+
+const CODE = {
+  'spline_0': `// wrangler.jsonc — add after "vars": { ... },
+"r2_buckets": [
+  { "binding": "SPLINE_ASSETS", "bucket_name": "spline-assets" }
+],
+"routes": [
+  { "pattern": "eleenai.xyz/*", "zone_name": "eleenai.xyz" },
+  { "pattern": "assets.eleenai.xyz/*", "zone_name": "eleenai.xyz" }
+]`,
+  'spline_1': `// src/index.ts — add after const url = new URL(request.url);
+if (url.hostname === 'assets.eleenai.xyz') {
+  const key = url.pathname.replace(/^\\//, '');
+  const object = await env.SPLINE_ASSETS.get(key);
+  if (!object) return new Response('Not Found', { status: 404 });
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+  headers.set('Access-Control-Allow-Origin', 'https://eleenai.xyz');
+  return new Response(object.body, { headers });
+}`,
+  'spline_2': `// src/types.ts — add to Env interface
+SPLINE_ASSETS: R2Bucket;`,
+  'spline_3': `<!-- public/index.html — replace old spline embed with: -->
+<div id="spline-container" aria-hidden="true">
+  <div id="spline-shimmer"></div>
+  <canvas id="spline-canvas"></canvas>
+</div>`,
+  'spline_4': `#spline-container { position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
+#spline-shimmer { position:absolute; inset:0; background:#0a0a0f; animation:shimmer 1.6s infinite; transition:opacity 0.6s; }
+@keyframes shimmer { 0%{opacity:1} 50%{opacity:.6} 100%{opacity:1} }
+#spline-canvas { width:100%!important; height:100%!important; opacity:0; transition:opacity 0.8s; }
+#spline-canvas.loaded { opacity:1; }
+@media(max-width:480px){ #spline-container { display:none; } }`,
+  'spline_5': `<script type="module">
+async function loadSpline() {
+  try {
+    const { Application } = await import(
+      'https://unpkg.com/@splinetool/runtime@1.9.28/build/runtime.module.js'
+    );
+    const canvas = document.getElementById('spline-canvas');
+    const shimmer = document.getElementById('spline-shimmer');
+    const app = new Application(canvas);
+    await app.load('https://assets.eleenai.xyz/r_4_x_bot.splinecode');
+    canvas.classList.add('loaded');
+    shimmer.style.opacity = '0';
+    setTimeout(() => shimmer.remove(), 700);
+  } catch(e) {
+    const s = document.getElementById('spline-shimmer');
+    if(s){ s.style.animation='none'; s.style.background='#0a0a0f'; }
+  }
+}
+if('requestIdleCallback' in window)
+  requestIdleCallback(loadSpline, {timeout:2000});
+else setTimeout(loadSpline, 300);
+<\/script>`,
+  'enhance_0': `// src/index.ts — add in guest routes section, BEFORE clerk auth guard
+if (url.pathname === '/api/enhance-prompt' && request.method === 'POST') {
+  const { prompt } = await request.json() as { prompt: string };
+  const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+    messages: [
+      { role:'system', content:'Rewrite the user prompt to be clearer. Return ONLY the rewritten prompt.' },
+      { role:'user', content: prompt }
+    ],
+    max_tokens: 200,
+  }) as { response: string };
+  return Response.json({ enhanced: result.response });
+}`,
+  'followups_0': `// src/index.ts — add in guest routes section, BEFORE clerk auth guard
+if (url.pathname === '/api/suggest-followups' && request.method === 'POST') {
+  const { lastUserMessage, lastAssistantMessage } =
+    await request.json() as { lastUserMessage: string; lastAssistantMessage: string };
+  const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+    messages: [
+      { role:'system', content:'Generate 3 follow-up questions. Return ONLY a JSON array of 3 strings.' },
+      { role:'user', content: \`User: "\${lastUserMessage}"\nAssistant: "\${lastAssistantMessage.slice(0,400)}"\` }
+    ],
+    max_tokens: 120,
+  }) as { response: string };
+  try { return Response.json({ suggestions: JSON.parse(result.response) }); }
+  catch { return Response.json({ suggestions: [] }); }
+}`
+};
+
+function buildSections() {
+  const container = document.getElementById('sections');
+  SECTIONS.forEach(sec => {
+    const wrap = document.createElement('div');
+    wrap.className = 'section';
+    const doneSec = sec.steps.filter((_,i)=>state[sec.id+'_'+i]).length;
+
+    const hdr = document.createElement('div');
+    hdr.className = 'section-header';
+    hdr.innerHTML = `
+      <div class="section-icon" style="background:${sec.color}">${sec.icon}</div>
+      <span class="section-title">${sec.title}</span>
+      <span class="section-count">${doneSec}/${sec.steps.length}</span>
+      <span class="section-chevron">▾</span>`;
+
+    const stepsWrap = document.createElement('div');
+    stepsWrap.className = 'steps-wrap';
+
+    sec.steps.forEach((step, i) => {
+      const key = sec.id+'_'+i;
+      const isDone = step.done || !!state[key];
+      if(step.done && !state[key]) { state[key] = true; save(state); }
+
+      const stepEl = document.createElement('div');
+      stepEl.className = 'step';
+
+      const check = document.createElement('div');
+      check.className = 'step-check'+(isDone?' done':'');
+      if(isDone) check.textContent = '✓';
+
+      const body = document.createElement('div');
+      body.className = 'step-body';
+
+      const label = document.createElement('div');
+      label.className = 'step-label'+(isDone?' done':'');
+      label.textContent = step.label;
+
+      const file = document.createElement('div');
+      file.className = 'step-file';
+      file.textContent = step.file;
+
+      body.appendChild(label);
+      body.appendChild(file);
+
+      if(step.note) {
+        const note = document.createElement('div');
+        note.className = 'step-note';
+        note.textContent = step.note;
+        body.appendChild(note);
+      }
+
+      const codeKey = sec.id+'_'+i;
+      if(CODE[codeKey]) {
+        const cb = document.createElement('div');
+        cb.className = 'code-block';
+        cb.textContent = CODE[codeKey];
+        const cpBtn = document.createElement('button');
+        cpBtn.className = 'copy-btn';
+        cpBtn.textContent = 'copy';
+        cpBtn.addEventListener('click', e => { e.stopPropagation(); copyCode(cpBtn, CODE[codeKey]); });
+        cb.appendChild(cpBtn);
+        body.appendChild(cb);
+      }
+
+      check.addEventListener('click', () => {
+        state[key] = !state[key];
+        save(state);
+        if(state[key]) { check.classList.add('done'); check.textContent='✓'; label.classList.add('done'); }
+        else { check.classList.remove('done'); check.textContent=''; label.classList.remove('done'); }
+        hdr.querySelector('.section-count').textContent =
+          sec.steps.filter((_,j)=>state[sec.id+'_'+j]).length+'/'+sec.steps.length;
+        updateProgress();
+      });
+
+      stepEl.appendChild(check);
+      stepEl.appendChild(body);
+      stepsWrap.appendChild(stepEl);
+    });
+
+    hdr.addEventListener('click', () => {
+      const open = stepsWrap.classList.toggle('open');
+      hdr.querySelector('.section-chevron').classList.toggle('open', open);
+    });
+
+    wrap.appendChild(hdr);
+    wrap.appendChild(stepsWrap);
+    container.appendChild(wrap);
+  });
+}
+
+buildSections();
+updateProgress();
+document.querySelectorAll('.section')[0].querySelector('.steps-wrap').classList.add('open');
+document.querySelectorAll('.section')[0].querySelector('.section-chevron').classList.add('open');
+</script>
+</body>
+</html>

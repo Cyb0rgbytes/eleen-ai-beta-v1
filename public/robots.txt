@@ -1,0 +1,17 @@
+# EleenAI - Robots.txt
+# https://eleenai.xyz
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /callback.html
+
+# Sitemaps
+Sitemap: https://eleenai.xyz/sitemap.xml
+
+# Crawl-delay for polite crawling
+User-agent: Yandex
+Crawl-delay: 2
+
+User-agent: Bingbot
+Crawl-delay: 1
