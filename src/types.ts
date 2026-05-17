@@ -9,6 +9,11 @@ export interface Env {
 	AI: Ai;
 
 	/**
+	 * Binding for D1 database.
+	 */
+	DB: D1Database;
+
+	/**
 	 * Binding for static assets.
 	 */
 	ASSETS: { fetch: (request: Request) => Promise<Response> };
@@ -65,6 +70,7 @@ export interface Attachment {
  * Shape of the POST body for /api/chat and /api/chat/guest.
  */
 export interface ChatRequestBody {
+	id?: string;
 	messages: ChatMessage[];
 	attachments?: Attachment[];
 }
