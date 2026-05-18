@@ -51,12 +51,6 @@ let chatHistory = [
     }
 ];
 let isProcessing = false;
-let currentConversationId = null;
-
-// Generate unique ID for conversations
-function generateUUID() {
-    return (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : 'conv_' + Math.random().toString(36).substr(2, 9);
-}
 
 // ─── Guest-mode config ───────────────────────────────────────────────────────
 
@@ -112,79 +106,6 @@ async function buildHeaders(authenticated) {
     return headers;
 }
 
-// Copy raw code to clipboard
-function copyCodeBlock(btn) {
-    const wrapper = btn.closest('.code-block-wrapper');
-    const codeEl = wrapper?.querySelector('code');
-    if (!codeEl) return;
-
-    // Decode HTML entities if any
-    const temp = document.createElement('textarea');
-    temp.innerHTML = codeEl.innerHTML;
-    const rawCode = temp.value;
-
-    navigator.clipboard.writeText(rawCode).then(() => {
-        const origContent = btn.innerHTML;
-        btn.style.borderColor = 'var(--secondary-color)';
-        btn.innerHTML = `<i class="fas fa-check"></i> Copied`;
-        
-        setTimeout(() => {
-            btn.style.borderColor = '';
-            btn.innerHTML = origContent;
-        }, 2000);
-    }).catch(err => {
-        console.error('Failed to copy code:', err);
-    });
-}
-
-// Open HTML/JS/CSS snippets dynamically inside a CodePen workspace sandbox
-function runInCodePen(btn) {
-    const wrapper = btn.closest('.code-block-wrapper');
-    const codeEl = wrapper?.querySelector('code');
-    const langEl = wrapper?.querySelector('.code-lang');
-    if (!codeEl || !langEl) return;
-
-    const temp = document.createElement('textarea');
-    temp.innerHTML = codeEl.innerHTML;
-    const code = temp.value;
-    const lang = langEl.textContent.trim().toLowerCase();
-
-    // Build the pre-fill payload for CodePen API
-    const data = {
-        title: "EleenAI Playground Snippet",
-        description: "Interactive workspace powered by EleenAI & CSECNIX Technologies",
-        editors: "111", // show HTML, CSS, and JS panels
-        layout: "left"
-    };
-
-    if (lang === 'html' || lang === 'xml') {
-        data.html = code;
-    } else if (lang === 'css') {
-        data.css = code;
-    } else if (lang === 'javascript' || lang === 'js') {
-        data.js = code;
-    } else {
-        // Hybrid support: try to guess if it's general web code
-        data.html = code;
-    }
-
-    // Create a dynamic POST form and submit it to CodePen in a new window/tab
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = 'https://codepen.io/pen/define';
-    form.target = '_blank';
-
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = 'data';
-    input.value = JSON.stringify(data);
-    form.appendChild(input);
-
-    document.body.appendChild(form);
-    form.submit();
-    document.body.removeChild(form);
-}
-
 /**
  * Simple Markdown → HTML parser.
  * Handles code blocks, inline code, bold, italic, links, and bullet lists.
@@ -196,27 +117,9 @@ function parseMarkdown(text) {
     // Escape HTML to prevent XSS
     let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    // Fenced code blocks (```…```) with advanced Synthwave wrappers, Copy and Run buttons
-    html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_m, lang, code) => {
-        const detectedLang = (lang || 'code').trim();
-        const lowerLang = detectedLang.toLowerCase();
-        
-        // Show CodePen Run badge for Web languages (HTML, CSS, JS)
-        const isWebLang = ['html', 'css', 'javascript', 'js', 'xml'].includes(lowerLang);
-        const runBtnHtml = isWebLang 
-            ? `<button class="code-btn run-btn" onclick="runInCodePen(this)" title="Run in CodePen"><i class="fas fa-play"></i> Run</button>` 
-            : '';
-            
-        return `<div class="code-block-wrapper">
-    <div class="code-block-header">
-        <span class="code-lang">${detectedLang}</span>
-        <div class="code-actions">
-            ${runBtnHtml}
-            <button class="code-btn" onclick="copyCodeBlock(this)" title="Copy Code"><i class="far fa-copy"></i> Copy</button>
-        </div>
-    </div>
-    <pre class="language-${lowerLang}"><code class="language-${lowerLang}">${code}</code></pre>
-</div>`;
+    // Fenced code blocks (```…```)
+    html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_m, _lang, code) => {
+        return `<pre><code>${code}</code></pre>`;
     });
 
     // Inline code
@@ -236,9 +139,9 @@ function parseMarkdown(text) {
     html = html.replace(/((?:<li>.*<\/li>\s*)+)/g, '<ul>$1</ul>');
 
     // Line breaks: convert \n → <br> *outside* code blocks
-    const segments = html.split(/(<div class="code-block-wrapper">[\s\S]*?<\/div>)/g);
+    const segments = html.split(/(<pre>[\s\S]*?<\/pre>)/g);
     html = segments.map((seg, i) => {
-        if (i % 2 !== 0) return seg; // inside code block wrapper, leave alone
+        if (i % 2 !== 0) return seg; // inside <pre>, leave alone
         return seg.replace(/\n/g, '<br>');
     }).join('');
 
@@ -325,22 +228,6 @@ function initializeChat() {
     }
 
     sendButton.addEventListener('click', sendMessage);
-
-    // Sidebar Toggle handling
-    const toggleBtn = document.getElementById('sidebar-toggle');
-    const sidebar = document.getElementById('sidebar');
-    if (toggleBtn && sidebar) {
-        toggleBtn.addEventListener('click', () => {
-            sidebar.classList.toggle('mobile-open');
-        });
-        // Click outside mobile sidebar to close it
-        document.addEventListener('click', (e) => {
-            if (!sidebar.contains(e.target) && !toggleBtn.contains(e.target)) {
-                sidebar.classList.remove('mobile-open');
-            }
-        });
-    }
-
     console.log('Chat initialized successfully');
 }
 
@@ -389,10 +276,6 @@ async function sendMessage() {
     if (!authenticated && getGuestMessageCount() >= GUEST_MESSAGE_LIMIT) {
         showGuestLimitPrompt();
         return;
-    }
-
-    if (authenticated && !currentConversationId) {
-        currentConversationId = generateUUID();
     }
 
     console.log('Processing message:', message.substring(0, 50) + '...');
@@ -486,12 +369,6 @@ async function sendMessage() {
                 chatHistory.push({ role: 'assistant', content: responseText });
                 await processImageTags(responseText, authenticated);
             }
-        }
-
-        // Save conversation to D1
-        if (authenticated) {
-            await saveConversation();
-            await syncConversationHistory();
         }
 
     } catch (error) {
@@ -589,11 +466,6 @@ async function handleStreamResponse(response) {
             // Final render with suggestions and feedback buttons
             const { cleanText, suggestions } = extractSuggestions(responseText);
             assistantMessageEl.innerHTML = buildAssistantHTML(stripImageTags(cleanText), suggestions);
-
-            // Highlight all code blocks inside the finished message!
-            if (window.Prism) {
-                window.Prism.highlightAllUnder(assistantMessageEl);
-            }
 
             const chatMessages = document.getElementById('chat-messages');
             if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -696,16 +568,7 @@ function addMessageToChat(role, content) {
         messageEl.appendChild(avatar);
     }
 
-    if (role === 'system') {
-        // System message rendered as a beautiful history card
-        messageEl.className = 'system-message';
-        messageEl.innerHTML = `
-            <div class="system-message-inner">
-                <i class="fas fa-history"></i>
-                <div>${parseMarkdown(content)}</div>
-            </div>
-        `;
-    } else if (role === 'assistant') {
+    if (role === 'assistant') {
         const { cleanText, suggestions } = extractSuggestions(content);
         messageEl.innerHTML = buildAssistantHTML(cleanText, suggestions);
     } else {
@@ -714,11 +577,6 @@ function addMessageToChat(role, content) {
     }
 
     chatMessages.appendChild(messageEl);
-
-    // Call Prism to highlight code blocks
-    if (window.Prism) {
-        window.Prism.highlightAllUnder(messageEl);
-    }
 
     requestAnimationFrame(() => {
         chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -765,183 +623,13 @@ function clearChat() {
     }
 }
 
-// ─── D1 Persistence Helpers ──────────────────────────────────────────────────
-
-function escapeHTML(str) {
-    if (!str) return '';
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-
-async function saveConversation() {
-    if (!isAuthenticated() || !currentConversationId) return;
-    try {
-        const headers = await buildHeaders(true);
-        const response = await fetch('/api/conversations', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-                id: currentConversationId,
-                messages: chatHistory
-            })
-        });
-        if (response.ok) {
-            // Reload user history list
-            await loadUserHistory();
-        }
-    } catch (e) {
-        console.error('Failed to save D1 conversation:', e);
-    }
-}
-
-async function syncConversationHistory() {
-    if (!isAuthenticated() || !currentConversationId) return;
-    try {
-        const headers = await buildHeaders(true);
-        const response = await fetch(`/api/conversations/${currentConversationId}`, { headers });
-        if (response.ok) {
-            const data = await response.json();
-            if (data.messages) {
-                chatHistory = JSON.parse(data.messages);
-                console.log('Synchronized chat history with D1. Local history count:', chatHistory.length);
-            }
-        }
-    } catch (e) {
-        console.error('Failed to sync conversation history with D1:', e);
-    }
-}
-
-async function loadUserHistory() {
-    const listEl = document.getElementById('chat-history-list');
-    if (!listEl) return;
-
-    if (!isAuthenticated()) {
-        listEl.innerHTML = `<div style="padding: 1rem; text-align: center; color: rgba(168,168,216,0.5); font-size: 0.8rem;">Sign in to save history</div>`;
-        return;
-    }
-
-    try {
-        const headers = await buildHeaders(true);
-        const response = await fetch('/api/conversations', { headers });
-        if (!response.ok) throw new Error('Failed to fetch history');
-        
-        const data = await response.json();
-        const conversations = data.conversations || [];
-        
-        if (conversations.length === 0) {
-            listEl.innerHTML = `<div style="padding: 1rem; text-align: center; color: rgba(168,168,216,0.5); font-size: 0.8rem;">No past chats</div>`;
-            return;
-        }
-
-        listEl.innerHTML = conversations.map(conv => {
-            const activeClass = conv.id === currentConversationId ? 'active' : '';
-            return `
-                <div class="history-item ${activeClass}" onclick="window.chat.switchConversation('${conv.id}')" data-id="${conv.id}">
-                    <i class="far fa-comments"></i>
-                    <span>${escapeHTML(conv.title || 'New Chat')}</span>
-                </div>
-            `;
-        }).join('');
-    } catch (e) {
-        console.error('Error loading D1 history:', e);
-        listEl.innerHTML = `<div style="padding: 1rem; text-align: center; color: rgba(255,110,199,0.5); font-size: 0.8rem;">Error loading history</div>`;
-    }
-}
-
-async function switchConversation(id) {
-    if (isProcessing) return;
-    currentConversationId = id;
-    
-    // Close mobile sidebar
-    document.getElementById('sidebar')?.classList.remove('mobile-open');
-
-    // Highlight active in sidebar
-    document.querySelectorAll('.history-item').forEach(item => {
-        item.classList.toggle('active', item.getAttribute('data-id') === id);
-    });
-
-    const chatMessages = document.getElementById('chat-messages');
-    if (chatMessages) {
-        chatMessages.innerHTML = `<div style="padding: 2rem; text-align: center; color: var(--secondary-color);"><i class="fas fa-spinner fa-spin"></i> Loading...</div>`;
-    }
-
-    try {
-        const headers = await buildHeaders(true);
-        const response = await fetch(`/api/conversations/${id}`, { headers });
-        if (!response.ok) throw new Error('Failed to load conversation');
-        
-        const data = await response.json();
-        chatHistory = JSON.parse(data.messages || '[]');
-        renderFullChatHistory();
-    } catch (e) {
-        console.error('Error switching D1 conversation:', e);
-        showNotification('Error loading conversation');
-        startNewChat();
-    }
-}
-
-function renderFullChatHistory() {
-    const chatMessages = document.getElementById('chat-messages');
-    if (!chatMessages) return;
-    chatMessages.innerHTML = '';
-    chatHistory.forEach(msg => {
-        if (msg.role === 'system') return; // Skip system memory context
-        addMessageToChat(msg.role, msg.content);
-    });
-}
-
-function startNewChat() {
-    if (isProcessing) return;
-    currentConversationId = generateUUID();
-    
-    // Close mobile sidebar
-    document.getElementById('sidebar')?.classList.remove('mobile-open');
-
-    chatHistory = [
-        {
-            role: "assistant",
-            content: "Welcome to the ELEENAI Gateway! I'm your conduit to the realm of artificial intelligence.\nHow may I assist you on this journey?"
-        }
-    ];
-    
-    // Un-highlight active sidebar items
-    document.querySelectorAll('.history-item').forEach(item => item.classList.remove('active'));
-
-    renderFullChatHistory();
-    const userInput = document.getElementById('user-input');
-    if (userInput) {
-        userInput.disabled = false;
-        userInput.value = '';
-        userInput.style.height = 'auto';
-        userInput.focus();
-    }
-}
-
-function resetChat() {
-    currentConversationId = null;
-    chatHistory = [
-        {
-            role: "assistant",
-            content: "Welcome to the ELEENAI Gateway! I'm your conduit to the realm of artificial intelligence.\nHow may I assist you on this journey?"
-        }
-    ];
-    renderFullChatHistory();
-    loadUserHistory();
-}
-
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 window.chat = {
     sendMessage,
     clearChat,
-    history: () => chatHistory,
-    loadUserHistory,
-    switchConversation,
-    startNewChat,
-    resetChat
+    history: () => chatHistory
 };
-
-// Global handlers for HTML actions
-window.startNewChat = startNewChat;
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 

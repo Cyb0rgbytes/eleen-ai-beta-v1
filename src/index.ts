@@ -178,97 +178,6 @@ export default {
 			return handleWebSearch(request, env);
 		}
 
-		if (url.pathname === "/api/memory" && request.method === "GET") {
-			try {
-				const memory = (await env.ELEEN_MEMORY.get(userId)) || "";
-				return Response.json({ memory });
-			} catch (e: any) {
-				return Response.json({ error: e.message }, { status: 500 });
-			}
-		}
-
-		if (url.pathname === "/api/memory" && request.method === "POST") {
-			try {
-				const { memory } = (await request.json()) as { memory: string };
-				if (memory === undefined) return new Response("Bad Request", { status: 400 });
-
-				if (memory.length > MAX_MEMORY_SIZE) {
-					return Response.json(
-						{ error: `Memory profile exceeds maximum limit of ${MAX_MEMORY_SIZE} bytes` },
-						{ status: 400 },
-					);
-				}
-
-				if (memory.trim()) {
-					await env.ELEEN_MEMORY.put(userId, memory.trim());
-				} else {
-					await env.ELEEN_MEMORY.delete(userId);
-				}
-				return Response.json({ success: true });
-			} catch (e: any) {
-				return Response.json({ error: e.message }, { status: 500 });
-			}
-		}
-
-		// ── D1 Conversations Endpoints ─────────────────────────────────────
-		if (url.pathname === "/api/conversations" && request.method === "GET") {
-			try {
-				const { results } = await env.DB.prepare(
-					"SELECT id, title, created_at FROM conversations WHERE user_id = ? ORDER BY created_at DESC"
-				).bind(userId).all();
-				return Response.json({ conversations: results });
-			} catch (e: any) {
-				return Response.json({ error: e.message }, { status: 500 });
-			}
-		}
-
-		if (url.pathname.startsWith("/api/conversations/") && request.method === "GET") {
-			const id = url.pathname.split("/").pop();
-			if (!id) return new Response("Bad Request", { status: 400 });
-			const result = await env.DB.prepare(
-				"SELECT * FROM conversations WHERE id = ? AND user_id = ?"
-			).bind(id, userId).first();
-			if (!result) return new Response("Not Found", { status: 404 });
-			return Response.json(result);
-		}
-
-		if (url.pathname === "/api/conversations" && request.method === "POST") {
-			const body = await request.json() as any;
-			const { id, messages } = body;
-			if (!id || !messages) return new Response("Bad Request", { status: 400 });
-
-			// Check if conversation exists
-			const existing = await env.DB.prepare("SELECT title FROM conversations WHERE id = ? AND user_id = ?").bind(id, userId).first();
-			
-			let title = (existing?.title as string) || "New Chat";
-			
-			// Auto-generate title if it's a "New Chat" and we have at least one user + assistant message
-			if (title === "New Chat" && messages.length >= 2) {
-				const userMsg = messages.find((m: any) => m.role === "user");
-				const asstMsg = messages.find((m: any) => m.role === "assistant");
-				if (userMsg && asstMsg) {
-					const prompt = `Based on the following short exchange, generate a concise 3-4 word title for this conversation. Return ONLY the title, no quotes or prefix.\n\nUser: ${userMsg.content}\nAssistant: ${asstMsg.content}`;
-					try {
-						const aiResponse = await env.AI.run("@cf/meta/llama-3.1-8b-instruct-fp8", {
-							messages: [{ role: "user", content: prompt }],
-							max_tokens: 15
-						}) as any;
-						if (aiResponse.response) {
-							title = aiResponse.response.replace(/["']/g, "").trim();
-						}
-					} catch (e) {
-						console.error("Title generation failed", e);
-					}
-				}
-			}
-
-			await env.DB.prepare(
-				"INSERT INTO conversations (id, user_id, title, messages) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET messages = excluded.messages, title = excluded.title"
-			).bind(id, userId, title, JSON.stringify(messages)).run();
-
-			return Response.json({ success: true, title });
-		}
-
 		return new Response("Not found", { status: 404 });
 	},
 } satisfies ExportedHandler<Env>;
@@ -325,178 +234,31 @@ async function handleChatRequest(
 			messages.unshift({ role: "system", content: SYSTEM_PROMPT + memoryContext });
 		}
 
-		// ─── Hierarchical Summarization check ───
-		const conversationalMsgs = messages.filter(m => m.role !== "system");
-		let summarizedMessages = [...messages];
-
-		if (userId !== "guest" && conversationalMsgs.length >= 15) {
-			// Find indices of conversational messages in the original array
-			const conversationalIndices: number[] = [];
-			for (let i = 0; i < messages.length; i++) {
-				if (messages[i].role !== "system") {
-					conversationalIndices.push(i);
-				}
-			}
-
-			if (conversationalIndices.length >= 15) {
-				const oldestIndices = conversationalIndices.slice(0, 10);
-				const oldestMsgs = oldestIndices.map(idx => messages[idx]);
-
-				const conversationText = oldestMsgs
-					.map(m => `${m.role.toUpperCase()}: ${m.content}`)
-					.join("\n");
-
-				const summaryPrompt = `Summarize the following past exchange between the user and assistant in 2-3 concise sentences. Focus ONLY on crucial facts, user preferences, and key technical details established. Do not include any meta-commentary, greetings, or introductory phrases.`;
-
-				try {
-					const summaryResponse = await env.AI.run(MODEL_ID, {
-						messages: [
-							{ role: "system", content: summaryPrompt },
-							{ role: "user", content: conversationText }
-						],
-						max_tokens: 150
-					}) as any;
-
-					const summaryText = summaryResponse.response?.trim();
-					if (summaryText) {
-						const systemSummaryMsg: ChatMessage = {
-							role: "system",
-							content: `Earlier in this conversation: ${summaryText}`
-						};
-
-						// Build new messages array
-						const firstIndexToReplace = oldestIndices[0];
-						const lastIndexToReplace = oldestIndices[oldestIndices.length - 1];
-
-						const before = messages.slice(0, firstIndexToReplace);
-						const after = messages.slice(lastIndexToReplace + 1);
-
-						summarizedMessages = [...before, systemSummaryMsg, ...after];
-						console.log("Hierarchical summarization completed successfully!");
-					}
-				} catch (e) {
-					console.error("Hierarchical summarization failed:", e);
-				}
-			}
-		}
-
 		// 4. Run the AI Model
 		const stream = await env.AI.run(MODEL_ID, {
-			messages: summarizedMessages,
+			messages,
 			max_tokens: maxTokens,
 			stream: true,
-		}) as any;
+		});
 
-		// 5. Dynamic Background Persistence (Non-blocking)
-		if (userId !== "guest" && body.id && env.DB) {
-			const [clientStream, bgStream] = stream.tee();
-			
-			ctx.waitUntil(consumeStreamAndSave(env, userId, body.id, summarizedMessages, bgStream));
-			
-			if (env.ELEEN_MEMORY) {
-				ctx.waitUntil(updateMemory(env, userId, summarizedMessages, rawMemory));
-			}
-
-			return new Response(clientStream, {
-				headers: {
-					"content-type": "text/event-stream; charset=utf-8",
-					"cache-control": "no-cache",
-					connection: "keep-alive",
-				},
-			});
-		} else {
-			if (userId !== "guest" && env.ELEEN_MEMORY) {
-				ctx.waitUntil(updateMemory(env, userId, summarizedMessages, rawMemory));
-			}
-
-			return new Response(stream, {
-				headers: {
-					"content-type": "text/event-stream; charset=utf-8",
-					"cache-control": "no-cache",
-					connection: "keep-alive",
-				},
-			});
+		// 5. Background Memory Update (Non-blocking)
+		if (userId !== "guest" && env.ELEEN_MEMORY) {
+			ctx.waitUntil(updateMemory(env, userId, messages, rawMemory));
 		}
+
+		return new Response(stream, {
+			headers: {
+				"content-type": "text/event-stream; charset=utf-8",
+				"cache-control": "no-cache",
+				connection: "keep-alive",
+			},
+		});
 	} catch (error) {
 		console.error("Error processing chat request:", error);
 		return new Response(
 			JSON.stringify({ error: "Failed to process request" }),
 			{ status: 500, headers: { "content-type": "application/json" } },
 		);
-	}
-}
-
-// ─── Stream Accumulator & D1 Database Saver ──────────────────────────────────
-
-async function consumeStreamAndSave(
-	env: Env,
-	userId: string,
-	conversationId: string,
-	messages: ChatMessage[],
-	stream: ReadableStream,
-) {
-	try {
-		const reader = stream.getReader();
-		const decoder = new TextDecoder();
-		let assistantResponse = "";
-
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) break;
-
-			const chunk = decoder.decode(value, { stream: true });
-			const lines = chunk.split("\n");
-			for (const line of lines) {
-				if (line.startsWith("data: ")) {
-					const dataStr = line.slice(6).trim();
-					if (dataStr === "[DONE]") break;
-					try {
-						const parsed = JSON.parse(dataStr);
-						if (parsed.response) {
-							assistantResponse += parsed.response;
-						}
-					} catch {}
-				}
-			}
-		}
-
-		if (assistantResponse.trim()) {
-			const updatedMessages = [
-				...messages,
-				{ role: "assistant" as const, content: assistantResponse }
-			];
-
-			const existing = await env.DB.prepare(
-				"SELECT title FROM conversations WHERE id = ? AND user_id = ?"
-			).bind(conversationId, userId).first();
-
-			let title = (existing?.title as string) || "New Chat";
-
-			if (title === "New Chat" && updatedMessages.length >= 2) {
-				const userMsg = updatedMessages.find(m => m.role === "user");
-				const asstMsg = updatedMessages.find(m => m.role === "assistant");
-				if (userMsg && asstMsg) {
-					const prompt = `Based on the following short exchange, generate a concise 3-4 word title for this conversation. Return ONLY the title, no quotes or prefix.\n\nUser: ${userMsg.content}\nAssistant: ${asstMsg.content}`;
-					try {
-						const aiResponse = await env.AI.run(MODEL_ID, {
-							messages: [{ role: "user", content: prompt }],
-							max_tokens: 15
-						}) as any;
-						if (aiResponse.response) {
-							title = aiResponse.response.replace(/["']/g, "").trim();
-						}
-					} catch (e) {
-						console.error("D1 background title generation failed", e);
-					}
-				}
-			}
-
-			await env.DB.prepare(
-				"INSERT INTO conversations (id, user_id, title, messages) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET messages = excluded.messages, title = excluded.title"
-			).bind(conversationId, userId, title, JSON.stringify(updatedMessages)).run();
-		}
-	} catch (e) {
-		console.error("D1 background save failed:", e);
 	}
 }
 
