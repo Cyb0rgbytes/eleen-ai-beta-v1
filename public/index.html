@@ -103,6 +103,19 @@
     <div class="gateway-glow"></div>
     
     <div class="gateway-container">
+            <div class="top-controls" style="position: absolute; top: 1.25rem; left: 1.25rem; display: flex; gap: 0.5rem; z-index: 100;">
+                <button id="theme-toggle" class="auth-button secondary" title="Toggle Theme" style="padding: 0.45rem 0.8rem;">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <select id="lang-selector" class="auth-button secondary" style="padding: 0.45rem; outline: none;">
+                    <option value="en">English</option>
+                    <option value="ar">العربية</option>
+                    <option value="fr">Français</option>
+                    <option value="es">Español</option>
+                    <option value="ru">Русский</option>
+                </select>
+            </div>
+
         <div class="auth-container">
             <div id="user-info">
                 <img id="user-avatar" src="" alt="User Avatar">
@@ -170,7 +183,41 @@
 
         <footer>
             <p>EleenAI Personal Assistant &copy; 2026 | Portal to the Realm of Intelligence</p>
+            <p style="margin-top: 8px; font-size: 0.8rem; color: var(--text-light);">
+                <a href="#" onclick="openLegalModal('terms')" style="color: inherit; text-decoration: underline; margin-right: 12px;">Terms & Conditions</a>
+                <a href="#" onclick="openLegalModal('privacy')" style="color: inherit; text-decoration: underline;">Privacy Policy</a>
+            </p>
         </footer>
+    </div>
+
+
+
+    <!-- Cookie Banner -->
+    <div id="cookie-banner" class="cookie-banner">
+        <div class="cookie-text">
+            <i class="fas fa-cookie-bite" style="color: var(--primary-color); margin-right: 8px;"></i>
+            We use cookies to enhance your experience. By continuing to visit this site you agree to our use of cookies.
+        </div>
+        <div class="cookie-buttons">
+            <button class="cookie-btn accept" onclick="acceptCookies()">Accept</button>
+            <button class="cookie-btn" onclick="dismissCookies()">Decline</button>
+        </div>
+    </div>
+
+    <!-- Legal Modals -->
+    <div id="legal-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="legal-title"><i class="fas fa-file-contract"></i> Legal</h2>
+                <button class="modal-close" onclick="closeLegalModal()">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 60vh; overflow-y: auto; padding-right: 10px; font-size: 0.9rem; line-height: 1.6; color: var(--text-color);">
+                <div id="legal-content"></div>
+            </div>
+            <div class="modal-actions" style="margin-top: 1rem;">
+                <button class="modal-btn secondary" onclick="closeLegalModal()">Close</button>
+            </div>
+        </div>
     </div>
 
     <!-- Memory Settings Modal -->
@@ -238,7 +285,7 @@
 
 
         // Update auth-related UI state based on Clerk session
-        async function updateAuthUI() {
+        window.updateAuthUI = async function updateAuthUI() {
             const loginButton = document.getElementById('login-button');
             const logoutButton = document.getElementById('logout-button');
             const memoryButton = document.getElementById('memory-button');
@@ -258,7 +305,7 @@
                 userName.textContent = user.fullName || user.primaryEmailAddress?.emailAddress || 'User';
                 userAvatar.src = user.imageUrl ||
                     `https://ui-avatars.com/api/?name=${encodeURIComponent(userName.textContent)}&background=6C63FF&color=fff`;
-                userInput.placeholder = 'Ask me anything... (unlimited access)';
+                userInput.placeholder = window.chat ? window.chat.t('inputPlaceholderAuth') : 'Ask me anything... (unlimited access)';
                 userInput.disabled = false;
                 sendButton.disabled = false;
             } else {
@@ -267,7 +314,7 @@
                 if (memoryButton) memoryButton.style.display = 'none';
                 userInfoEl.style.display = 'none';
                 // Guest mode: keep input ENABLED for unauthenticated users
-                userInput.placeholder = 'Ask me anything... (sign in for unlimited access)';
+                userInput.placeholder = window.chat ? window.chat.t('inputPlaceholderGuest') : 'Ask me anything... (sign in for unlimited access)';
                 userInput.disabled = false;
                 sendButton.disabled = false;
             }
@@ -277,7 +324,46 @@
         // MEMORY MODAL UTILITIES
         // ============================================
 
-        async function openMemoryModal() {
+        async
+        function openLegalModal(type) {
+            const modal = document.getElementById('legal-modal');
+            const title = document.getElementById('legal-title');
+            const content = document.getElementById('legal-content');
+
+            if (type === 'terms') {
+                title.innerHTML = '<i class="fas fa-file-contract"></i> Terms & Conditions';
+                content.innerHTML = `
+                    <h3>1. Introduction</h3>
+                    <p>Welcome to EleenAI. By accessing our gateway, you agree to these terms.</p>
+                    <br>
+                    <h3>2. Use of Service</h3>
+                    <p>You may use EleenAI for personal or commercial purposes. Do not abuse the API or use the service for illegal activities.</p>
+                    <br>
+                    <h3>3. Disclaimer</h3>
+                    <p>EleenAI provides generated content. We do not guarantee the accuracy or reliability of the AI's outputs.</p>
+                `;
+            } else if (type === 'privacy') {
+                title.innerHTML = '<i class="fas fa-shield-alt"></i> Privacy Policy';
+                content.innerHTML = `
+                    <h3>1. Data Collection</h3>
+                    <p>We collect chat logs to improve our services and maintain your personal memory vault.</p>
+                    <br>
+                    <h3>2. Data Usage</h3>
+                    <p>Your data is encrypted and stored securely. We do not sell your personal data to third parties.</p>
+                    <br>
+                    <h3>3. Cookies</h3>
+                    <p>We use cookies to maintain your session and preferences.</p>
+                `;
+            }
+
+            modal.classList.add('open');
+        }
+
+        function closeLegalModal() {
+            document.getElementById('legal-modal').classList.remove('open');
+        }
+
+        function openMemoryModal() {
             const modal = document.getElementById('memory-modal');
             const textarea = document.getElementById('memory-text');
             if (!modal) return;
@@ -393,6 +479,69 @@
 
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('EleenAI Gateway initializing with Clerk...');
+
+
+
+        // Cookie Consent Logic
+        function checkCookieConsent() {
+            if (!localStorage.getItem('cookieConsent')) {
+                setTimeout(() => {
+                    document.getElementById('cookie-banner').classList.add('show');
+                }, 1000);
+            }
+        }
+
+        function acceptCookies() {
+            localStorage.setItem('cookieConsent', 'accepted');
+            document.getElementById('cookie-banner').classList.remove('show');
+        }
+
+        function dismissCookies() {
+            localStorage.setItem('cookieConsent', 'declined');
+            document.getElementById('cookie-banner').classList.remove('show');
+        }
+
+        document.addEventListener('DOMContentLoaded', checkCookieConsent);
+
+        // Theme Toggle Logic
+        const themeToggle = document.getElementById('theme-toggle');
+        const root = document.documentElement;
+
+        function setTheme(theme) {
+            if (theme === 'dark') {
+                root.classList.add('dark-theme');
+                root.classList.remove('light-theme');
+                themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+            } else {
+                root.classList.add('light-theme');
+                root.classList.remove('dark-theme');
+                themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+            }
+            localStorage.setItem('theme', theme);
+        }
+
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        setTheme(savedTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const isDark = root.classList.contains('dark-theme');
+            setTheme(isDark ? 'light' : 'dark');
+        });
+
+
+        const langSelector = document.getElementById('lang-selector');
+        if (langSelector) {
+            langSelector.value = localStorage.getItem('lang') || 'en';
+            langSelector.addEventListener('change', (e) => {
+                if (window.updateLanguage) {
+                    window.updateLanguage(e.target.value);
+                }
+            });
+            // Initial call
+            setTimeout(() => {
+                if (window.updateLanguage) window.updateLanguage(langSelector.value);
+            }, 500);
+        }
 
             // Initialize chat UI
             initChatUI();

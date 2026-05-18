@@ -1,6 +1,32 @@
 
-        :root {
-            /* Existing variables updated to match instructions */
+        :root, :root.light-theme {
+            /* Light Theme (Bright Cyan/Blue based on the image) */
+            --primary-color: #1A56DB;
+            --primary-hover: #1E40AF;
+            --primary-glow: rgba(26, 86, 219, 0.45);
+            --secondary-color: #00E5FF;
+            --accent-color: #0ea5e9;
+            --dark-bg: #0ed3ff; /* Bright cyan top */
+            --darker-bg: #1c9bf6; /* Deeper blue bottom */
+            --surface: rgba(255, 255, 255, 0.85); /* Card background */
+            --surface-elevated: rgba(255, 255, 255, 0.95);
+            --border-color: rgba(26, 86, 219, 0.2); /* Border */
+            --text-color: #1e293b; /* Text primary */
+            --text-light: #475569; /* Text muted */
+            --user-msg-bg: rgba(26, 86, 219, 0.1);
+            --assistant-msg-bg: rgba(255, 255, 255, 0.7);
+            --gradient: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            --gradient-accent: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            --glow: 0 0 25px var(--primary-glow);
+            --radius-lg: 20px;
+            --radius-md: 14px;
+            --radius-sm: 10px;
+            --spline-opacity: 0.15; /* Tone down spline in light mode */
+            --header-mesh: var(--header-mesh);
+        }
+
+        :root.dark-theme {
+            /* Dark Theme (Cosmic Intelligence) */
             --primary-color: #6C63FF;
             --primary-hover: #8B83FF;
             --primary-glow: rgba(108, 99, 255, 0.45);
@@ -8,19 +34,18 @@
             --accent-color: #FF6EC7;
             --dark-bg: #07071C;
             --darker-bg: #030312;
-            --surface: rgba(12, 12, 35, 0.6); /* Card background */
+            --surface: rgba(12, 12, 35, 0.6);
             --surface-elevated: rgba(22, 22, 55, 0.6);
-            --border-color: rgba(108, 99, 255, 0.3); /* Border */
-            --text-color: #E8E8FF; /* Text primary */
-            --text-light: #A8A8D8; /* Text muted */
+            --border-color: rgba(108, 99, 255, 0.3);
+            --text-color: var(--text-color);
+            --text-light: #A8A8D8;
             --user-msg-bg: rgba(108, 99, 255, 0.15);
             --assistant-msg-bg: rgba(0, 229, 255, 0.05);
             --gradient: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
             --gradient-accent: linear-gradient(135deg, var(--primary-color), var(--accent-color));
             --glow: 0 0 25px var(--primary-glow);
-            --radius-lg: 20px;
-            --radius-md: 14px;
-            --radius-sm: 10px;
+            --spline-opacity: 1;
+            --header-mesh: var(--header-mesh);
         }
 
         * {
@@ -49,11 +74,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background:
-                radial-gradient(ellipse at 20% 20%, rgba(108, 99, 255, 0.12) 0%, transparent 50%),
-                radial-gradient(ellipse at 80% 80%, rgba(0, 229, 255, 0.08) 0%, transparent 50%),
-                radial-gradient(ellipse at 50% 50%, rgba(255, 110, 199, 0.05) 0%, transparent 60%),
-                linear-gradient(180deg, var(--dark-bg), var(--darker-bg));
+            background: linear-gradient(180deg, var(--dark-bg) 0%, var(--darker-bg) 100%);
             z-index: -1;
         }
 
@@ -76,7 +97,7 @@
         }
 
         #spline-bg.loaded spline-viewer {
-            opacity: 1;
+            opacity: var(--spline-opacity);
         }
 
         /* Animated loading placeholder — shows instantly while 3D loads */
@@ -88,9 +109,7 @@
             width: 100%;
             height: 100%;
             background:
-                radial-gradient(ellipse at 30% 50%, rgba(108, 99, 255, 0.15) 0%, transparent 60%),
-                radial-gradient(ellipse at 70% 40%, rgba(0, 229, 255, 0.1) 0%, transparent 55%),
-                radial-gradient(ellipse at 50% 80%, rgba(255, 110, 199, 0.08) 0%, transparent 50%);
+                var(--header-mesh);
             animation: placeholderPulse 3s ease-in-out infinite;
             transition: opacity 0.8s ease;
         }
@@ -201,10 +220,7 @@
             padding: 3.5rem 0 0.75rem 0;
             position: relative;
             background:
-                radial-gradient(circle at 0% 0%, rgba(108, 99, 255, 0.4) 0%, transparent 50%),
-                radial-gradient(circle at 100% 0%, rgba(0, 229, 255, 0.4) 0%, transparent 50%),
-                radial-gradient(circle at 100% 100%, rgba(255, 110, 199, 0.4) 0%, transparent 50%),
-                radial-gradient(circle at 0% 100%, rgba(13, 13, 43, 0.8) 0%, transparent 50%);
+                var(--header-mesh);
             background-size: 200% 200%;
             animation: meshGradient 10s ease infinite;
             border-radius: 24px 24px 0 0;
@@ -828,10 +844,7 @@
             padding: 3.5rem 0 0.75rem 0;
             position: relative;
             background:
-                radial-gradient(circle at 0% 0%, rgba(108, 99, 255, 0.4) 0%, transparent 50%),
-                radial-gradient(circle at 100% 0%, rgba(0, 229, 255, 0.4) 0%, transparent 50%),
-                radial-gradient(circle at 100% 100%, rgba(255, 110, 199, 0.4) 0%, transparent 50%),
-                radial-gradient(circle at 0% 100%, rgba(13, 13, 43, 0.8) 0%, transparent 50%);
+                var(--header-mesh);
             background-size: 200% 200%;
             animation: meshGradient 10s ease infinite;
             border-radius: 24px 24px 0 0;
@@ -932,10 +945,7 @@
             padding: 3.5rem 0 0.75rem 0;
             position: relative;
             background:
-                radial-gradient(circle at 0% 0%, rgba(108, 99, 255, 0.4) 0%, transparent 50%),
-                radial-gradient(circle at 100% 0%, rgba(0, 229, 255, 0.4) 0%, transparent 50%),
-                radial-gradient(circle at 100% 100%, rgba(255, 110, 199, 0.4) 0%, transparent 50%),
-                radial-gradient(circle at 0% 100%, rgba(13, 13, 43, 0.8) 0%, transparent 50%);
+                var(--header-mesh);
             background-size: 200% 200%;
             animation: meshGradient 10s ease infinite;
             border-radius: 24px 24px 0 0;
@@ -1116,10 +1126,7 @@
             padding: 3.5rem 0 0.75rem 0;
             position: relative;
             background:
-                radial-gradient(circle at 0% 0%, rgba(108, 99, 255, 0.4) 0%, transparent 50%),
-                radial-gradient(circle at 100% 0%, rgba(0, 229, 255, 0.4) 0%, transparent 50%),
-                radial-gradient(circle at 100% 100%, rgba(255, 110, 199, 0.4) 0%, transparent 50%),
-                radial-gradient(circle at 0% 100%, rgba(13, 13, 43, 0.8) 0%, transparent 50%);
+                var(--header-mesh);
             background-size: 200% 200%;
             animation: meshGradient 10s ease infinite;
             border-radius: 24px 24px 0 0;
@@ -1252,10 +1259,7 @@
             padding: 3.5rem 0 0.75rem 0;
             position: relative;
             background:
-                radial-gradient(circle at 0% 0%, rgba(108, 99, 255, 0.4) 0%, transparent 50%),
-                radial-gradient(circle at 100% 0%, rgba(0, 229, 255, 0.4) 0%, transparent 50%),
-                radial-gradient(circle at 100% 100%, rgba(255, 110, 199, 0.4) 0%, transparent 50%),
-                radial-gradient(circle at 0% 100%, rgba(13, 13, 43, 0.8) 0%, transparent 50%);
+                var(--header-mesh);
             background-size: 200% 200%;
             animation: meshGradient 10s ease infinite;
             border-radius: 24px 24px 0 0;
@@ -1486,7 +1490,7 @@
             background: transparent;
             border: none;
             outline: none;
-            color: #E8E8FF;
+            color: var(--text-color);
             font-size: 1rem;
             line-height: 1.6;
             resize: none;
@@ -1942,5 +1946,75 @@
                 animation-iteration-count: 1 !important;
                 transition-duration: 0.01ms !important;
                 scroll-behavior: auto !important;
+            }
+        }
+
+        /* Cookie Banner */
+        .cookie-banner {
+            position: fixed;
+            bottom: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--surface-elevated);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 16px 24px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            transition: bottom 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            width: 90%;
+            max-width: 600px;
+        }
+
+        .cookie-banner.show {
+            bottom: 24px;
+        }
+
+        .cookie-text {
+            font-size: 0.85rem;
+            color: var(--text-color);
+            flex: 1;
+        }
+
+        .cookie-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .cookie-btn {
+            background: transparent;
+            border: 1px solid var(--primary-color);
+            color: var(--text-color);
+            padding: 6px 16px;
+            border-radius: 100px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .cookie-btn.accept {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .cookie-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
+        @media (max-width: 600px) {
+            .cookie-banner {
+                flex-direction: column;
+                align-items: stretch;
+                text-align: center;
+                gap: 12px;
+            }
+            .cookie-buttons {
+                justify-content: center;
             }
         }
