@@ -363,7 +363,11 @@ async function handleImageGenerate(
 		// Try Gemini first if API key is present
 		if (env.GEMINI_API_KEY) {
 			try {
+<<<<<<< HEAD
 				const geminiUrl = `${GEMINI_API_BASE}/models/gemini-2.0-flash-exp:generateContent?key=${env.GEMINI_API_KEY}`;
+=======
+				const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`;
+>>>>>>> parent of 7aecd8c (fix: image generation — Flux returns base64 object, not ReadableStream)
 
 				const geminiResponse = await fetch(geminiUrl, {
 					method: "POST",
@@ -371,7 +375,7 @@ async function handleImageGenerate(
 					body: JSON.stringify({
 						contents: [{ parts: [{ text: `Generate a high quality, detailed image exactly as described: ${prompt.trim()}` }] }],
 						generationConfig: {
-							responseModalities: ["IMAGE", "TEXT"],
+							responseModalities: ["IMAGE"],
 						},
 					}),
 				});
@@ -383,7 +387,7 @@ async function handleImageGenerate(
 
 					if (imagePart?.inlineData) {
 						const base64Data = imagePart.inlineData.data;
-						const mimeType = imagePart.inlineData.mimeType || "image/png";
+						const mimeType = imagePart.inlineData.mimeType || "image/jpeg";
 
 						const binaryString = atob(base64Data);
 						const bytes = new Uint8Array(binaryString.length);
@@ -399,8 +403,12 @@ async function handleImageGenerate(
 						});
 					}
 				} else {
+<<<<<<< HEAD
 					const errBody = await geminiResponse.text().catch(() => "");
 					console.warn("Gemini image generation failed, falling back to Flux:", geminiResponse.status, errBody);
+=======
+					console.warn("Gemini API rejected request, falling back to Flux:", geminiResponse.status);
+>>>>>>> parent of 7aecd8c (fix: image generation — Flux returns base64 object, not ReadableStream)
 				}
 			} catch (geminiError) {
 				console.error("Gemini generation error:", geminiError);
@@ -408,13 +416,17 @@ async function handleImageGenerate(
 		}
 
 		// Fallback to Cloudflare Workers AI Flux-1-Schnell
+<<<<<<< HEAD
 		// Returns { image: "base64string" }
+=======
+>>>>>>> parent of 7aecd8c (fix: image generation — Flux returns base64 object, not ReadableStream)
 		console.log("Using Flux-1-Schnell for image generation");
-		const result = (await env.AI.run(FALLBACK_IMAGE_MODEL, {
+		const result = await env.AI.run(FALLBACK_IMAGE_MODEL, {
 			prompt: prompt.trim(),
 			num_steps: 4,
-		})) as { image: string };
+		});
 
+<<<<<<< HEAD
 		if (!result?.image) {
 			console.error("Flux returned unexpected format:", typeof result, JSON.stringify(result).substring(0, 200));
 			throw new Error("Flux model returned no image data");
@@ -427,6 +439,9 @@ async function handleImageGenerate(
 		}
 
 		return new Response(bytes.buffer, {
+=======
+		return new Response(result as ReadableStream, {
+>>>>>>> parent of 7aecd8c (fix: image generation — Flux returns base64 object, not ReadableStream)
 			headers: {
 				"content-type": "image/png",
 				"cache-control": "public, max-age=3600",
