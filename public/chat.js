@@ -1,3 +1,38 @@
+
+// ─── Enhancements ────────────────────────────────────────────────────────────
+
+let currentMode = 'balanced';
+
+document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentMode = btn.dataset.mode;
+    });
+});
+
+document.getElementById('enhance-btn')?.addEventListener('click', async () => {
+    const input = document.getElementById('user-input');
+    if (!input.value.trim()) return;
+    try {
+        const res = await fetch('/api/enhance-prompt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: input.value }),
+        });
+        if(res.ok) {
+           const { enhanced } = await res.json();
+           input.value = enhanced;
+           showNotification('✨ Prompt enhanced!');
+           // trigger auto-grow
+           input.style.height = 'auto';
+           input.style.height = (input.scrollHeight) + 'px';
+        }
+    } catch(e) {
+        console.error("Enhance failed", e);
+    }
+});
+
 /**
  * EleenAI Chat Frontend
  * Supports both authenticated and guest (unauthenticated) users.
@@ -364,6 +399,21 @@ async function sendMessage() {
 
     // Lock UI
     isProcessing = true;
+
+    // Show thinking indicator
+    const chatMessages = document.getElementById('chat-messages');
+    const thinkingEl = document.createElement('div');
+    thinkingEl.id = 'thinking-indicator';
+    thinkingEl.className = 'thinking-indicator message-enter';
+    thinkingEl.innerHTML = `
+        <div class="ai-avatar">E</div>
+        <div class="thinking-dots">
+            <div></div><div></div><div></div>
+        </div>
+        <div class="thinking-text">Eleen is thinking...</div>
+    `;
+    chatMessages.appendChild(thinkingEl);
+    requestAnimationFrame(() => { chatMessages.scrollTop = chatMessages.scrollHeight; });
     userInput.disabled = true;
     sendButton.disabled = true;
 
@@ -631,8 +681,20 @@ function addMessageToChat(role, content) {
     const chatMessages = document.getElementById('chat-messages');
     if (!chatMessages) return;
 
+
+    const existingThinking = document.getElementById('thinking-indicator');
+    if (existingThinking) existingThinking.remove();
+
     const messageEl = document.createElement('div');
-    messageEl.className = `message ${role}-message`;
+    messageEl.className = `message ${role}-message message-enter`;
+    setTimeout(() => messageEl.classList.remove('message-enter'), 400);
+
+    if (role === 'assistant') {
+        const avatar = document.createElement('div');
+        avatar.className = 'ai-avatar';
+        avatar.textContent = 'E';
+        messageEl.appendChild(avatar);
+    }
 
     if (role === 'system') {
         // System message rendered as a beautiful history card
@@ -890,3 +952,176 @@ if (document.readyState === 'loading') {
 }
 
 console.log('Chat.js loaded');
+
+// ─── Particle System Background ──────────────────────────────────────────────
+
+class Particle {
+    constructor(canvas) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.reset();
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+    }
+
+    reset() {
+        const colors = ['#6C63FF', '#00E5FF', '#FF6EC7'];
+        this.color = colors[Math.floor(Math.random() * colors.length)];
+        this.baseRadius = Math.random() * 2 + 1;
+        this.radius = this.baseRadius;
+        this.baseOpacity = Math.random() * 0.4 + 0.3;
+        this.opacity = this.baseOpacity;
+        this.speedY = -(Math.random() * 0.5 + 0.1);
+        this.speedX = (Math.random() - 0.5) * 0.5;
+        this.sineOffset = Math.random() * Math.PI * 2;
+        this.pulseTime = Math.random() * 200 + 100;
+        this.pulseCounter = 0;
+        this.isPulsing = false;
+
+        if(this.y < 0) {
+            this.x = Math.random() * this.canvas.width;
+            this.y = this.canvas.height + 10;
+        }
+    }
+
+    update(mouseX, mouseY, isMobile) {
+        this.y += this.speedY;
+        this.x += this.speedX + Math.sin(Date.now() * 0.001 + this.sineOffset) * 0.2;
+
+        // Parallax
+        if (!isMobile && mouseX && mouseY) {
+            const dx = (mouseX - this.canvas.width / 2) * 0.02;
+            const dy = (mouseY - this.canvas.height / 2) * 0.02;
+            this.x += (dx - (this.x - this.canvas.width/2) * 0.001) * 0.1;
+            this.y += (dy - (this.y - this.canvas.height/2) * 0.001) * 0.1;
+        }
+
+        if (this.y < -10) {
+            this.reset();
+            this.y = this.canvas.height + 10;
+        }
+        if (this.x < -10) this.x = this.canvas.width + 10;
+        if (this.x > this.canvas.width + 10) this.x = -10;
+
+        // Pulse
+        this.pulseCounter++;
+        if (this.pulseCounter > this.pulseTime && !this.isPulsing) {
+            this.isPulsing = true;
+            this.pulseCounter = 0;
+        }
+        if (this.isPulsing) {
+            this.pulseCounter++;
+            if (this.pulseCounter < 20) {
+                this.radius += 0.3;
+            } else if (this.pulseCounter < 40) {
+                this.radius -= 0.3;
+            } else {
+                this.isPulsing = false;
+                this.radius = this.baseRadius;
+                this.pulseCounter = 0;
+                this.pulseTime = Math.random() * 300 + 150;
+            }
+        }
+    }
+
+    draw() {
+        this.ctx.globalAlpha = this.opacity;
+        this.ctx.fillStyle = this.color;
+        this.ctx.beginPath();
+        this.ctx.arc(this.x, this.y, Math.max(0.1, this.radius), 0, Math.PI * 2);
+        this.ctx.fill();
+    }
+}
+
+function initParticleSystem() {
+    const canvas = document.getElementById('particle-bg');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    let isMobile = window.innerWidth < 768;
+    let numParticles = isMobile ? 30 : 80;
+    let particles = [];
+    let mouseX = null;
+    let mouseY = null;
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        isMobile = window.innerWidth < 768;
+        numParticles = isMobile ? 30 : 80;
+        if(particles.length > numParticles) particles.length = numParticles;
+        while(particles.length < numParticles) particles.push(new Particle(canvas));
+    }
+
+    window.addEventListener('resize', resize);
+    window.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+    });
+
+    resize();
+
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        particles.forEach(p => {
+            p.update(mouseX, mouseY, isMobile);
+            p.draw();
+        });
+
+        if (!isMobile) {
+            ctx.lineWidth = 1;
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const dist = dx * dx + dy * dy;
+                    if (dist < 14400) { // 120 * 120
+                        const alpha = (1 - dist / 14400) * 0.08;
+                        ctx.globalAlpha = alpha;
+                        ctx.strokeStyle = '#6C63FF';
+                        ctx.beginPath();
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        requestAnimationFrame(animate);
+    }
+
+    animate();
+}
+
+document.addEventListener('DOMContentLoaded', initParticleSystem);
+
+async function renderFollowups(lastUser, lastAssistant) {
+  try {
+      const res = await fetch('/api/suggest-followups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lastUserMessage: lastUser, lastAssistantMessage: lastAssistant }),
+      });
+      if(!res.ok) return;
+      const { suggestions } = await res.json();
+      if(!suggestions || !suggestions.length) return;
+
+      const container = document.createElement('div');
+      container.className = 'followup-chips';
+      suggestions.forEach((q, i) => {
+        const chip = document.createElement('button');
+        chip.className = 'chip';
+        chip.style.animationDelay = `${i * 80}ms`;
+        chip.textContent = q;
+        chip.addEventListener('click', () => {
+          document.getElementById('user-input').value = q;
+          container.remove();
+          document.getElementById('send-button')?.click();
+        });
+        container.appendChild(chip);
+      });
+      document.getElementById('chat-messages').appendChild(container);
+  } catch(e) {}
+}
