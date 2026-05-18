@@ -555,6 +555,7 @@ function addMessageToChat(role, content) {
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     const existingThinking = document.getElementById('thinking-indicator');
     if (existingThinking) existingThinking.remove();
 
@@ -569,6 +570,8 @@ function addMessageToChat(role, content) {
         messageEl.appendChild(avatar);
     }
 
+=======
+>>>>>>> parent of 7250f22 (feat: implement smart context summarization, code rendering & playgrounds, memory settings vault, and dynamic spline rendering optimizations)
 =======
 >>>>>>> parent of 7250f22 (feat: implement smart context summarization, code rendering & playgrounds, memory settings vault, and dynamic spline rendering optimizations)
     if (role === 'assistant') {
