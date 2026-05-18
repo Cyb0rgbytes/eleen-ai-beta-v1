@@ -1,166 +1,3 @@
-
-// ─── Translations ────────────────────────────────────────────────────────────
-
-const translations = {
-    en: {
-        welcomeMsg: "Welcome to the ELEENAI Gateway! I'm your conduit to the realm of artificial intelligence.\nHow may I assist you on this journey?",
-        inputPlaceholderGuest: "Ask me anything... (sign in for unlimited access)",
-        inputPlaceholderAuth: "Ask me anything... (unlimited access)",
-        sendBtn: "Send",
-        modeBalanced: "⚖️ Balanced",
-        modeCreative: "🎨 Creative",
-        modeLogical: "🧠 Logical",
-        clearConfirm: "Clear all chat messages?",
-        chatCleared: "Chat cleared. How can I help you today?",
-        loading: "Loading...",
-        loginBtn: "Sign In",
-        logoutBtn: "Logout",
-        memoryBtn: "Memory"
-    },
-    ar: {
-        welcomeMsg: "مرحبًا بك في بوابة ELEENAI! أنا مرشدك إلى عالم الذكاء الاصطناعي.\nكيف يمكنني مساعدتك في هذه الرحلة؟",
-        inputPlaceholderGuest: "اسألني أي شيء... (سجل الدخول لوصول غير محدود)",
-        inputPlaceholderAuth: "اسألني أي شيء... (وصول غير محدود)",
-        sendBtn: "إرسال",
-        modeBalanced: "⚖️ متوازن",
-        modeCreative: "🎨 إبداعي",
-        modeLogical: "🧠 منطقي",
-        clearConfirm: "هل تريد مسح جميع رسائل الدردشة؟",
-        chatCleared: "تم مسح الدردشة. كيف يمكنني مساعدتك اليوم؟",
-        loading: "جاري التحميل...",
-        loginBtn: "تسجيل الدخول",
-        logoutBtn: "تسجيل الخروج",
-        memoryBtn: "الذاكرة"
-    },
-    fr: {
-        welcomeMsg: "Bienvenue sur le portail ELEENAI ! Je suis votre guide vers le royaume de l'intelligence artificielle.\nComment puis-je vous aider dans ce voyage ?",
-        inputPlaceholderGuest: "Demandez-moi n'importe quoi... (connectez-vous pour un accès illimité)",
-        inputPlaceholderAuth: "Demandez-moi n'importe quoi... (accès illimité)",
-        sendBtn: "Envoyer",
-        modeBalanced: "⚖️ Équilibré",
-        modeCreative: "🎨 Créatif",
-        modeLogical: "🧠 Logique",
-        clearConfirm: "Effacer tous les messages ?",
-        chatCleared: "Chat effacé. Comment puis-je vous aider aujourd'hui ?",
-        loading: "Chargement...",
-        loginBtn: "Se connecter",
-        logoutBtn: "Se déconnecter",
-        memoryBtn: "Mémoire"
-    },
-    es: {
-        welcomeMsg: "¡Bienvenido al portal ELEENAI! Soy su conducto hacia el reino de la inteligencia artificial.\n¿Cómo puedo asistirle en este viaje?",
-        inputPlaceholderGuest: "Pregúntame cualquier cosa... (inicia sesión para acceso ilimitado)",
-        inputPlaceholderAuth: "Pregúntame cualquier cosa... (acceso ilimitado)",
-        sendBtn: "Enviar",
-        modeBalanced: "⚖️ Equilibrado",
-        modeCreative: "🎨 Creativo",
-        modeLogical: "🧠 Lógico",
-        clearConfirm: "¿Borrar todos los mensajes?",
-        chatCleared: "Chat borrado. ¿Cómo puedo ayudarle hoy?",
-        loading: "Cargando...",
-        loginBtn: "Iniciar sesión",
-        logoutBtn: "Cerrar sesión",
-        memoryBtn: "Memoria"
-    },
-    ru: {
-        welcomeMsg: "Добро пожаловать на портал ELEENAI! Я ваш проводник в царство искусственного интеллекта.\nЧем я могу вам помочь в этом путешествии?",
-        inputPlaceholderGuest: "Спрашивайте о чем угодно... (войдите для неограниченного доступа)",
-        inputPlaceholderAuth: "Спрашивайте о чем угодно... (неограниченный доступ)",
-        sendBtn: "Отправить",
-        modeBalanced: "⚖️ Сбалансированный",
-        modeCreative: "🎨 Творческий",
-        modeLogical: "🧠 Логический",
-        clearConfirm: "Удалить все сообщения чата?",
-        chatCleared: "Чат очищен. Чем я могу помочь вам сегодня?",
-        loading: "Загрузка...",
-        loginBtn: "Войти",
-        logoutBtn: "Выйти",
-        memoryBtn: "Память"
-    }
-};
-
-let currentLang = localStorage.getItem('lang') || 'en';
-
-function t(key) {
-    return translations[currentLang][key] || translations['en'][key];
-}
-
-function updateLanguage(lang) {
-    currentLang = lang;
-    localStorage.setItem('lang', lang);
-    document.documentElement.lang = lang;
-
-    if (lang === 'ar') {
-        document.body.style.direction = 'rtl';
-    } else {
-        document.body.style.direction = 'ltr';
-    }
-
-    // Update UI elements
-    const sendBtn = document.querySelector('#send-button span');
-    if(sendBtn) sendBtn.textContent = t('sendBtn');
-
-    const modeBtnB = document.querySelector('.mode-btn[data-mode="balanced"]');
-    if(modeBtnB) modeBtnB.textContent = t('modeBalanced');
-    const modeBtnC = document.querySelector('.mode-btn[data-mode="creative"]');
-    if(modeBtnC) modeBtnC.textContent = t('modeCreative');
-    const modeBtnL = document.querySelector('.mode-btn[data-mode="logical"]');
-    if(modeBtnL) modeBtnL.textContent = t('modeLogical');
-
-    const loginBtnText = document.querySelector('#login-button span');
-    if(loginBtnText) loginBtnText.textContent = t('loginBtn');
-
-    const logoutBtnText = document.querySelector('#logout-button span');
-    if(logoutBtnText) logoutBtnText.textContent = t('logoutBtn');
-
-    const memoryBtnText = document.querySelector('#memory-button span');
-    if(memoryBtnText) memoryBtnText.textContent = t('memoryBtn');
-
-    // Update input placeholder based on auth state
-    updateAuthUI();
-
-    // Update first message if it's still default
-    if (chatHistory.length === 1 && chatHistory[0].role === 'assistant') {
-        chatHistory[0].content = t('welcomeMsg');
-        renderFullChatHistory();
-    }
-}
-
-
-// ─── Enhancements ────────────────────────────────────────────────────────────
-
-let currentMode = 'balanced';
-
-document.querySelectorAll('.mode-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentMode = btn.dataset.mode;
-    });
-});
-
-document.getElementById('enhance-btn')?.addEventListener('click', async () => {
-    const input = document.getElementById('user-input');
-    if (!input.value.trim()) return;
-    try {
-        const res = await fetch('/api/enhance-prompt', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: input.value }),
-        });
-        if(res.ok) {
-           const { enhanced } = await res.json();
-           input.value = enhanced;
-           showNotification('✨ Prompt enhanced!');
-           // trigger auto-grow
-           input.style.height = 'auto';
-           input.style.height = (input.scrollHeight) + 'px';
-        }
-    } catch(e) {
-        console.error("Enhance failed", e);
-    }
-});
-
 /**
  * EleenAI Chat Frontend
  * Supports both authenticated and guest (unauthenticated) users.
@@ -503,26 +340,6 @@ function showGuestLimitPrompt() {
     });
 }
 
-
-// ─── Client Rate Limiting ────────────────────────────────────────────────────
-const MESSAGE_TIMESTAMPS = [];
-const RATE_LIMIT_MAX = 5; // 5 messages
-const RATE_LIMIT_WINDOW = 60000; // 1 minute
-
-function checkRateLimit() {
-    const now = Date.now();
-    // Remove old timestamps
-    while (MESSAGE_TIMESTAMPS.length > 0 && MESSAGE_TIMESTAMPS[0] < now - RATE_LIMIT_WINDOW) {
-        MESSAGE_TIMESTAMPS.shift();
-    }
-
-    if (MESSAGE_TIMESTAMPS.length >= RATE_LIMIT_MAX) {
-        return false;
-    }
-    MESSAGE_TIMESTAMPS.push(now);
-    return true;
-}
-
 // ─── Send Message ────────────────────────────────────────────────────────────
 
 async function sendMessage() {
@@ -530,14 +347,7 @@ async function sendMessage() {
     const sendButton = document.getElementById('send-button');
     const message = userInput.value.trim();
 
-
     if (!message || isProcessing) return;
-
-    if (!checkRateLimit()) {
-        if(window.showNotification) window.showNotification("Rate limit exceeded. Please wait a moment before sending more messages.", 3000, "error");
-        return;
-    }
-
 
     // Check guest limit
     const authenticated = isAuthenticated();
@@ -554,21 +364,6 @@ async function sendMessage() {
 
     // Lock UI
     isProcessing = true;
-
-    // Show thinking indicator
-    const chatMessages = document.getElementById('chat-messages');
-    const thinkingEl = document.createElement('div');
-    thinkingEl.id = 'thinking-indicator';
-    thinkingEl.className = 'thinking-indicator message-enter';
-    thinkingEl.innerHTML = `
-        <div class="ai-avatar">E</div>
-        <div class="thinking-dots">
-            <div></div><div></div><div></div>
-        </div>
-        <div class="thinking-text">Eleen is thinking...</div>
-    `;
-    chatMessages.appendChild(thinkingEl);
-    requestAnimationFrame(() => { chatMessages.scrollTop = chatMessages.scrollHeight; });
     userInput.disabled = true;
     sendButton.disabled = true;
 
@@ -836,20 +631,8 @@ function addMessageToChat(role, content) {
     const chatMessages = document.getElementById('chat-messages');
     if (!chatMessages) return;
 
-
-    const existingThinking = document.getElementById('thinking-indicator');
-    if (existingThinking) existingThinking.remove();
-
     const messageEl = document.createElement('div');
-    messageEl.className = `message ${role}-message message-enter`;
-    setTimeout(() => messageEl.classList.remove('message-enter'), 400);
-
-    if (role === 'assistant') {
-        const avatar = document.createElement('div');
-        avatar.className = 'ai-avatar';
-        avatar.textContent = 'E';
-        messageEl.appendChild(avatar);
-    }
+    messageEl.className = `message ${role}-message`;
 
     if (role === 'system') {
         // System message rendered as a beautiful history card
@@ -1085,11 +868,6 @@ function resetChat() {
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
-
-window.t = t;
-window.updateLanguage = updateLanguage;
-window.chat.t = t;
-
 window.chat = {
     sendMessage,
     clearChat,
@@ -1112,176 +890,3 @@ if (document.readyState === 'loading') {
 }
 
 console.log('Chat.js loaded');
-
-// ─── Particle System Background ──────────────────────────────────────────────
-
-class Particle {
-    constructor(canvas) {
-        this.canvas = canvas;
-        this.ctx = canvas.getContext('2d');
-        this.reset();
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
-    }
-
-    reset() {
-        const colors = ['#6C63FF', '#00E5FF', '#FF6EC7'];
-        this.color = colors[Math.floor(Math.random() * colors.length)];
-        this.baseRadius = Math.random() * 2 + 1;
-        this.radius = this.baseRadius;
-        this.baseOpacity = Math.random() * 0.4 + 0.3;
-        this.opacity = this.baseOpacity;
-        this.speedY = -(Math.random() * 0.5 + 0.1);
-        this.speedX = (Math.random() - 0.5) * 0.5;
-        this.sineOffset = Math.random() * Math.PI * 2;
-        this.pulseTime = Math.random() * 200 + 100;
-        this.pulseCounter = 0;
-        this.isPulsing = false;
-
-        if(this.y < 0) {
-            this.x = Math.random() * this.canvas.width;
-            this.y = this.canvas.height + 10;
-        }
-    }
-
-    update(mouseX, mouseY, isMobile) {
-        this.y += this.speedY;
-        this.x += this.speedX + Math.sin(Date.now() * 0.001 + this.sineOffset) * 0.2;
-
-        // Parallax
-        if (!isMobile && mouseX && mouseY) {
-            const dx = (mouseX - this.canvas.width / 2) * 0.02;
-            const dy = (mouseY - this.canvas.height / 2) * 0.02;
-            this.x += (dx - (this.x - this.canvas.width/2) * 0.001) * 0.1;
-            this.y += (dy - (this.y - this.canvas.height/2) * 0.001) * 0.1;
-        }
-
-        if (this.y < -10) {
-            this.reset();
-            this.y = this.canvas.height + 10;
-        }
-        if (this.x < -10) this.x = this.canvas.width + 10;
-        if (this.x > this.canvas.width + 10) this.x = -10;
-
-        // Pulse
-        this.pulseCounter++;
-        if (this.pulseCounter > this.pulseTime && !this.isPulsing) {
-            this.isPulsing = true;
-            this.pulseCounter = 0;
-        }
-        if (this.isPulsing) {
-            this.pulseCounter++;
-            if (this.pulseCounter < 20) {
-                this.radius += 0.3;
-            } else if (this.pulseCounter < 40) {
-                this.radius -= 0.3;
-            } else {
-                this.isPulsing = false;
-                this.radius = this.baseRadius;
-                this.pulseCounter = 0;
-                this.pulseTime = Math.random() * 300 + 150;
-            }
-        }
-    }
-
-    draw() {
-        this.ctx.globalAlpha = this.opacity;
-        this.ctx.fillStyle = this.color;
-        this.ctx.beginPath();
-        this.ctx.arc(this.x, this.y, Math.max(0.1, this.radius), 0, Math.PI * 2);
-        this.ctx.fill();
-    }
-}
-
-function initParticleSystem() {
-    const canvas = document.getElementById('particle-bg');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-
-    let isMobile = window.innerWidth < 768;
-    let numParticles = isMobile ? 30 : 80;
-    let particles = [];
-    let mouseX = null;
-    let mouseY = null;
-
-    function resize() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        isMobile = window.innerWidth < 768;
-        numParticles = isMobile ? 30 : 80;
-        if(particles.length > numParticles) particles.length = numParticles;
-        while(particles.length < numParticles) particles.push(new Particle(canvas));
-    }
-
-    window.addEventListener('resize', resize);
-    window.addEventListener('mousemove', (e) => {
-        mouseX = e.clientX;
-        mouseY = e.clientY;
-    });
-
-    resize();
-
-    function animate() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        particles.forEach(p => {
-            p.update(mouseX, mouseY, isMobile);
-            p.draw();
-        });
-
-        if (!isMobile) {
-            ctx.lineWidth = 1;
-            for (let i = 0; i < particles.length; i++) {
-                for (let j = i + 1; j < particles.length; j++) {
-                    const dx = particles[i].x - particles[j].x;
-                    const dy = particles[i].y - particles[j].y;
-                    const dist = dx * dx + dy * dy;
-                    if (dist < 14400) { // 120 * 120
-                        const alpha = (1 - dist / 14400) * 0.08;
-                        ctx.globalAlpha = alpha;
-                        ctx.strokeStyle = '#6C63FF';
-                        ctx.beginPath();
-                        ctx.moveTo(particles[i].x, particles[i].y);
-                        ctx.lineTo(particles[j].x, particles[j].y);
-                        ctx.stroke();
-                    }
-                }
-            }
-        }
-
-        requestAnimationFrame(animate);
-    }
-
-    animate();
-}
-
-document.addEventListener('DOMContentLoaded', initParticleSystem);
-
-async function renderFollowups(lastUser, lastAssistant) {
-  try {
-      const res = await fetch('/api/suggest-followups', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lastUserMessage: lastUser, lastAssistantMessage: lastAssistant }),
-      });
-      if(!res.ok) return;
-      const { suggestions } = await res.json();
-      if(!suggestions || !suggestions.length) return;
-
-      const container = document.createElement('div');
-      container.className = 'followup-chips';
-      suggestions.forEach((q, i) => {
-        const chip = document.createElement('button');
-        chip.className = 'chip';
-        chip.style.animationDelay = `${i * 80}ms`;
-        chip.textContent = q;
-        chip.addEventListener('click', () => {
-          document.getElementById('user-input').value = q;
-          container.remove();
-          document.getElementById('send-button')?.click();
-        });
-        container.appendChild(chip);
-      });
-      document.getElementById('chat-messages').appendChild(container);
-  } catch(e) {}
-}
