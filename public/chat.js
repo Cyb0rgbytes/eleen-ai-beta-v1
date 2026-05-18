@@ -1,132 +1,4 @@
 
-// ─── Translations ────────────────────────────────────────────────────────────
-
-const translations = {
-    en: {
-        welcomeMsg: "Welcome to the ELEENAI Gateway! I'm your conduit to the realm of artificial intelligence.\nHow may I assist you on this journey?",
-        inputPlaceholderGuest: "Ask me anything... (sign in for unlimited access)",
-        inputPlaceholderAuth: "Ask me anything... (unlimited access)",
-        sendBtn: "Send",
-        modeBalanced: "⚖️ Balanced",
-        modeCreative: "🎨 Creative",
-        modeLogical: "🧠 Logical",
-        clearConfirm: "Clear all chat messages?",
-        chatCleared: "Chat cleared. How can I help you today?",
-        loading: "Loading...",
-        loginBtn: "Sign In",
-        logoutBtn: "Logout",
-        memoryBtn: "Memory"
-    },
-    ar: {
-        welcomeMsg: "مرحبًا بك في بوابة ELEENAI! أنا مرشدك إلى عالم الذكاء الاصطناعي.\nكيف يمكنني مساعدتك في هذه الرحلة؟",
-        inputPlaceholderGuest: "اسألني أي شيء... (سجل الدخول لوصول غير محدود)",
-        inputPlaceholderAuth: "اسألني أي شيء... (وصول غير محدود)",
-        sendBtn: "إرسال",
-        modeBalanced: "⚖️ متوازن",
-        modeCreative: "🎨 إبداعي",
-        modeLogical: "🧠 منطقي",
-        clearConfirm: "هل تريد مسح جميع رسائل الدردشة؟",
-        chatCleared: "تم مسح الدردشة. كيف يمكنني مساعدتك اليوم؟",
-        loading: "جاري التحميل...",
-        loginBtn: "تسجيل الدخول",
-        logoutBtn: "تسجيل الخروج",
-        memoryBtn: "الذاكرة"
-    },
-    fr: {
-        welcomeMsg: "Bienvenue sur le portail ELEENAI ! Je suis votre guide vers le royaume de l'intelligence artificielle.\nComment puis-je vous aider dans ce voyage ?",
-        inputPlaceholderGuest: "Demandez-moi n'importe quoi... (connectez-vous pour un accès illimité)",
-        inputPlaceholderAuth: "Demandez-moi n'importe quoi... (accès illimité)",
-        sendBtn: "Envoyer",
-        modeBalanced: "⚖️ Équilibré",
-        modeCreative: "🎨 Créatif",
-        modeLogical: "🧠 Logique",
-        clearConfirm: "Effacer tous les messages ?",
-        chatCleared: "Chat effacé. Comment puis-je vous aider aujourd'hui ?",
-        loading: "Chargement...",
-        loginBtn: "Se connecter",
-        logoutBtn: "Se déconnecter",
-        memoryBtn: "Mémoire"
-    },
-    es: {
-        welcomeMsg: "¡Bienvenido al portal ELEENAI! Soy su conducto hacia el reino de la inteligencia artificial.\n¿Cómo puedo asistirle en este viaje?",
-        inputPlaceholderGuest: "Pregúntame cualquier cosa... (inicia sesión para acceso ilimitado)",
-        inputPlaceholderAuth: "Pregúntame cualquier cosa... (acceso ilimitado)",
-        sendBtn: "Enviar",
-        modeBalanced: "⚖️ Equilibrado",
-        modeCreative: "🎨 Creativo",
-        modeLogical: "🧠 Lógico",
-        clearConfirm: "¿Borrar todos los mensajes?",
-        chatCleared: "Chat borrado. ¿Cómo puedo ayudarle hoy?",
-        loading: "Cargando...",
-        loginBtn: "Iniciar sesión",
-        logoutBtn: "Cerrar sesión",
-        memoryBtn: "Memoria"
-    },
-    ru: {
-        welcomeMsg: "Добро пожаловать на портал ELEENAI! Я ваш проводник в царство искусственного интеллекта.\nЧем я могу вам помочь в этом путешествии?",
-        inputPlaceholderGuest: "Спрашивайте о чем угодно... (войдите для неограниченного доступа)",
-        inputPlaceholderAuth: "Спрашивайте о чем угодно... (неограниченный доступ)",
-        sendBtn: "Отправить",
-        modeBalanced: "⚖️ Сбалансированный",
-        modeCreative: "🎨 Творческий",
-        modeLogical: "🧠 Логический",
-        clearConfirm: "Удалить все сообщения чата?",
-        chatCleared: "Чат очищен. Чем я могу помочь вам сегодня?",
-        loading: "Загрузка...",
-        loginBtn: "Войти",
-        logoutBtn: "Выйти",
-        memoryBtn: "Память"
-    }
-};
-
-let currentLang = localStorage.getItem('lang') || 'en';
-
-function t(key) {
-    return translations[currentLang][key] || translations['en'][key];
-}
-
-function updateLanguage(lang) {
-    currentLang = lang;
-    localStorage.setItem('lang', lang);
-    document.documentElement.lang = lang;
-
-    if (lang === 'ar') {
-        document.body.style.direction = 'rtl';
-    } else {
-        document.body.style.direction = 'ltr';
-    }
-
-    // Update UI elements
-    const sendBtn = document.querySelector('#send-button span');
-    if(sendBtn) sendBtn.textContent = t('sendBtn');
-
-    const modeBtnB = document.querySelector('.mode-btn[data-mode="balanced"]');
-    if(modeBtnB) modeBtnB.textContent = t('modeBalanced');
-    const modeBtnC = document.querySelector('.mode-btn[data-mode="creative"]');
-    if(modeBtnC) modeBtnC.textContent = t('modeCreative');
-    const modeBtnL = document.querySelector('.mode-btn[data-mode="logical"]');
-    if(modeBtnL) modeBtnL.textContent = t('modeLogical');
-
-    const loginBtnText = document.querySelector('#login-button span');
-    if(loginBtnText) loginBtnText.textContent = t('loginBtn');
-
-    const logoutBtnText = document.querySelector('#logout-button span');
-    if(logoutBtnText) logoutBtnText.textContent = t('logoutBtn');
-
-    const memoryBtnText = document.querySelector('#memory-button span');
-    if(memoryBtnText) memoryBtnText.textContent = t('memoryBtn');
-
-    // Update input placeholder based on auth state
-    updateAuthUI();
-
-    // Update first message if it's still default
-    if (chatHistory.length === 1 && chatHistory[0].role === 'assistant') {
-        chatHistory[0].content = t('welcomeMsg');
-        renderFullChatHistory();
-    }
-}
-
-
 // ─── Enhancements ────────────────────────────────────────────────────────────
 
 let currentMode = 'balanced';
@@ -503,26 +375,6 @@ function showGuestLimitPrompt() {
     });
 }
 
-
-// ─── Client Rate Limiting ────────────────────────────────────────────────────
-const MESSAGE_TIMESTAMPS = [];
-const RATE_LIMIT_MAX = 5; // 5 messages
-const RATE_LIMIT_WINDOW = 60000; // 1 minute
-
-function checkRateLimit() {
-    const now = Date.now();
-    // Remove old timestamps
-    while (MESSAGE_TIMESTAMPS.length > 0 && MESSAGE_TIMESTAMPS[0] < now - RATE_LIMIT_WINDOW) {
-        MESSAGE_TIMESTAMPS.shift();
-    }
-
-    if (MESSAGE_TIMESTAMPS.length >= RATE_LIMIT_MAX) {
-        return false;
-    }
-    MESSAGE_TIMESTAMPS.push(now);
-    return true;
-}
-
 // ─── Send Message ────────────────────────────────────────────────────────────
 
 async function sendMessage() {
@@ -530,14 +382,7 @@ async function sendMessage() {
     const sendButton = document.getElementById('send-button');
     const message = userInput.value.trim();
 
-
     if (!message || isProcessing) return;
-
-    if (!checkRateLimit()) {
-        if(window.showNotification) window.showNotification("Rate limit exceeded. Please wait a moment before sending more messages.", 3000, "error");
-        return;
-    }
-
 
     // Check guest limit
     const authenticated = isAuthenticated();
@@ -1084,11 +929,6 @@ function resetChat() {
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
-
-
-window.t = t;
-window.updateLanguage = updateLanguage;
-window.chat.t = t;
 
 window.chat = {
     sendMessage,
