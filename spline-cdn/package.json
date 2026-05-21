@@ -17,7 +17,7 @@
     "publish": true
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.12.8",
+    "@cloudflare/vitest-pool-workers": "^0.16.8",
     "@types/node": "^24.10.1",
     "typescript": "5.9.3",
     "vitest": "3.2.4",
@@ -33,6 +33,6 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@clerk/backend": "^2.32.0"
+    "@clerk/backend": "^3.4.12"
   }
 }
