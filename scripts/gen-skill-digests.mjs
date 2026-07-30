@@ -146,18 +146,24 @@ function collect() {
 const args = process.argv.slice(2);
 
 if (args.includes("--print-card-digest")) {
-	// The DNS-AID SVCB record carries cap-sha256 over the served server card.
-	// Recomputed here so it never has to be worked out by hand.
-	const card = readFileSync(join(ROOT, "src", "agent", "mcp.ts"), "utf8");
-	const match = /export const MCP_SERVER_CARD = (\{[\s\S]*?\}) as const;/.exec(card);
-	if (!match) {
-		console.error("Could not locate MCP_SERVER_CARD in src/agent/mcp.ts");
+	// The DNS-AID SVCB record carries cap-sha256 over the MCP server card.
+	//
+	// Fetched rather than derived from source: the digest has to describe the
+	// bytes a resolver's client will actually retrieve, and reconstructing
+	// those from the TypeScript literal means reimplementing the serializer
+	// and hoping the two stay in step. Hash what is served.
+	const index = args.indexOf("--print-card-digest");
+	const target = args[index + 1] || "https://eleenai.xyz/.well-known/mcp.json";
+
+	const response = await fetch(target);
+	if (!response.ok) {
+		console.error(`Could not fetch ${target}: HTTP ${response.status}`);
 		process.exit(1);
 	}
-	const literal = match[1].replace(/\$schema:/, '"$schema":').replace(/^\s*(\w+):/gm, '"$1":');
-	const value = JSON.parse(literal.replace(/,(\s*[}\]])/g, "$1"));
-	const served = JSON.stringify(value, null, 2) + "\n";
-	console.log("sha256:" + createHash("sha256").update(served, "utf8").digest("hex"));
+
+	const bytes = Buffer.from(await response.arrayBuffer());
+	console.log(`# ${target} (${bytes.byteLength} bytes)`);
+	console.log("sha256:" + createHash("sha256").update(bytes).digest("hex"));
 	process.exit(0);
 }
 
