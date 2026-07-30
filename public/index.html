@@ -26,8 +26,8 @@
     <script 
         async 
         crossorigin="anonymous" 
-        data-clerk-publishable-key="pk_test_cGxlYXNpbmctbW9sbHktODYuY2xlcmsuYWNjb3VudHMuZGV2JA" 
-        src="https://pleasing-molly-86.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js" 
+        data-clerk-publishable-key="pk_test_ZmVhc2libGUtZmFsY29uLTkzLmNsZXJrLmFjY291bnRzLmRldiQ" 
+        src="https://feasible-falcon-93.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js" 
         type="text/javascript">
     </script>
     <link rel="stylesheet" href="/style.css">
@@ -132,8 +132,10 @@
         // CLERK AUTHENTICATION
         // ============================================
 
-        // Replace with your Clerk Publishable Key from https://dashboard.clerk.com
-        const CLERK_PUBLISHABLE_KEY = 'pk_test_cGxlYXNpbmctbW9sbHktODYuY2xlcmsuYWNjb3VudHMuZGV2JA';
+        // Clerk instance: feasible-falcon-93. Must stay in sync with the SDK
+        // <script src> host above and CLERK_PUBLISHABLE_KEY in wrangler.jsonc —
+        // the key encodes the frontend API host the SDK is served from.
+        const CLERK_PUBLISHABLE_KEY = 'pk_test_ZmVhc2libGUtZmFsY29uLTkzLmNsZXJrLmFjY291bnRzLmRldiQ';
 
         // Simple notification function
 

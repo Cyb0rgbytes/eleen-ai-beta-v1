@@ -69,6 +69,6 @@
 	// For local dev, set these in a .dev.vars file (never commit secrets!)
 	// For production, set via: wrangler secret put CLERK_SECRET_KEY
 	"vars": {
-		"CLERK_PUBLISHABLE_KEY": "pk_test_cGxlYXNpbmctbW9sbHktODYuY2xlcmsuYWNjb3VudHMuZGV2JA"
+		"CLERK_PUBLISHABLE_KEY": "pk_test_ZmVhc2libGUtZmFsY29uLTkzLmNsZXJrLmFjY291bnRzLmRldiQ"
 	}
 }
