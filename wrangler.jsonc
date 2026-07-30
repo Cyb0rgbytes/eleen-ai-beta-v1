@@ -39,6 +39,13 @@
 			"fallthrough": true
 		}
 	],
+	// Regenerate the skill digest manifest on dev, deploy and dry-run. The
+	// package.json predeploy hook alone would miss a `wrangler deploy` typed
+	// directly, or a CI provider running its own build command — either of
+	// which would ship digests that no longer match the skill documents.
+	"build": {
+		"command": "node scripts/gen-skill-digests.mjs"
+	},
 	"observability": {
 		"enabled": true
 	},

@@ -27,7 +27,9 @@
 	"private": true,
 	"scripts": {
 		"cf-typegen": "wrangler types",
-		"check": "tsc --noEmit && wrangler deploy --dry-run",
+		"skills": "node scripts/gen-skill-digests.mjs",
+		"check": "node scripts/gen-skill-digests.mjs --check && tsc --noEmit && wrangler deploy --dry-run",
+		"predeploy": "node scripts/gen-skill-digests.mjs",
 		"deploy": "wrangler deploy",
 		"dev": "wrangler dev --remote",
 		"start": "wrangler dev --remote",

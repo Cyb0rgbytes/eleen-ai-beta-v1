@@ -122,6 +122,11 @@
     <!-- Chat app script -->
     <script src="chat.js"></script>
 
+    <!-- WebMCP: exposes page actions to browser-resident agents.
+         Loaded after chat.js so window.chat exists; a silent no-op in
+         browsers without navigator.modelContext. -->
+    <script src="/js/webmcp.js" defer></script>
+
     <script>
         // ============================================
         // CLERK AUTHENTICATION

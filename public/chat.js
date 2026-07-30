@@ -383,6 +383,11 @@ async function sendMessage() {
         userInput.disabled = false;
         sendButton.disabled = false;
 
+        // Signals that a turn is fully rendered. WebMCP tools await this
+        // instead of polling, since sendMessage resolves before the streamed
+        // reply has finished arriving.
+        document.dispatchEvent(new CustomEvent('eleen:turn-complete'));
+
         const typingIndicator = document.getElementById('typing-indicator');
         if (typingIndicator) typingIndicator.classList.remove('visible');
 
@@ -602,23 +607,27 @@ function addImageToChat(imageUrl, prompt) {
 
 // ─── Clear Chat ──────────────────────────────────────────────────────────────
 
-function clearChat() {
-    if (confirm('Clear all chat messages?')) {
-        chatHistory = [
-            {
-                role: "assistant",
-                content: "Chat cleared. How can I help you today?"
-            }
-        ];
+// `confirm` defaults to true so the button keeps its existing behaviour.
+// Programmatic callers (WebMCP tools) pass false: a tool handler must never
+// block on a modal dialog, since there is no user present to dismiss it.
+function clearChat({ confirm: askFirst = true } = {}) {
+    if (askFirst && !confirm('Clear all chat messages?')) return false;
 
-        const chatMessages = document.getElementById('chat-messages');
-        if (chatMessages) {
-            chatMessages.innerHTML = '';
-            addMessageToChat('assistant', chatHistory[0].content);
+    chatHistory = [
+        {
+            role: "assistant",
+            content: "Chat cleared. How can I help you today?"
         }
+    ];
 
-        console.log('Chat cleared');
+    const chatMessages = document.getElementById('chat-messages');
+    if (chatMessages) {
+        chatMessages.innerHTML = '';
+        addMessageToChat('assistant', chatHistory[0].content);
     }
+
+    console.log('Chat cleared');
+    return true;
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
@@ -626,7 +635,10 @@ function clearChat() {
 window.chat = {
     sendMessage,
     clearChat,
-    history: () => chatHistory
+    history: () => chatHistory,
+    // Lets a programmatic caller wait for a reply instead of polling, and
+    // tell "still generating" apart from "finished with an empty answer".
+    isProcessing: () => isProcessing
 };
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────

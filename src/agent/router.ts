@@ -28,6 +28,7 @@ import { prefersMarkdown } from "./negotiate";
 import { DOCS_HTML } from "./docs";
 import { HEALTH_DOCUMENT, OPENAPI_JSON } from "./openapi";
 import { MCP_SERVER_CARD, handleMcp } from "./mcp";
+import { buildSkillsIndex, findSkill } from "./skills";
 import {
 	LINKSET_CONTENT_TYPE,
 	buildApiCatalog,
@@ -188,6 +189,22 @@ export async function handleAgentRoutes(
 	if (path === "/.well-known/mcp.json" || path === "/.well-known/mcp/server-card.json") {
 		if (!isRead(request)) return methodNotAllowed(READ_ONLY);
 		return json(request, MCP_SERVER_CARD);
+	}
+
+	// ── Item 10: agent skills discovery ──────────────────────────────────
+	if (path === "/.well-known/agent-skills/index.json") {
+		if (!isRead(request)) return methodNotAllowed(READ_ONLY);
+		return json(request, await buildSkillsIndex());
+	}
+
+	const skillMatch = /^\/\.well-known\/agent-skills\/([a-z0-9-]+)\/SKILL\.md$/.exec(path);
+	if (skillMatch) {
+		if (!isRead(request)) return methodNotAllowed(READ_ONLY);
+		const skill = findSkill(skillMatch[1]);
+		if (!skill) return null; // unknown skill: fall through to the 404 below
+		// No Vary here: the digest is over these exact bytes, so this URL must
+		// return one representation and only one.
+		return markdown(request, skill.content, { vary: "" });
 	}
 
 	// ── Item 6: OIDC discovery (redirected — see wellknown.ts) ───────────
