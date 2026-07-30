@@ -67,4 +67,6 @@ export interface Attachment {
 export interface ChatRequestBody {
 	messages: ChatMessage[];
 	attachments?: Attachment[];
+	/** Response mode selected in the UI: "balanced" | "creative" | "logical". */
+	mode?: string;
 }

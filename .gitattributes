@@ -1,0 +1,25 @@
+# Normalize line endings. core.autocrlf is true on Windows dev machines, which
+# would otherwise check out CRLF locally and LF in CI — producing two different
+# byte streams (and two different SHA-256 digests) from the same commit.
+# The agent-skills discovery index publishes digests of these files, so byte
+# stability is a correctness requirement, not a style preference.
+* text=auto eol=lf
+
+*.md text eol=lf
+*.ts text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.json text eol=lf
+*.jsonc text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.xml text eol=lf
+
+# Binary — never touch.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.avif binary
+*.ico binary
+*.splinecode binary

@@ -553,10 +553,6 @@ function addMessageToChat(role, content) {
     const chatMessages = document.getElementById('chat-messages');
     if (!chatMessages) return;
 
-
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
     const existingThinking = document.getElementById('thinking-indicator');
     if (existingThinking) existingThinking.remove();
 
@@ -565,21 +561,14 @@ function addMessageToChat(role, content) {
     setTimeout(() => messageEl.classList.remove('message-enter'), 400);
 
     if (role === 'assistant') {
+        const { cleanText, suggestions } = extractSuggestions(content);
+        messageEl.innerHTML = buildAssistantHTML(cleanText, suggestions);
+
+        // Prepend after innerHTML — assigning innerHTML would discard the node.
         const avatar = document.createElement('div');
         avatar.className = 'ai-avatar';
         avatar.textContent = 'E';
-        messageEl.appendChild(avatar);
-    }
-
-=======
->>>>>>> parent of 7250f22 (feat: implement smart context summarization, code rendering & playgrounds, memory settings vault, and dynamic spline rendering optimizations)
-=======
->>>>>>> parent of 7250f22 (feat: implement smart context summarization, code rendering & playgrounds, memory settings vault, and dynamic spline rendering optimizations)
-=======
->>>>>>> parent of 7250f22 (feat: implement smart context summarization, code rendering & playgrounds, memory settings vault, and dynamic spline rendering optimizations)
-    if (role === 'assistant') {
-        const { cleanText, suggestions } = extractSuggestions(content);
-        messageEl.innerHTML = buildAssistantHTML(cleanText, suggestions);
+        messageEl.prepend(avatar);
     } else {
         // User messages get simple markdown rendering (no feedback/chips)
         messageEl.innerHTML = `<p>${parseMarkdown(content)}</p>`;
@@ -793,32 +782,3 @@ function initParticleSystem() {
 }
 
 document.addEventListener('DOMContentLoaded', initParticleSystem);
-
-async function renderFollowups(lastUser, lastAssistant) {
-  try {
-      const res = await fetch('/api/suggest-followups', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lastUserMessage: lastUser, lastAssistantMessage: lastAssistant }),
-      });
-      if(!res.ok) return;
-      const { suggestions } = await res.json();
-      if(!suggestions || !suggestions.length) return;
-
-      const container = document.createElement('div');
-      container.className = 'followup-chips';
-      suggestions.forEach((q, i) => {
-        const chip = document.createElement('button');
-        chip.className = 'chip';
-        chip.style.animationDelay = `${i * 80}ms`;
-        chip.textContent = q;
-        chip.addEventListener('click', () => {
-          document.getElementById('user-input').value = q;
-          container.remove();
-          document.getElementById('send-button')?.click();
-        });
-        container.appendChild(chip);
-      });
-      document.getElementById('chat-messages').appendChild(container);
-  } catch(e) {}
-}
