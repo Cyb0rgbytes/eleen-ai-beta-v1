@@ -16,6 +16,9 @@
  */
 import { createClerkClient } from "@clerk/backend";
 import { Env, ChatMessage, ChatRequestBody, Attachment } from "./types";
+import { handleAgentRoutes } from "./agent/router";
+import { AgentHandlers } from "./agent/deps";
+import { bearerChallenge } from "./agent/wellknown";
 
 // ─── Model Configuration ─────────────────────────────────────────────────────
 
@@ -142,6 +145,18 @@ function resolveMode(mode: unknown): string {
 
 // ─── Main Worker Handler ─────────────────────────────────────────────────────
 
+/**
+ * Application handlers handed to the agent surfaces so the MCP endpoint can
+ * invoke the same logic that backs the REST routes, without importing this
+ * module back (which would form a cycle). See src/agent/deps.ts.
+ */
+const HANDLERS: AgentHandlers = {
+	chat: handleChatRequest,
+	image: handleImageGenerate,
+	vision: handleVisionAnalysis,
+	search: handleWebSearch,
+};
+
 export default {
 	async fetch(
 		request: Request,
@@ -182,6 +197,14 @@ export default {
 
 			return new Response(object.body, { headers });
 		}
+
+		// ── Agent-readiness surfaces ─────────────────────────────────────
+		// Must precede the static-asset delegation below: these routes would
+		// otherwise be handed to env.ASSETS.fetch() and 404, and the two under
+		// /api/v1/ would reach the auth gate and 401. Returns null for
+		// anything it does not own, leaving the chain below untouched.
+		const agentResponse = await handleAgentRoutes(request, url, env, ctx, HANDLERS);
+		if (agentResponse) return agentResponse;
 
 		// Serve static assets (frontend)
 		if (url.pathname === "/" || !url.pathname.startsWith("/api/")) {
@@ -224,6 +247,10 @@ export default {
 					headers: {
 						"content-type": "application/json",
 						...Object.fromEntries(authState.headers),
+						// RFC 9728: point agents at the metadata document that tells
+						// them which authorization server can issue a token for us.
+						// Set after the spread so it cannot be clobbered by Clerk.
+						"WWW-Authenticate": bearerChallenge(request),
 					},
 				},
 			);
@@ -254,7 +281,7 @@ export default {
 
 // ─── Chat Handler ────────────────────────────────────────────────────────────
 
-async function handleChatRequest(
+export async function handleChatRequest(
 	request: Request,
 	env: Env,
 	ctx: ExecutionContext,
@@ -476,7 +503,7 @@ If there is nothing new or important to add, output the Current Memory Profile e
 
 // ─── Image Generation ────────────────────────────────────────────────────────
 
-async function handleImageGenerate(
+export async function handleImageGenerate(
 	request: Request,
 	env: Env,
 ): Promise<Response> {
@@ -566,7 +593,7 @@ async function handleImageGenerate(
 
 // ─── Vision Analysis ─────────────────────────────────────────────────────────
 
-async function handleVisionAnalysis(
+export async function handleVisionAnalysis(
 	request: Request,
 	env: Env,
 ): Promise<Response> {
@@ -633,7 +660,7 @@ async function handleVisionAnalysis(
 
 // ─── Web Search Grounding ────────────────────────────────────────────────────
 
-async function handleWebSearch(
+export async function handleWebSearch(
 	request: Request,
 	env: Env,
 ): Promise<Response> {
