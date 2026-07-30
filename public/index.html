@@ -26,8 +26,8 @@
     <script 
         async 
         crossorigin="anonymous" 
-        data-clerk-publishable-key="pk_test_ZmVhc2libGUtZmFsY29uLTkzLmNsZXJrLmFjY291bnRzLmRldiQ" 
-        src="https://feasible-falcon-93.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js" 
+        data-clerk-publishable-key="pk_test_ZmVhc2libGUtZmFsY29uLTkzLmNsZXJrLmFjY291bnRzLmRldiQ"
+        src="https://feasible-falcon-93.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
         type="text/javascript">
     </script>
     <link rel="stylesheet" href="/style.css">
@@ -50,43 +50,34 @@
         Loading 3D scene
     </div>
 
-    <div class="gateway-glow"></div>
-    
     <div class="gateway-container">
-        <div class="auth-container">
-            <div id="user-info">
-                <img id="user-avatar" src="" alt="User Avatar">
-                <span id="user-name"></span>
-            </div>
-            <button id="login-button" class="auth-button">
-                <i class="fas fa-sign-in-alt"></i>
-                <span>Login</span>
-            </button>
-            <button id="logout-button" class="auth-button secondary" style="display: none;">
-                <i class="fas fa-sign-out-alt"></i>
-                <span>Logout</span>
-            </button>
-        </div>
-
+        <!-- Slim brand bar. The logo image is the full lockup (mark + wordmark +
+             tagline), so no separate tagline element is needed. -->
         <header>
-                        <div class="logo-container">
-                <img src="/logo.png" class="logo-image" alt="EleenAI Logo">
+            <img src="/logo.png" class="logo-image" alt="EleenAI — your gateway to the realm of AI">
+
+            <div class="auth-container">
+                <div id="user-info">
+                    <img id="user-avatar" src="" alt="">
+                    <span id="user-name"></span>
+                </div>
+                <button id="login-button" class="auth-button">
+                    <i class="fas fa-sign-in-alt"></i>
+                    <span>Login</span>
+                </button>
+                <button id="logout-button" class="auth-button secondary" style="display: none;">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
+                </button>
             </div>
-            <div class="aurora-line"></div>
-            <div class="tagline">YOUR GATEWAY TO THE REALM</div>
-            <p style="margin-top: 0.5rem; color: var(--text-light); font-size: 0.9rem; opacity: 0.9;">
-                Powered by CSECNIX Technologies
-            </p>
         </header>
 
         <div class="chat-container">
             <div id="chat-messages" class="chat-messages">
                 <div class="message assistant-message">
-                    <p>
-                        Welcome to the ELEENAI Gateway! I'm your conduit to the realm of artificial intelligence.
-                        How may I assist you on this journey?<br><br>
-                        <em style="font-size: 0.9em; opacity: 0.8;">✨ Chat freely or ask me to generate images — just describe what you want! Sign in for unlimited access.</em>
-                    </p>
+                    <div class="ai-avatar">E</div>
+                    <p>Welcome to EleenAI. Ask me anything, or describe an image and I'll generate it.</p>
+                    <p><em>Sign in for unlimited access.</em></p>
                 </div>
             </div>
 
@@ -98,9 +89,9 @@
             <div class="message-input">
                 <div class="controls-row">
                     <div class="mode-selector">
-                        <button class="mode-btn active" data-mode="balanced">⚖️ Balanced</button>
-                        <button class="mode-btn" data-mode="creative">🎨 Creative</button>
-                        <button class="mode-btn" data-mode="logical">🧠 Logical</button>
+                        <button class="mode-btn active" data-mode="balanced">Balanced</button>
+                        <button class="mode-btn" data-mode="creative">Creative</button>
+                        <button class="mode-btn" data-mode="logical">Logical</button>
                     </div>
                     <button id="enhance-btn" title="Enhance prompt">✨</button>
                 </div>
@@ -115,7 +106,7 @@
         </div>
 
         <footer>
-            <p>EleenAI Personal Assistant &copy; 2026 | Portal to the Realm of Intelligence</p>
+            <p>EleenAI &copy; 2026 &middot; Powered by CSECNIX Technologies</p>
         </footer>
     </div>
 

@@ -248,6 +248,7 @@ function showGuestLimitPrompt() {
         </button>
     `;
     chatMessages.appendChild(promptEl);
+    requestAnimationFrame(() => { stickToBottom(chatMessages, { force: true }); });
 
     const userInput = document.getElementById('user-input');
     const sendButton = document.getElementById('send-button');
@@ -296,7 +297,7 @@ async function sendMessage() {
         <div class="thinking-text">Eleen is thinking...</div>
     `;
     chatMessages.appendChild(thinkingEl);
-    requestAnimationFrame(() => { chatMessages.scrollTop = chatMessages.scrollHeight; });
+    requestAnimationFrame(() => { stickToBottom(chatMessages, { force: true }); });
     userInput.disabled = true;
     sendButton.disabled = true;
 
@@ -309,12 +310,12 @@ async function sendMessage() {
         userInput.value = '';
         userInput.style.height = 'auto';
 
-        // Show typing indicator
+        // Status line, only for image generation. Ordinary replies already show
+        // the thinking dots in the message list, and two indicators at once
+        // just read as noise.
         const typingIndicator = document.getElementById('typing-indicator');
-        if (typingIndicator) {
-            typingIndicator.textContent = isImageCommand
-                ? '🎨 Generating image...'
-                : 'Opening gateway to the AI Chat Realm...';
+        if (typingIndicator && isImageCommand) {
+            typingIndicator.textContent = '🎨 Generating image...';
             typingIndicator.classList.add('visible');
         }
 
@@ -419,10 +420,12 @@ async function handleStreamResponse(response) {
     let buffer = '';
     let responseText = '';
 
-    // Create assistant message element
+    // Create assistant message element. The avatar goes in first so a streamed
+    // reply lines up with the grid layout exactly like a non-streamed one.
     const assistantMessageEl = document.createElement('div');
     assistantMessageEl.className = 'message assistant-message';
     assistantMessageEl.innerHTML = '<p></p>';
+    assistantMessageEl.prepend(createAvatar());
     document.getElementById('chat-messages').appendChild(assistantMessageEl);
     const assistantTextEl = assistantMessageEl.querySelector('p');
 
@@ -453,9 +456,8 @@ async function handleStreamResponse(response) {
                         const { cleanText } = extractSuggestions(responseText);
                         assistantTextEl.innerHTML = parseMarkdown(stripImageTags(cleanText));
 
-                        // Keep scrolled to bottom
-                        const chatMessages = document.getElementById('chat-messages');
-                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                        // Follow the stream, unless the reader has scrolled up
+                        stickToBottom(document.getElementById('chat-messages'));
                     }
                 } catch (parseError) {
                     console.warn('Failed to parse SSE data:', parseError);
@@ -471,9 +473,10 @@ async function handleStreamResponse(response) {
             // Final render with suggestions and feedback buttons
             const { cleanText, suggestions } = extractSuggestions(responseText);
             assistantMessageEl.innerHTML = buildAssistantHTML(stripImageTags(cleanText), suggestions);
+            // innerHTML discarded the avatar node — put it back.
+            assistantMessageEl.prepend(createAvatar());
 
-            const chatMessages = document.getElementById('chat-messages');
-            if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
+            stickToBottom(document.getElementById('chat-messages'));
         }
     }
 
@@ -554,6 +557,33 @@ function submitFeedback(btn, type) {
 
 // ─── DOM Helpers ─────────────────────────────────────────────────────────────
 
+/**
+ * Scroll the message list to the bottom, but only if the reader is already
+ * near it. Streaming calls this on every token; without the proximity check,
+ * scrolling up to re-read an earlier reply gets yanked back down mid-sentence.
+ *
+ * Pass force: true after an action the user just took (sending a message),
+ * where jumping to the newest content is what they expect.
+ */
+const STICK_THRESHOLD_PX = 80;
+
+function stickToBottom(el, { force = false } = {}) {
+    if (!el) return;
+
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (!force && distanceFromBottom > STICK_THRESHOLD_PX) return;
+
+    el.scrollTop = el.scrollHeight;
+}
+
+/** Build the gradient "E" avatar that sits in the assistant message gutter. */
+function createAvatar() {
+    const avatar = document.createElement('div');
+    avatar.className = 'ai-avatar';
+    avatar.textContent = 'E';
+    return avatar;
+}
+
 function addMessageToChat(role, content) {
     const chatMessages = document.getElementById('chat-messages');
     if (!chatMessages) return;
@@ -570,10 +600,7 @@ function addMessageToChat(role, content) {
         messageEl.innerHTML = buildAssistantHTML(cleanText, suggestions);
 
         // Prepend after innerHTML — assigning innerHTML would discard the node.
-        const avatar = document.createElement('div');
-        avatar.className = 'ai-avatar';
-        avatar.textContent = 'E';
-        messageEl.prepend(avatar);
+        messageEl.prepend(createAvatar());
     } else {
         // User messages get simple markdown rendering (no feedback/chips)
         messageEl.innerHTML = `<p>${parseMarkdown(content)}</p>`;
@@ -581,8 +608,10 @@ function addMessageToChat(role, content) {
 
     chatMessages.appendChild(messageEl);
 
+    // The user's own message always scrolls into view; a reply only does so if
+    // they haven't scrolled away to read something earlier.
     requestAnimationFrame(() => {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        stickToBottom(chatMessages, { force: role === 'user' });
     });
 }
 
@@ -601,7 +630,7 @@ function addImageToChat(imageUrl, prompt) {
     chatMessages.appendChild(messageEl);
 
     requestAnimationFrame(() => {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        stickToBottom(chatMessages);
     });
 }
 
