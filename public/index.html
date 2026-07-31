@@ -159,6 +159,10 @@
         }
 
 
+        // Set when Clerk could not be initialised at all. Guests can still chat,
+        // so this only suppresses controls that would otherwise be dead.
+        let authUnavailable = false;
+
         // Update auth-related UI state based on Clerk session
         async function updateAuthUI() {
             const loginButton = document.getElementById('login-button');
@@ -182,11 +186,16 @@
                 userInput.disabled = false;
                 sendButton.disabled = false;
             } else {
-                loginButton.style.display = 'flex';
+                // If auth never came up, a Login button would be a dead control —
+                // it can only open a sign-in modal that cannot work. Hide it and
+                // say so in the placeholder instead.
+                loginButton.style.display = authUnavailable ? 'none' : 'flex';
                 logoutButton.style.display = 'none';
                 userInfoEl.style.display = 'none';
                 // Guest mode: keep input ENABLED for unauthenticated users
-                userInput.placeholder = 'Ask me anything... (sign in for unlimited access)';
+                userInput.placeholder = authUnavailable
+                    ? 'Ask me anything... (guest mode)'
+                    : 'Ask me anything... (sign in for unlimited access)';
                 userInput.disabled = false;
                 sendButton.disabled = false;
             }
@@ -237,49 +246,10 @@
                 });
             }
 
-            // Wait for Clerk to be available
-            let retryCount = 0;
-            const maxRetries = 50; // 5 seconds total
-            
-            while (!window.Clerk && retryCount < maxRetries) {
-                await new Promise(resolve => setTimeout(resolve, 100));
-                retryCount++;
-            }
-
-            if (!window.Clerk) {
-                console.error('Clerk SDK failed to load after retries.');
-                showNotification('Error: Auth service failed to load. Please refresh.');
-                return;
-            }
-
-            if (!window.Clerk.loaded) {
-                await window.Clerk.load({ publishableKey: CLERK_PUBLISHABLE_KEY });
-            }
-            
-            console.log('Clerk loaded. User:', window.Clerk.user?.id ?? 'Not signed in');
-
-            // Listen for auth state changes
-            window.Clerk.addListener(({ user }) => {
-                updateAuthUI();
-                if (user) {
-                    showNotification(`Welcome, ${user.fullName || 'Explorer'}!`);
-                }
-            });
-
-            // Set button handlers
-            document.getElementById('login-button').addEventListener('click', () => {
-                window.Clerk.openSignIn();
-            });
-            document.getElementById('logout-button').addEventListener('click', async () => {
-                await window.Clerk.signOut();
-                showNotification('Logged out successfully');
-                updateAuthUI();
-            });
-
-            // Sync initial UI state
-            await updateAuthUI();
-
-            // Spline 3D background fade-in
+            // Spline 3D background fade-in.
+            // Deliberately before the Clerk block and outside it: a 3D backdrop
+            // has nothing to do with authentication, and it used to be stranded
+            // whenever Clerk failed.
             const splineBg = document.getElementById('spline-bg');
             const splineLoader = document.getElementById('spline-loader');
             if (splineBg) {
@@ -293,6 +263,63 @@
                     // Shorter fallback — show after 3s even if event doesn't fire
                     setTimeout(onLoaded, 3000);
                 }
+            }
+
+            // ── Auth is best-effort ──────────────────────────────────────
+            // Everything below is wrapped so that a Clerk failure degrades the
+            // page to guest mode rather than bricking it. Guests are a
+            // first-class case here — they chat against /api/chat/guest with a
+            // 15-message limit — so losing auth must never cost them the
+            // composer. updateAuthUI() runs in the finally because it is the
+            // only code that enables #user-input and #send-button; it reads
+            // window.Clerk?.user optionally, so it is safe with no Clerk at all.
+            try {
+                // Wait for the async SDK <script> to define window.Clerk.
+                let retryCount = 0;
+                const maxRetries = 50; // 5 seconds total
+
+                while (!window.Clerk && retryCount < maxRetries) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    retryCount++;
+                }
+
+                if (!window.Clerk) {
+                    // No `return` here: falling through to the finally is what
+                    // keeps the chat usable.
+                    throw new Error('Clerk SDK did not load within 5s.');
+                }
+
+                if (!window.Clerk.loaded) {
+                    await window.Clerk.load({ publishableKey: CLERK_PUBLISHABLE_KEY });
+                }
+
+                console.log('Clerk loaded. User:', window.Clerk.user?.id ?? 'Not signed in');
+
+                // Listen for auth state changes
+                window.Clerk.addListener(({ user }) => {
+                    updateAuthUI();
+                    if (user) {
+                        showNotification(`Welcome, ${user.fullName || 'Explorer'}!`);
+                    }
+                });
+
+                // Set button handlers
+                document.getElementById('login-button').addEventListener('click', () => {
+                    window.Clerk.openSignIn();
+                });
+                document.getElementById('logout-button').addEventListener('click', async () => {
+                    await window.Clerk.signOut();
+                    showNotification('Logged out successfully');
+                    updateAuthUI();
+                });
+            } catch (error) {
+                console.error('Auth unavailable, continuing as guest:', error);
+                showNotification('Sign-in is unavailable right now — you can still chat as a guest.', 5000, 'error');
+                // Read by updateAuthUI() below, which owns every auth control.
+                authUnavailable = true;
+            } finally {
+                // Runs on every path: Clerk present, absent, or throwing.
+                await updateAuthUI();
             }
 
             console.log('EleenAI Gateway ready!');
