@@ -246,6 +246,25 @@
                 });
             }
 
+            // The Spline viewer's render loop throws roughly 240 times a second
+            // ("Cannot read properties of undefined (reading 'position')") — an
+            // internal fault in @splinetool/viewer's onFrame, present in both
+            // 1.12.88 and 1.12.98, and unrelated to anything on this page. It
+            // costs no measurable performance (measured 244fps against 238 with
+            // the viewer blocked) but it drowns the console.
+            //
+            // Swallow that one error and nothing else, matched on both the
+            // message and the originating script, so a genuine fault in our own
+            // code is never hidden.
+            window.addEventListener('error', (event) => {
+                const fromSplineViewer = event.filename && event.filename.includes('spline-viewer');
+                const isOnFramePositionError =
+                    event.message && event.message.includes("reading 'position'");
+                if (fromSplineViewer && isOnFramePositionError) {
+                    event.preventDefault();
+                }
+            });
+
             // Spline 3D background fade-in.
             // Deliberately before the Clerk block and outside it: a 3D backdrop
             // has nothing to do with authentication, and it used to be stranded

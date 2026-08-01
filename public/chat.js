@@ -75,6 +75,15 @@ function incrementGuestMessageCount() {
     }
 }
 
+function resetGuestMessageCount() {
+    try {
+        localStorage.removeItem(GUEST_STORAGE_KEY);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 function isAuthenticated() {
     return !!(window.Clerk?.session);
 }
@@ -237,30 +246,77 @@ function showGuestLimitPrompt() {
     const chatMessages = document.getElementById('chat-messages');
     if (!chatMessages) return;
 
+    // Only one prompt, however many times a blocked send is attempted.
+    if (chatMessages.querySelector('.guest-limit-prompt')) return;
+
+    // If auth cannot come up, "Sign in to continue" is a dead end: the modal
+    // needs Clerk. Offering a reset instead of a button that does nothing is
+    // the difference between a soft limit and a permanent lockout.
+    const canSignIn = !!window.Clerk;
+
     const promptEl = document.createElement('div');
     promptEl.className = 'guest-limit-prompt';
-    promptEl.innerHTML = `
-        <p><strong>✨ You've used all ${GUEST_MESSAGE_LIMIT} free messages!</strong><br>
-        Sign in to unlock unlimited conversations and enhanced features.</p>
-        <button class="auth-button" onclick="window.Clerk?.openSignIn()">
-            <i class="fas fa-sign-in-alt"></i>
-            <span>Sign In to Continue</span>
-        </button>
-    `;
+
+    const p = document.createElement('p');
+    const strong = document.createElement('strong');
+    strong.textContent = `✨ You've used all ${GUEST_MESSAGE_LIMIT} free messages!`;
+    p.append(strong, document.createElement('br'));
+    p.append(
+        canSignIn
+            ? 'Sign in to unlock unlimited conversations and enhanced features.'
+            : 'Sign-in is unavailable right now, so here is a fresh set of free messages.',
+    );
+    promptEl.appendChild(p);
+
+    const button = document.createElement('button');
+    button.className = 'auth-button';
+    button.type = 'button';
+    const icon = document.createElement('i');
+    const label = document.createElement('span');
+
+    if (canSignIn) {
+        icon.className = 'fas fa-sign-in-alt';
+        label.textContent = 'Sign In to Continue';
+        // addEventListener, not an inline onclick: inline handlers are what keep
+        // the CSP stuck in Report-Only.
+        button.addEventListener('click', () => window.Clerk?.openSignIn());
+    } else {
+        icon.className = 'fas fa-rotate-right';
+        label.textContent = 'Reset free messages';
+        button.addEventListener('click', () => {
+            resetGuestMessageCount();
+            promptEl.remove();
+            unlockComposer();
+        });
+    }
+
+    button.append(icon, label);
+    promptEl.appendChild(button);
     chatMessages.appendChild(promptEl);
-    requestAnimationFrame(() => { stickToBottom(chatMessages, { force: true }); });
 
     const userInput = document.getElementById('user-input');
     const sendButton = document.getElementById('send-button');
     if (userInput) {
         userInput.disabled = true;
-        userInput.placeholder = 'Sign in to continue chatting...';
+        userInput.placeholder = canSignIn
+            ? 'Sign in to continue chatting...'
+            : 'Free messages used up — reset above to continue.';
     }
     if (sendButton) sendButton.disabled = true;
 
-    requestAnimationFrame(() => {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    });
+    requestAnimationFrame(() => { stickToBottom(chatMessages, { force: true }); });
+}
+
+/** Re-enable the composer after the guest allowance is restored. */
+function unlockComposer() {
+    const userInput = document.getElementById('user-input');
+    const sendButton = document.getElementById('send-button');
+    if (userInput) {
+        userInput.disabled = false;
+        userInput.placeholder = `Ask me anything... (${GUEST_MESSAGE_LIMIT} free messages left)`;
+        userInput.focus();
+    }
+    if (sendButton) sendButton.disabled = false;
 }
 
 // ─── Send Message ────────────────────────────────────────────────────────────
@@ -667,7 +723,16 @@ window.chat = {
     history: () => chatHistory,
     // Lets a programmatic caller wait for a reply instead of polling, and
     // tell "still generating" apart from "finished with an empty answer".
-    isProcessing: () => isProcessing
+    isProcessing: () => isProcessing,
+    // Escape hatch. The real limit is enforced server-side (20/hr for guests),
+    // so this only clears the client-side courtesy counter — it grants nothing
+    // the server would not have allowed anyway.
+    resetGuestLimit: () => {
+        const ok = resetGuestMessageCount();
+        document.querySelector('.guest-limit-prompt')?.remove();
+        unlockComposer();
+        return ok;
+    }
 };
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────

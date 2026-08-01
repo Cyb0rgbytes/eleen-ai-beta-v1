@@ -132,8 +132,29 @@ button {
 	transition: opacity 0.5s ease;
 }
 
+/* The scene is authored light: its studio backdrop renders near-white
+   (measured 223,223,223) and would otherwise wash out this dark UI entirely.
+   Rather than re-export it, composite it against the page.
+
+   `screen` keeps bright pixels and drops dark ones, so inverting first means
+   the white backdrop becomes black and falls away, while the robot — dark in
+   the inverted image — survives as light geometry. `hue-rotate` puts the
+   inverted colours back roughly where they started so the accent gradient on
+   the head still reads as brand colour rather than its complement.
+
+   Re-exporting the scene with a transparent background in Spline is the
+   proper fix; this makes it usable in the meantime with no new bytes. */
 #spline-bg.loaded spline-viewer {
 	opacity: 1;
+	filter: invert(1) hue-rotate(180deg) saturate(1.15) brightness(0.92);
+	mix-blend-mode: screen;
+}
+
+/* Compositing needs something to blend against, or `screen` resolves against
+   a transparent backdrop and the effect is lost. */
+#spline-bg {
+	background: var(--bg-deep);
+	isolation: isolate;
 }
 
 /* Animated placeholder shown instantly while the 3D scene downloads. */
