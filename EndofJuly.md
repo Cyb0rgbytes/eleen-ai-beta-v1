@@ -5,15 +5,36 @@
 **Branch:** `feat/agent-readiness`
 **Tests:** 41 passing (`npx vitest run`)
 **Build:** `npm run check` clean
-**Deployed:** No. `wrangler deploy` has never been run.
+**Deployed:** Yes — version `92fcde62-2d05-4a63-a311-a6243685d941`, 2026-08-01.
 
 ---
 
 ## Where things actually stand
 
-Phases 0–2 are built and committed. Phases 3–5 are not started. **No frontend work has begun** —
-the July planning produced a detailed implementation plan, but not a line of code. The UI you see
-locally today is the same one from commit `71ff806`.
+Phases 0–2 are built and committed. Phases 3–5 are not started. The July planning produced a
+detailed implementation plan for the frontend rebuild, but that rebuild has not begun — the UI is
+still the simplified panel from `71ff806`.
+
+**Deployed on 2026-08-01.** Two things shipped:
+
+1. **The corrupted stylesheet is gone from production.** The previous deploy (`380c90bc`,
+   2026-07-30 22:23 UTC) predated commit `71ff806` by ~4½ hours, so production had been serving the
+   old 1,947-line `style.css` — the one described below with 3 competing 768px blocks. That is why
+   the right-hand panel rendered differently in production than locally. Nothing had regressed; the
+   deploy simply never included the rewrite.
+2. **A latent bug that bricked the chat composer on production** (`6778bb2`). The
+   `DOMContentLoaded` handler in `public/index.html` had two early exits — a bare `return` when
+   `window.Clerk` never appeared, and an unguarded `await Clerk.load()` whose rejection became a
+   silent unhandled promise rejection in the `async` handler. Either path meant `updateAuthUI()`
+   never ran, and that is the only code enabling `#user-input` and `#send-button`. Guests could
+   reach `/api/chat/guest` fine the whole time; the backend was never at fault. Auth is now
+   best-effort: the Clerk block is wrapped, `updateAuthUI()` runs in a `finally` on every path, and
+   an `authUnavailable` flag suppresses the Login button rather than leaving a dead control. The
+   Spline fade-in moved above the Clerk block — a 3D backdrop should not depend on an auth outcome.
+
+This does **not** make sign-in work on production. The key is `pk_test_` (decodes to
+`feasible-falcon-93.clerk.accounts.dev`) — a development instance on a live domain. See the manual
+actions below.
 
 | | |
 |---|---|
@@ -127,6 +148,23 @@ Two live defects found alongside:
 - [ ] **Usage dashboard** — D1 `usage_counters` for history plus a new non-mutating
       `peekRateLimit()` for the current window.
 
+### Found during the 2026-08-01 production verification
+
+- [ ] **`/` is served without a charset.** `Content-Type: text/html`, no `charset=utf-8`.
+      `src/agent/router.ts:74` clones the asset response and adds `link`/`vary`/`cache-control` but
+      never sets the content type — unlike `router.ts:126`, which does it correctly for `/docs`.
+      The HTTP header beats the `<meta charset>` tag, so the `✦`/`✓`/`✕` toast icons render as
+      mojibake. Confirmed **not** the cause of the chat bug (the JS parses either way). One-line fix.
+- [ ] **Cloudflare Insights beacon is injected at the zone level** — it accounts for the ~1.3 KB
+      difference between what the Worker returns (16,846 bytes) and what `eleenai.xyz` serves
+      (18,143). It adds an inline script that will fight the CSP when it moves from Report-Only to
+      enforcing. Rocket Loader and Email Obfuscation are both confirmed **off**, which matters:
+      Rocket Loader reorders script execution and would break `chat.js`, whose five inline `onclick`
+      handlers require it to stay a classic non-deferred script.
+- [ ] **`www.eleenai.xyz` does not resolve** (NXDOMAIN) despite being listed in
+      `AUTHORIZED_PARTIES` (`src/index.ts:342`) and the CORS allowlist (`src/lib/cors.ts:11`).
+      Harmless dead config, but misleading.
+
 ### Known issues worth fixing regardless
 
 - [ ] **`openapi.ts:254` lies** — it tells API consumers "conversation history is persisted". What
@@ -148,6 +186,9 @@ Two live defects found alongside:
 - [ ] Enable DNSSEC on `eleenai.xyz` + DS record at the registrar, then publish the DNS-AID records
 - [ ] Migrate Clerk to production (currently `pk_test_…`, instance `feasible-falcon-93`)
 - [ ] Fix `.dev.vars` — both Clerk keys are 18-char placeholders, so authenticated routes 500 locally
-- [ ] Review 50 Dependabot alerts (6 critical, 22 high); close the 3 PRs targeting the deleted
-      `spline-cdn/`
-- [ ] Deploy. Nothing has ever been deployed.
+- [ ] Review Dependabot alerts — **now 27** (2 critical, 14 high, 8 moderate, 3 low), down from 50
+      after `spline-cdn/` was deleted. Close the 3 PRs targeting that removed directory.
+- [x] ~~Deploy~~ — done 2026-08-01, version `92fcde62`. Note the deploy ran from
+      `feat/agent-readiness`, **not `main`** — `main` is still at `50ffe75` and predates the CSS
+      rewrite, so deploying from it would reproduce the corrupted-stylesheet bug. Production is
+      ahead of the default branch until the PR merges.
