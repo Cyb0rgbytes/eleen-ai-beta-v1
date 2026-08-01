@@ -52,36 +52,29 @@ let chatHistory = [
 ];
 let isProcessing = false;
 
-// ─── Guest-mode config ───────────────────────────────────────────────────────
+// ─── Guest mode ──────────────────────────────────────────────────────────────
 
-const GUEST_MESSAGE_LIMIT = 15;
+// There was a client-side lifetime cap of 15 messages here, counted in
+// localStorage. It was removed because it was both stricter than the real
+// limit and permanent: the server allows guests 20 chat requests per hour
+// (src/lib/ratelimit.ts), keyed on a hashed IP, resetting hourly and
+// unbypassable from the browser. The localStorage counter never reset, so a
+// visitor who spent 15 messages was locked out forever — and worse, silently:
+// sendMessage() returned before making any request, so the page looked healthy
+// and simply swallowed the message.
+//
+// ratelimit.ts puts it best: a limit a client enforces against itself is not a
+// limit. The server is the limit; the client just has to report it (see the
+// 429 handling in sendMessage).
+
 const GUEST_STORAGE_KEY = 'eleen_guest_msg_count';
 
-function getGuestMessageCount() {
-    try {
-        return parseInt(localStorage.getItem(GUEST_STORAGE_KEY) || '0', 10);
-    } catch {
-        return 0;
-    }
-}
-
-function incrementGuestMessageCount() {
-    try {
-        const count = getGuestMessageCount() + 1;
-        localStorage.setItem(GUEST_STORAGE_KEY, String(count));
-        return count;
-    } catch {
-        return 0;
-    }
-}
-
-function resetGuestMessageCount() {
-    try {
-        localStorage.removeItem(GUEST_STORAGE_KEY);
-        return true;
-    } catch {
-        return false;
-    }
+// One-shot cleanup. Anyone who hit the old cap still carries the key that
+// locked them out, and nothing else would ever clear it.
+try {
+    localStorage.removeItem(GUEST_STORAGE_KEY);
+} catch {
+    /* Private mode denies storage access; there is nothing to clean up. */
 }
 
 function isAuthenticated() {
@@ -240,83 +233,38 @@ function initializeChat() {
     console.log('Chat initialized successfully');
 }
 
-// ─── Guest Limit UI ──────────────────────────────────────────────────────────
+// ─── Rate limit UI ───────────────────────────────────────────────────────────
 
-function showGuestLimitPrompt() {
+/**
+ * Render the server's 429 as something a person can act on.
+ *
+ * Previously this fell through to the generic "Sorry, there was an error"
+ * bubble, which is indistinguishable from a real fault. Now that the server's
+ * hourly allowance is the only limit, it is the message users will actually
+ * meet, so it has to say what happened and when to come back.
+ */
+function showRateLimitMessage(retryAfterSeconds) {
     const chatMessages = document.getElementById('chat-messages');
     if (!chatMessages) return;
 
-    // Only one prompt, however many times a blocked send is attempted.
-    if (chatMessages.querySelector('.guest-limit-prompt')) return;
+    const seconds = Number(retryAfterSeconds);
+    let when = 'shortly';
+    if (Number.isFinite(seconds) && seconds > 0) {
+        const minutes = Math.ceil(seconds / 60);
+        when = minutes <= 1 ? 'in about a minute' : `in about ${minutes} minutes`;
+    }
 
-    // If auth cannot come up, "Sign in to continue" is a dead end: the modal
-    // needs Clerk. Offering a reset instead of a button that does nothing is
-    // the difference between a soft limit and a permanent lockout.
-    const canSignIn = !!window.Clerk;
-
-    const promptEl = document.createElement('div');
-    promptEl.className = 'guest-limit-prompt';
-
+    const el = document.createElement('div');
+    el.className = 'guest-limit-prompt';
     const p = document.createElement('p');
     const strong = document.createElement('strong');
-    strong.textContent = `✨ You've used all ${GUEST_MESSAGE_LIMIT} free messages!`;
+    strong.textContent = "You've hit the hourly limit";
     p.append(strong, document.createElement('br'));
-    p.append(
-        canSignIn
-            ? 'Sign in to unlock unlimited conversations and enhanced features.'
-            : 'Sign-in is unavailable right now, so here is a fresh set of free messages.',
-    );
-    promptEl.appendChild(p);
-
-    const button = document.createElement('button');
-    button.className = 'auth-button';
-    button.type = 'button';
-    const icon = document.createElement('i');
-    const label = document.createElement('span');
-
-    if (canSignIn) {
-        icon.className = 'fas fa-sign-in-alt';
-        label.textContent = 'Sign In to Continue';
-        // addEventListener, not an inline onclick: inline handlers are what keep
-        // the CSP stuck in Report-Only.
-        button.addEventListener('click', () => window.Clerk?.openSignIn());
-    } else {
-        icon.className = 'fas fa-rotate-right';
-        label.textContent = 'Reset free messages';
-        button.addEventListener('click', () => {
-            resetGuestMessageCount();
-            promptEl.remove();
-            unlockComposer();
-        });
-    }
-
-    button.append(icon, label);
-    promptEl.appendChild(button);
-    chatMessages.appendChild(promptEl);
-
-    const userInput = document.getElementById('user-input');
-    const sendButton = document.getElementById('send-button');
-    if (userInput) {
-        userInput.disabled = true;
-        userInput.placeholder = canSignIn
-            ? 'Sign in to continue chatting...'
-            : 'Free messages used up — reset above to continue.';
-    }
-    if (sendButton) sendButton.disabled = true;
+    p.append(`Please try again ${when}.`);
+    el.appendChild(p);
+    chatMessages.appendChild(el);
 
     requestAnimationFrame(() => { stickToBottom(chatMessages, { force: true }); });
-}
-
-/** Re-enable the composer after the guest allowance is restored. */
-function unlockComposer() {
-    const userInput = document.getElementById('user-input');
-    const sendButton = document.getElementById('send-button');
-    if (userInput) {
-        userInput.disabled = false;
-        userInput.placeholder = `Ask me anything... (${GUEST_MESSAGE_LIMIT} free messages left)`;
-        userInput.focus();
-    }
-    if (sendButton) sendButton.disabled = false;
 }
 
 // ─── Send Message ────────────────────────────────────────────────────────────
@@ -328,12 +276,10 @@ async function sendMessage() {
 
     if (!message || isProcessing) return;
 
-    // Check guest limit
+    // No client-side gate: the server's hourly allowance is the limit, and it
+    // reports itself via 429 (handled below). Returning early here is what used
+    // to swallow messages silently.
     const authenticated = isAuthenticated();
-    if (!authenticated && getGuestMessageCount() >= GUEST_MESSAGE_LIMIT) {
-        showGuestLimitPrompt();
-        return;
-    }
 
     console.log('Processing message:', message.substring(0, 50) + '...');
 
@@ -384,13 +330,18 @@ async function sendMessage() {
             const imgEndpoint = authenticated ? '/api/image/generate' : '/api/image/generate/guest';
             const imgHeaders = await buildHeaders(authenticated);
 
-            if (!authenticated) incrementGuestMessageCount();
-
             const response = await fetch(imgEndpoint, {
                 method: 'POST',
                 headers: imgHeaders,
                 body: JSON.stringify({ prompt })
             });
+
+            // Images have their own, much tighter bucket (5/hr for guests), so
+            // this can trip well before the chat limit does.
+            if (response.status === 429) {
+                showRateLimitMessage(response.headers.get('retry-after'));
+                return;
+            }
 
             if (!response.ok) throw new Error(`Image generation failed: HTTP ${response.status}`);
 
@@ -404,13 +355,16 @@ async function sendMessage() {
             const endpoint = authenticated ? '/api/chat' : '/api/chat/guest';
             const headers = await buildHeaders(authenticated);
 
-            if (!authenticated) incrementGuestMessageCount();
-
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({ messages: chatHistory })
             });
+
+            if (response.status === 429) {
+                showRateLimitMessage(response.headers.get('retry-after'));
+                return;
+            }
 
             if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 
@@ -455,16 +409,6 @@ async function sendMessage() {
             chatHistory = [chatHistory[0], ...chatHistory.slice(-19)];
         }
 
-        // Update guest placeholder
-        if (!authenticated) {
-            const count = getGuestMessageCount();
-            if (count >= GUEST_MESSAGE_LIMIT) {
-                userInput.placeholder = 'Sign in for unlimited access...';
-            } else {
-                const remaining = GUEST_MESSAGE_LIMIT - count;
-                userInput.placeholder = `Ask me anything... (${remaining} free message${remaining !== 1 ? 's' : ''} left)`;
-            }
-        }
     }
 }
 
@@ -723,16 +667,7 @@ window.chat = {
     history: () => chatHistory,
     // Lets a programmatic caller wait for a reply instead of polling, and
     // tell "still generating" apart from "finished with an empty answer".
-    isProcessing: () => isProcessing,
-    // Escape hatch. The real limit is enforced server-side (20/hr for guests),
-    // so this only clears the client-side courtesy counter — it grants nothing
-    // the server would not have allowed anyway.
-    resetGuestLimit: () => {
-        const ok = resetGuestMessageCount();
-        document.querySelector('.guest-limit-prompt')?.remove();
-        unlockComposer();
-        return ok;
-    }
+    isProcessing: () => isProcessing
 };
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
