@@ -14,8 +14,14 @@ metadata, then fetch that issuer's
 
 `https://eleenai.xyz/.well-known/openid-configuration` redirects to the
 issuer's live discovery document. EleenAI does not mint tokens, so it does not
-serve a discovery document of its own — doing so would require declaring an
-`issuer` that does not match the party actually signing the tokens.
+serve an OpenID Connect discovery document of its own — doing so would require
+declaring an `issuer` that does not match the party actually signing the tokens.
+
+`https://eleenai.xyz/.well-known/oauth-authorization-server` is the one
+exception, and it exists to carry the `agent_auth` block described under
+[Agent registration](#agent-registration). Its `issuer` names Clerk, not
+EleenAI. Treat Clerk's own copy of that document as authoritative for OAuth
+endpoints; read EleenAI's only for `agent_auth`.
 
 ## Bearer Methods
 
@@ -46,6 +52,40 @@ challenge additionally carries `error="invalid_token"`. A challenge with no
 | `image`  | Text-to-image generation |
 | `vision` | Image and document understanding |
 | `search` | Web-search-grounded answers with citations |
+
+## Agent registration
+
+Agents discover how to authenticate in two hops: fetch the protected resource
+metadata at `/.well-known/oauth-protected-resource`, then fetch
+`/.well-known/oauth-authorization-server`, which carries an `agent_auth` block:
+
+```json
+{
+  "agent_auth": {
+    "skill": "https://eleenai.xyz/auth.md",
+    "identity_types_supported": ["anonymous"],
+    "anonymous": {
+      "credential_types_supported": ["none"],
+      "claim_uri": "https://eleenai.xyz/auth.md"
+    }
+  }
+}
+```
+
+EleenAI supports the **anonymous** identity type only. There is no registration
+endpoint, no claim ceremony and no assertion exchange: an agent needing
+anonymous access does not register at all — it calls the guest endpoints listed
+below with no credentials, subject to the per-hour rate limits applied to its
+source address.
+
+`identity_assertion` and `service_auth` are deliberately not advertised. They
+would require a registration endpoint and a token exchange that EleenAI does not
+implement, and listing a capability an agent cannot exercise is worse than
+listing none.
+
+For an identity that persists across sessions and lifts the guest rate limits,
+authenticate with a Clerk-issued bearer token as described above and call the
+unsuffixed paths.
 
 ## Guest Tier
 

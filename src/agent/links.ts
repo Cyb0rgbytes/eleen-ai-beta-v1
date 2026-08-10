@@ -6,10 +6,11 @@
  *
  * A note on conformance: `api-catalog` (RFC 9727), `service-desc` and
  * `service-doc` (RFC 8631), and `alternate` are IANA-registered relation
- * types. `oauth-protected-resource` and `mcp-server` are NOT — RFC 9728
- * defines a well-known URI and a WWW-Authenticate parameter, not a link
- * relation. They are included because MCP clients look for them in practice;
- * the strictly-correct alternative is an extension relation URI that no client
+ * types. `oauth-protected-resource`, `oauth-authorization-server` and
+ * `mcp-server` are NOT — RFC 9728 and RFC 8414 each define a well-known URI
+ * (and, for 9728, a WWW-Authenticate parameter), not a link relation. They are
+ * included because MCP and agent clients look for them in practice; the
+ * strictly-correct alternative is an extension relation URI that no client
  * currently recognizes.
  */
 
@@ -39,6 +40,12 @@ const ENTRIES: LinkEntry[] = [
 		rel: "oauth-protected-resource",
 		type: "application/json",
 		title: "Protected resource metadata",
+	},
+	{
+		href: "/.well-known/oauth-authorization-server",
+		rel: "oauth-authorization-server",
+		type: "application/json",
+		title: "Authorization server metadata and agent_auth",
 	},
 	{ href: "/mcp", rel: "mcp-server", title: "MCP endpoint" },
 ];

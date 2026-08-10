@@ -52,6 +52,11 @@ export function buildApiCatalog(): unknown {
 						type: "application/json",
 						title: "Protected resource metadata (RFC 9728)",
 					},
+					{
+						href: absolute("/.well-known/oauth-authorization-server"),
+						type: "application/json",
+						title: "Authorization server metadata and agent_auth (RFC 8414)",
+					},
 				],
 				status: [
 					{
@@ -78,6 +83,11 @@ export function buildApiCatalog(): unknown {
 						href: absolute("/.well-known/oauth-protected-resource/mcp"),
 						type: "application/json",
 						title: "MCP protected resource metadata (RFC 9728)",
+					},
+					{
+						href: absolute("/.well-known/oauth-authorization-server"),
+						type: "application/json",
+						title: "Authorization server metadata and agent_auth (RFC 8414)",
 					},
 				],
 				status: [
@@ -109,6 +119,71 @@ export function buildProtectedResource(env: Env, variant: "root" | "mcp"): unkno
 		resource_policy_uri: absolute("/docs"),
 		tls_client_certificate_bound_access_tokens: false,
 		dpop_bound_access_tokens_required: false,
+	};
+}
+
+// ─── /.well-known/oauth-authorization-server ─────────────────────────────────
+
+/**
+ * Authorization server metadata, carrying the `agent_auth` block.
+ *
+ * A deliberate and documented deviation, so it is not "fixed" by accident:
+ * RFC 8414 §3.3 requires the `issuer` in this document to be identical to the
+ * URL prefix it was fetched from. This document is served at eleenai.xyz but
+ * declares Clerk's issuer, because Clerk mints the tokens. That mismatch is
+ * exactly why `/.well-known/openid-configuration` below is a 307 rather than a
+ * synthetic document.
+ *
+ * The difference is that `agent_auth` has nowhere else to live. It describes
+ * how agents authenticate to *EleenAI*, and Clerk's own metadata document —
+ * the only RFC-conformant place to look — cannot carry a block about a resource
+ * server it does not know about. Serving it here with an honest, correctly
+ * resolving `issuer` is the tradeoff that makes the block discoverable at all.
+ * Clients that only need OAuth endpoints should follow `authorization_servers`
+ * in the RFC 9728 protected-resource document and fetch Clerk's copy directly.
+ *
+ * https://www.rfc-editor.org/rfc/rfc8414 · https://github.com/workos/auth.md
+ */
+export function buildAuthorizationServer(env: Env): unknown {
+	const issuer = clerkIssuer(env);
+
+	// Mirrored from Clerk's own document rather than invented, so a client that
+	// reads this copy and one that follows `authorization_servers` to Clerk's
+	// copy end up at the same endpoints. Verified against the live document;
+	// re-check after a Clerk instance migration.
+	return {
+		issuer,
+		authorization_endpoint: `${issuer}/oauth/authorize`,
+		token_endpoint: `${issuer}/oauth/token`,
+		revocation_endpoint: `${issuer}/oauth/token/revoke`,
+		jwks_uri: `${issuer}/.well-known/jwks.json`,
+		response_types_supported: ["code"],
+		grant_types_supported: ["authorization_code", "refresh_token"],
+		token_endpoint_auth_methods_supported: ["client_secret_basic", "client_secret_post", "none"],
+		code_challenge_methods_supported: ["S256"],
+		// The resource scopes EleenAI itself enforces. Clerk's document lists the
+		// OIDC scopes it issues; these are the ones that gate this API, and they
+		// match `scopes_supported` in the RFC 9728 protected-resource document.
+		scopes_supported: ["chat", "image", "vision", "search"],
+
+		/**
+		 * Only `anonymous` is advertised, and it is not a placeholder — it maps
+		 * to the `/guest` routes that serve unauthenticated agents today.
+		 *
+		 * `identity_assertion` and `service_auth` are deliberately absent. Both
+		 * require a registration endpoint, a claim ceremony and a JWT-bearer
+		 * exchange that EleenAI has not built; advertising them would point
+		 * agents at URLs that 404. A capability listed here has to be one a
+		 * client can actually exercise.
+		 */
+		agent_auth: {
+			skill: absolute("/auth.md"),
+			identity_types_supported: ["anonymous"],
+			anonymous: {
+				credential_types_supported: ["none"],
+				claim_uri: absolute("/auth.md"),
+			},
+		},
 	};
 }
 

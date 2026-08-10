@@ -32,6 +32,7 @@ import { buildSkillsIndex, findSkill } from "./skills";
 import {
 	LINKSET_CONTENT_TYPE,
 	buildApiCatalog,
+	buildAuthorizationServer,
 	buildProtectedResource,
 	openidConfigurationRedirect,
 } from "./wellknown";
@@ -177,6 +178,12 @@ export async function handleAgentRoutes(
 	if (path === "/.well-known/oauth-protected-resource/mcp") {
 		if (!isRead(request)) return methodNotAllowed(READ_ONLY);
 		return json(request, buildProtectedResource(env, "mcp"));
+	}
+
+	// ── Authorization server metadata + agent_auth ───────────────────────
+	if (path === "/.well-known/oauth-authorization-server") {
+		if (!isRead(request)) return methodNotAllowed(READ_ONLY);
+		return json(request, buildAuthorizationServer(env));
 	}
 
 	// ── Item 9: MCP endpoint and server card ─────────────────────────────
