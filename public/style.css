@@ -174,8 +174,16 @@ button {
 	z-index: 1;
 	pointer-events: none;
 	background:
-		radial-gradient(ellipse 70% 60% at 50% 65%, rgba(3, 3, 18, 0.55) 0%, transparent 75%),
-		linear-gradient(180deg, transparent 0%, rgba(3, 3, 18, 0.35) 55%, rgba(3, 3, 18, 0.62) 100%);
+		/* Top band: the brand bar and the auth pair sit here, and the scene is
+		   at its brightest behind them. */
+		linear-gradient(180deg, rgba(3, 3, 18, 0.72) 0%, rgba(3, 3, 18, 0.5) 12%, transparent 26%),
+		/* Bottom band: composer and footer. */
+		linear-gradient(0deg, rgba(3, 3, 18, 0.78) 0%, rgba(3, 3, 18, 0.5) 14%, transparent 30%),
+		/* Body of the conversation, falling off before the page edges so the
+		   model keeps its own light. */
+		radial-gradient(ellipse 62% 52% at 50% 45%, rgba(3, 3, 18, 0.42) 0%, transparent 78%),
+		/* A low, even floor so no region is left fully unbacked. */
+		linear-gradient(180deg, rgba(3, 3, 18, 0.22), rgba(3, 3, 18, 0.3));
 }
 
 #spline-loader {
@@ -281,13 +289,17 @@ header {
 	padding: var(--sp-2) var(--sp-3);
 }
 
-/* Full lockup: brain mark + ELEENAI + tagline, all in the one image. */
+/* Full lockup: brain mark + ELEENAI + tagline, all in the one image.
+   The wordmark is light-on-transparent, so it needs its own separation from
+   the bright part of the scene — the scrim alone is not enough this close to
+   the top edge. */
 .logo-image {
 	height: 34px;
 	width: auto;
 	max-width: 55%;
 	object-fit: contain;
 	object-position: left center;
+	filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 18px rgba(0, 0, 0, 0.6));
 }
 
 /* Auth anchors.
@@ -499,12 +511,12 @@ header {
 	max-width: 82%;
 	margin-left: auto;
 	padding: 0.7rem 1rem;
-	background: linear-gradient(135deg, rgba(108, 99, 255, 0.32), rgba(108, 99, 255, 0.22));
+	background: linear-gradient(135deg, rgba(78, 70, 200, 0.92), rgba(58, 52, 165, 0.92));
 	backdrop-filter: blur(14px) saturate(140%);
 	-webkit-backdrop-filter: blur(14px) saturate(140%);
-	border: 1px solid rgba(108, 99, 255, 0.45);
+	border: 1px solid rgba(140, 132, 255, 0.5);
 	border-radius: var(--r-md) var(--r-md) 4px var(--r-md);
-	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 
 /* Assistant: a neutral dark surface rather than the bare text it used to be.
@@ -528,7 +540,7 @@ header {
  * three-paragraph answer reads as three stacked cards instead of one reply. */
 .assistant-message > *:not(.ai-avatar) {
 	grid-column: 2;
-	background: rgba(9, 9, 26, 0.72);
+	background: rgba(9, 9, 26, 0.88);
 	backdrop-filter: blur(14px) saturate(140%);
 	-webkit-backdrop-filter: blur(14px) saturate(140%);
 	border: 1px solid var(--panel-line);
@@ -934,6 +946,8 @@ footer {
 	font-size: 0.7rem;
 	letter-spacing: 0.2px;
 	color: var(--text-faint);
+	/* Small dim text sitting directly over the scene needs its own separation. */
+	text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
 }
 
 /* ── 11. Guest limit ─────────────────────────────────────────────────────── */
