@@ -216,7 +216,13 @@ button {
 /* The chat shell spans the full page and paints nothing of its own — the scene
    shows through it. Readability comes from #chat-scrim behind, and from the
    composer's own surface; line length is held by the inner reading column
-   below rather than by narrowing this container. */
+   below rather than by narrowing this container.
+ *
+ * pointer-events: none is load-bearing. The shell covers the whole viewport
+ * now, so with events enabled its transparent body swallows every mouse move
+ * before the Spline canvas beneath can see it, and the robot stops tracking
+ * the cursor. Events are handed back to the descendants that actually need
+ * them, just below. */
 .gateway-container {
 	position: relative;
 	z-index: 2;
@@ -229,6 +235,20 @@ button {
 	flex-direction: column;
 	background: transparent;
 	overflow: hidden;
+	pointer-events: none;
+}
+
+/* Interactive regions opt back in. The scroller needs events for the wheel to
+   work, so it takes them as a whole rather than per-message — it is the
+   centred reading column, which leaves the page margins either side of it
+   click-through and keeps the scene tracking the cursor there. */
+.gateway-container header,
+.gateway-container footer,
+#chat-messages,
+.chat-messages,
+.message-input,
+.typing-indicator {
+	pointer-events: auto;
 }
 
 /* Inner reading column.
@@ -463,26 +483,77 @@ header {
 	margin-top: 0.6rem;
 }
 
-/* User: a filled bubble, right-aligned and narrower than the reply so the two
-   sides are easy to tell apart at a glance. */
+/* Inside the assistant panel the blocks are the surface, so a margin between
+   them would cut a transparent gap through it. The same separation comes from
+   padding instead, which stays inside the fill. */
+.assistant-message > p + p {
+	margin-top: 0;
+	padding-top: 0.6rem;
+}
+
+/* Both sides sit on their own surface now. Against a transparent shell over a
+   moving 3D scene, unbacked text has no stable contrast — it reads against
+   whatever the robot happens to be doing behind it. The accent tint stays on
+   the user side so the two are still distinguishable at a glance. */
 .user-message {
 	max-width: 82%;
 	margin-left: auto;
 	padding: 0.7rem 1rem;
-	background: var(--accent-soft);
-	border: 1px solid rgba(108, 99, 255, 0.2);
+	background: linear-gradient(135deg, rgba(108, 99, 255, 0.32), rgba(108, 99, 255, 0.22));
+	backdrop-filter: blur(14px) saturate(140%);
+	-webkit-backdrop-filter: blur(14px) saturate(140%);
+	border: 1px solid rgba(108, 99, 255, 0.45);
 	border-radius: var(--r-md) var(--r-md) 4px var(--r-md);
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
 }
 
-/* Assistant: no bubble at all — just text, with the avatar in a left gutter.
+/* Assistant: a neutral dark surface rather than the bare text it used to be.
    The avatar is the first child (chat.js prepends it), so grid-row 1/-1 keeps
-   it pinned to the top of a multi-block reply. */
+   it pinned to the top of a multi-block reply — it sits outside the padded
+   panel, in its own gutter column. */
 .assistant-message {
 	margin-right: auto;
+	max-width: 92%;
 	display: grid;
 	grid-template-columns: 26px minmax(0, 1fr);
 	column-gap: var(--sp-2);
 	align-items: start;
+}
+
+/* The panel is drawn on the content column, not on the grid, so the avatar
+   stays clear of it in its own gutter.
+ *
+ * A multi-block reply is several siblings sharing that column, so the surface
+ * is seamless by default and only the outer edges are rounded — otherwise a
+ * three-paragraph answer reads as three stacked cards instead of one reply. */
+.assistant-message > *:not(.ai-avatar) {
+	grid-column: 2;
+	background: rgba(9, 9, 26, 0.72);
+	backdrop-filter: blur(14px) saturate(140%);
+	-webkit-backdrop-filter: blur(14px) saturate(140%);
+	border: 1px solid var(--panel-line);
+	border-top-width: 0;
+	border-bottom-width: 0;
+	border-radius: 0;
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+	padding: 0.2rem 1rem;
+}
+
+.assistant-message > *:not(.ai-avatar):nth-child(2) {
+	border-top-width: 1px;
+	border-radius: var(--r-md) var(--r-md) 0 0;
+	padding-top: 0.7rem;
+}
+
+.assistant-message > *:not(.ai-avatar):last-child {
+	border-bottom-width: 1px;
+	border-radius: 0 0 var(--r-md) var(--r-md);
+	padding-bottom: 0.7rem;
+}
+
+/* Single-block reply: it is both first and last, so it needs all four corners. */
+.assistant-message > *:not(.ai-avatar):nth-child(2):last-child {
+	border-radius: var(--r-md);
 }
 
 .ai-avatar {
@@ -499,11 +570,6 @@ header {
 	font-weight: 700;
 	color: #fff;
 	user-select: none;
-}
-
-/* Everything after the avatar shares the content column. */
-.assistant-message > *:not(.ai-avatar) {
-	grid-column: 2;
 }
 
 /* ── 8. Message extras ───────────────────────────────────────────────────── */
