@@ -230,7 +230,47 @@ function initializeChat() {
     }
 
     sendButton.addEventListener('click', sendMessage);
+    initWheelForwarding();
     console.log('Chat initialized successfully');
+}
+
+/**
+ * Forward wheel events over the conversation to the scroller.
+ *
+ * The message area is deliberately click-through in CSS: it is a 52rem column
+ * down the middle of the page, and if it claimed pointer events the 3D scene
+ * would stop seeing the cursor across that whole band — the model freezes as
+ * the pointer crosses it and jumps when it comes out the other side.
+ *
+ * The cost of that is the wheel, which needs a real event target. This listens
+ * on the window instead and scrolls the conversation whenever the pointer is
+ * over it, so the scene keeps receiving pointer moves everywhere while the
+ * wheel still works where a user expects it to. Anything that scrolls on its
+ * own — the composer's textarea, a code block — is left alone.
+ */
+function initWheelForwarding() {
+    const chatMessages = document.getElementById('chat-messages');
+    if (!chatMessages) return;
+
+    window.addEventListener('wheel', (event) => {
+        // Let an element that can scroll itself handle its own wheel.
+        const ownScroller = event.target instanceof Element
+            ? event.target.closest('textarea, pre, .message-input')
+            : null;
+        if (ownScroller) return;
+
+        const box = chatMessages.getBoundingClientRect();
+        const over =
+            event.clientX >= box.left && event.clientX <= box.right &&
+            event.clientY >= box.top && event.clientY <= box.bottom;
+        if (!over) return;
+
+        // Nothing to scroll: leave the event alone so the page can use it.
+        if (chatMessages.scrollHeight <= chatMessages.clientHeight) return;
+
+        chatMessages.scrollTop += event.deltaY;
+        event.preventDefault();
+    }, { passive: false });
 }
 
 // ─── Rate limit UI ───────────────────────────────────────────────────────────

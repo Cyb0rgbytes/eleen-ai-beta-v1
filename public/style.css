@@ -246,16 +246,20 @@ button {
 	pointer-events: none;
 }
 
-/* Interactive regions opt back in. The scroller needs events for the wheel to
-   work, so it takes them as a whole rather than per-message — it is the
-   centred reading column, which leaves the page margins either side of it
-   click-through and keeps the scene tracking the cursor there. */
+/* Interactive regions opt back in.
+ *
+ * The scroller itself deliberately stays click-through. It is 52rem wide and
+ * centred, so claiming events would blank a band down the middle of the screen
+ * where the scene stops seeing the cursor — the robot freezes crossing it and
+ * jumps out the far side. Only the message bubbles take events, for text
+ * selection; the gaps between and beside them pass through. Wheel scrolling
+ * over that transparent region is restored in chat.js, which forwards the
+ * event to the scroller. */
 .gateway-container header,
 .gateway-container footer,
-#chat-messages,
-.chat-messages,
 .message-input,
-.typing-indicator {
+.typing-indicator,
+.message {
 	pointer-events: auto;
 }
 
@@ -1096,6 +1100,21 @@ footer {
 
 	.mode-selector::-webkit-scrollbar {
 		display: none;
+	}
+}
+
+/* Touch scrolling is hit-test driven, and the wheel forwarder in chat.js only
+   covers wheel events. On a device without a hovering pointer there is no
+   cursor for the scene to track anyway, so the scroller takes its events back
+   and momentum scrolling keeps working.
+ *
+ * Keyed on the pointer itself rather than on width: a small window on a
+ * desktop still has a cursor worth tracking, and a large tablet still needs
+ * touch scrolling. */
+@media (hover: none), (pointer: coarse) {
+	#chat-messages,
+	.chat-messages {
+		pointer-events: auto;
 	}
 }
 
