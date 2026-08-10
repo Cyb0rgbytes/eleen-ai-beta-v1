@@ -158,10 +158,31 @@ button {
 	50% { opacity: 1; }
 }
 
+/* Readability scrim.
+ *
+ * The chat surface is transparent so the 3D scene reads through it, but the
+ * scene is authored on a near-white studio backdrop (measured 223,223,223) —
+ * light text on it is unreadable. Rather than filter the scene (invert+screen
+ * was tried in 903bb1a and reverted: it discoloured the robot), this darkens
+ * only the region the conversation occupies and fades to nothing at the edges,
+ * so the model itself is never tinted.
+ *
+ * Sits between the scene (z-index 0) and the chat shell (z-index 2). */
+#chat-scrim {
+	position: fixed;
+	inset: 0;
+	z-index: 1;
+	pointer-events: none;
+	background:
+		radial-gradient(ellipse 70% 60% at 50% 65%, rgba(3, 3, 18, 0.55) 0%, transparent 75%),
+		linear-gradient(180deg, transparent 0%, rgba(3, 3, 18, 0.35) 55%, rgba(3, 3, 18, 0.62) 100%);
+}
+
 #spline-loader {
 	position: fixed;
 	bottom: var(--sp-4);
-	left: var(--sp-4);
+	/* Right, not left — the auth dock owns the bottom-left corner. */
+	right: var(--sp-4);
 	z-index: 3;
 	display: flex;
 	align-items: center;
@@ -192,40 +213,52 @@ button {
 
 /* ── 4. Panel shell ──────────────────────────────────────────────────────── */
 
+/* The chat shell spans the full page and paints nothing of its own — the scene
+   shows through it. Readability comes from #chat-scrim behind, and from the
+   composer's own surface; line length is held by the inner reading column
+   below rather than by narrowing this container. */
 .gateway-container {
 	position: relative;
 	z-index: 2;
 	width: 100%;
-	max-width: 440px;
 	/* Fill the viewport minus the body padding, so the input dock and footer
 	   are always on screen no matter how long the conversation gets. */
 	height: calc(100vh - 2rem);
-	margin: 0 0 0 auto;
+	margin: 0 auto;
 	display: flex;
 	flex-direction: column;
-	background: var(--panel);
-	backdrop-filter: blur(24px) saturate(160%);
-	-webkit-backdrop-filter: blur(24px) saturate(160%);
-	border: 1px solid var(--panel-line);
-	border-radius: var(--r-lg);
-	/* One soft accent glow — the only ambient effect on the panel. */
-	box-shadow:
-		0 24px 60px rgba(0, 0, 0, 0.45),
-		0 0 80px rgba(108, 99, 255, 0.1),
-		inset 0 1px 0 rgba(255, 255, 255, 0.06);
+	background: transparent;
 	overflow: hidden;
+}
+
+/* Inner reading column.
+ *
+ * A full-bleed conversation runs to unreadable line lengths on a wide display,
+ * so the regions inside the shell are centred on a fixed measure while the
+ * shell itself stays edge to edge. The scroller is constrained rather than its
+ * children, which keeps the scrollbar at the column edge. */
+header,
+footer,
+#chat-messages,
+.chat-messages,
+.message-input,
+.typing-indicator {
+	width: 100%;
+	max-width: 52rem;
+	margin-inline: auto;
 }
 
 /* ── 5. Header + auth ────────────────────────────────────────────────────── */
 
+/* Auth moved out to a fixed corner anchor, so the header carries the brand
+   alone. The divider rule is gone with it — a hairline spanning a transparent
+   shell reads as a stray artefact over the 3D scene rather than as structure. */
 header {
 	flex-shrink: 0;
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
 	gap: var(--sp-2);
 	padding: var(--sp-2) var(--sp-3);
-	border-bottom: 1px solid var(--panel-line);
 }
 
 /* Full lockup: brain mark + ELEENAI + tagline, all in the one image. */
@@ -237,10 +270,45 @@ header {
 	object-position: left center;
 }
 
-.auth-container {
+/* Auth anchors.
+ *
+ * Fixed rather than in flow: the shell is transparent and full width now, so
+ * these need to hold the page corners regardless of the reading column. Both
+ * carry a frosted plate so the controls stay legible over the bright part of
+ * the 3D scene. */
+.auth-container,
+.auth-dock {
+	position: fixed;
+	z-index: 4;
 	display: flex;
 	align-items: center;
 	gap: var(--sp-1);
+	padding: 6px;
+	background: rgba(3, 3, 18, 0.55);
+	backdrop-filter: blur(18px) saturate(150%);
+	-webkit-backdrop-filter: blur(18px) saturate(150%);
+	border: 1px solid var(--panel-line);
+	border-radius: var(--r-pill);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.auth-container {
+	top: var(--sp-3);
+	right: var(--sp-3);
+}
+
+.auth-dock {
+	bottom: var(--sp-3);
+	left: var(--sp-3);
+}
+
+/* When every control inside is hidden — signed in, or auth unavailable — the
+   empty frosted plate would still paint. Collapse it instead. */
+.auth-container:empty,
+.auth-dock:empty,
+.auth-dock.is-hidden,
+.auth-container.is-hidden {
+	display: none;
 }
 
 #user-info {
@@ -270,22 +338,44 @@ header {
 	text-overflow: ellipsis;
 }
 
+/* Default is the quiet, subordinate control (Login / Sign in): outlined, not
+   filled, so it never competes with the primary call to action beside it. */
 .auth-button {
 	display: flex;
 	align-items: center;
 	gap: 0.4rem;
-	padding: 0.4rem 0.9rem;
-	font-size: 0.8rem;
+	padding: 0.5rem 1rem;
+	font-size: 0.85rem;
 	font-weight: 500;
-	color: #fff;
-	background: var(--grad);
-	border: none;
+	white-space: nowrap;
+	color: var(--text);
+	background: rgba(255, 255, 255, 0.06);
+	border: 1px solid var(--field-line);
 	border-radius: var(--r-pill);
-	transition: filter 0.2s ease;
+	transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease, filter 0.2s ease;
 }
 
 .auth-button:hover {
-	filter: brightness(1.12);
+	color: #fff;
+	background: rgba(255, 255, 255, 0.12);
+	border-color: var(--accent-line);
+}
+
+/* The one element that should read as solid on a transparent UI. Deliberately
+   not frosted and not gradient-on-glass: a flat accent fill is what makes it
+   findable at a glance against a moving 3D scene. */
+.auth-button.primary-cta {
+	color: #fff;
+	font-weight: 600;
+	background: var(--accent);
+	border: 1px solid var(--accent);
+	box-shadow: 0 4px 16px rgba(108, 99, 255, 0.45);
+}
+
+.auth-button.primary-cta:hover {
+	background: #7d75ff;
+	border-color: #7d75ff;
+	filter: none;
 }
 
 .auth-button.secondary {
@@ -603,16 +693,23 @@ header {
 
 /* ── 10. Input dock ──────────────────────────────────────────────────────── */
 
+/* The shell is transparent, so the composer carries the frosted surface the
+   panel used to provide — it has to separate from the scene to stay usable.
+   Horizontal margin is dropped: the reading column now centres it, and a
+   left/right margin would fight `margin-inline: auto`. */
 .message-input {
 	flex-shrink: 0;
 	display: flex;
 	flex-direction: column;
 	gap: var(--sp-2);
-	margin: 0 var(--sp-3) var(--sp-3);
+	margin-bottom: var(--sp-3);
 	padding: var(--sp-2);
-	background: var(--field);
-	border: 1px solid var(--field-line);
+	background: rgba(11, 11, 30, 0.55);
+	backdrop-filter: blur(20px) saturate(150%);
+	-webkit-backdrop-filter: blur(20px) saturate(150%);
+	border: 1px solid var(--panel-line);
 	border-radius: var(--r-md);
+	box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
 	transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -856,18 +953,23 @@ footer {
 /* ── 13. Responsive ──────────────────────────────────────────────────────── */
 
 @media (max-width: 768px) {
+	/* Column layout so the auth row and the shell share the viewport instead of
+	   overlapping — the shell takes whatever the row leaves. */
 	body {
 		padding: 0;
+		display: flex;
+		flex-direction: column;
+		min-height: 100vh;
+		min-height: 100dvh; /* excludes mobile browser chrome */
 	}
 
+	/* Height comes from the flex parent now; a fixed viewport height here would
+	   push the composer off-screen once the auth row is in the flow above it. */
 	.gateway-container {
-		max-width: none;
-		height: 100vh;
-		height: 100dvh; /* excludes mobile browser chrome */
+		height: auto;
+		flex: 1;
+		min-height: 0;
 		margin: 0;
-		border: none;
-		border-radius: 0;
-		box-shadow: none;
 	}
 
 	.user-message {
@@ -882,6 +984,29 @@ footer {
 
 	#chat-messages {
 		padding: var(--sp-3) var(--sp-2);
+	}
+
+	/* Edge-to-edge on small screens: the reading column is wider than the
+	   viewport anyway, and the composer needs breathing room from the edges. */
+	.message-input {
+		margin-inline: var(--sp-2);
+		width: auto;
+	}
+
+	/* The dock is a wide-screen affordance. At this width it would sit on top
+	   of the composer, and the header pair is already the first thing on
+	   screen — a second copy that covers the input is worse than none. */
+	.auth-dock {
+		display: none;
+	}
+
+	/* The header pair crowds the logo once the viewport narrows, so it moves
+	   into the flow of its own row instead of floating over the brand. */
+	.auth-container {
+		position: static;
+		justify-content: flex-end;
+		margin: var(--sp-2) var(--sp-2) 0 auto;
+		width: fit-content;
 	}
 
 	.mode-selector {
@@ -913,8 +1038,11 @@ footer {
 /* ── 14. Reduced motion ──────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
+	/* With the scene hidden there is nothing to scrim, and the flat --bg is
+	   already dark enough to read against. */
 	#spline-bg,
-	#spline-loader {
+	#spline-loader,
+	#chat-scrim {
 		display: none;
 	}
 

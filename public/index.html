@@ -50,26 +50,48 @@
         Loading 3D scene
     </div>
 
+    <!-- Darkens only the region the conversation occupies so light text stays
+         readable over the scene's near-white studio backdrop, without filtering
+         or tinting the model itself. See style.css section 3. -->
+    <div id="chat-scrim" aria-hidden="true"></div>
+
+    <!-- Auth lives in fixed page corners, not in the header: the chat shell is
+         transparent and full width, so these need to hold the corners
+         independently of the reading column. -->
+    <div class="auth-container">
+        <div id="user-info">
+            <img id="user-avatar" src="" alt="">
+            <span id="user-name"></span>
+        </div>
+        <button id="login-button" class="auth-button">
+            <i class="fas fa-sign-in-alt"></i>
+            <span>Login</span>
+        </button>
+        <button id="signup-button" class="auth-button primary-cta">
+            <span>Sign up for free</span>
+        </button>
+        <button id="logout-button" class="auth-button secondary" style="display: none;">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>Logout</span>
+        </button>
+    </div>
+
+    <!-- Second entry point, bottom-left: the top-right pair is easy to miss
+         once the user is reading the conversation. -->
+    <div class="auth-dock" id="auth-dock">
+        <button id="dock-signin" class="auth-button">
+            <span>Sign in</span>
+        </button>
+        <button id="dock-signup" class="auth-button primary-cta">
+            <span>Sign up for free</span>
+        </button>
+    </div>
+
     <div class="gateway-container">
         <!-- Slim brand bar. The logo image is the full lockup (mark + wordmark +
              tagline), so no separate tagline element is needed. -->
         <header>
             <img src="/logo.png" class="logo-image" alt="EleenAI — your gateway to the realm of AI">
-
-            <div class="auth-container">
-                <div id="user-info">
-                    <img id="user-avatar" src="" alt="">
-                    <span id="user-name"></span>
-                </div>
-                <button id="login-button" class="auth-button">
-                    <i class="fas fa-sign-in-alt"></i>
-                    <span>Login</span>
-                </button>
-                <button id="logout-button" class="auth-button secondary" style="display: none;">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span>Logout</span>
-                </button>
-            </div>
         </header>
 
         <div class="chat-container">
@@ -166,7 +188,9 @@
         // Update auth-related UI state based on Clerk session
         async function updateAuthUI() {
             const loginButton = document.getElementById('login-button');
+            const signupButton = document.getElementById('signup-button');
             const logoutButton = document.getElementById('logout-button');
+            const authDock = document.getElementById('auth-dock');
             const userInfoEl = document.getElementById('user-info');
             const userAvatar = document.getElementById('user-avatar');
             const userName = document.getElementById('user-name');
@@ -177,8 +201,11 @@
 
             if (user) {
                 loginButton.style.display = 'none';
+                signupButton.style.display = 'none';
                 logoutButton.style.display = 'flex';
                 userInfoEl.style.display = 'flex';
+                // Nothing left to offer a signed-in user down here.
+                authDock.classList.add('is-hidden');
                 userName.textContent = user.fullName || user.primaryEmailAddress?.emailAddress || 'User';
                 userAvatar.src = user.imageUrl ||
                     `https://ui-avatars.com/api/?name=${encodeURIComponent(userName.textContent)}&background=6C63FF&color=fff`;
@@ -186,12 +213,15 @@
                 userInput.disabled = false;
                 sendButton.disabled = false;
             } else {
-                // If auth never came up, a Login button would be a dead control —
-                // it can only open a sign-in modal that cannot work. Hide it and
-                // say so in the placeholder instead.
-                loginButton.style.display = authUnavailable ? 'none' : 'flex';
+                // If auth never came up, these would be dead controls — they can
+                // only open a modal that cannot work. Hide them all and say so in
+                // the placeholder instead.
+                const entryDisplay = authUnavailable ? 'none' : 'flex';
+                loginButton.style.display = entryDisplay;
+                signupButton.style.display = entryDisplay;
                 logoutButton.style.display = 'none';
                 userInfoEl.style.display = 'none';
+                authDock.classList.toggle('is-hidden', authUnavailable);
                 // Guest mode: keep input ENABLED for unauthenticated users
                 userInput.placeholder = authUnavailable
                     ? 'Ask me anything... (guest mode)'
@@ -287,8 +317,8 @@
             // ── Auth is best-effort ──────────────────────────────────────
             // Everything below is wrapped so that a Clerk failure degrades the
             // page to guest mode rather than bricking it. Guests are a
-            // first-class case here — they chat against /api/chat/guest with a
-            // 15-message limit — so losing auth must never cost them the
+            // first-class case here — they chat against /api/chat/guest under a
+            // per-hour rate limit — so losing auth must never cost them the
             // composer. updateAuthUI() runs in the finally because it is the
             // only code that enables #user-input and #send-button; it reads
             // window.Clerk?.user optionally, so it is safe with no Clerk at all.
@@ -322,10 +352,16 @@
                     }
                 });
 
-                // Set button handlers
-                document.getElementById('login-button').addEventListener('click', () => {
-                    window.Clerk.openSignIn();
-                });
+                // Set button handlers. Sign-in and sign-up are separate Clerk
+                // modals; both entry points (header and dock) open the same pair.
+                const openSignIn = () => window.Clerk.openSignIn();
+                const openSignUp = () => window.Clerk.openSignUp();
+
+                document.getElementById('login-button').addEventListener('click', openSignIn);
+                document.getElementById('signup-button').addEventListener('click', openSignUp);
+                document.getElementById('dock-signin').addEventListener('click', openSignIn);
+                document.getElementById('dock-signup').addEventListener('click', openSignUp);
+
                 document.getElementById('logout-button').addEventListener('click', async () => {
                     await window.Clerk.signOut();
                     showNotification('Logged out successfully');
