@@ -1,0 +1,25 @@
+{
+  "skills": [
+    {
+      "name": "eleenai-chat",
+      "type": "skill-md",
+      "description": "Converse with the EleenAI assistant over its HTTP API, including SSE stream parsing, response modes, file attachments, and the guest versus authenticated tiers.",
+      "bytes": 3045,
+      "digest": "sha256:cc76292492e6108b4317717cf59f95c5e22bdee800f127934e97661cee4fcc5e"
+    },
+    {
+      "name": "eleenai-image-generation",
+      "type": "skill-md",
+      "description": "Generate images from text prompts using the EleenAI image endpoint, which returns raw image bytes rather than JSON.",
+      "bytes": 2452,
+      "digest": "sha256:e71b8ec64a7d48d4410177e70be711d3490cb2eecc797ac507f0919de924c11a"
+    },
+    {
+      "name": "eleenai-web-search",
+      "type": "skill-md",
+      "description": "Answer questions with live web search through EleenAI, returning a grounded answer together with the source URLs it was based on.",
+      "bytes": 2304,
+      "digest": "sha256:22c6e4d758535e5564f118936df53ef0e200cf51e3d82038b41d3fce5e1c65bf"
+    }
+  ]
+}

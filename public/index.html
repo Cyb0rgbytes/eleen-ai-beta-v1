@@ -26,8 +26,8 @@
     <script 
         async 
         crossorigin="anonymous" 
-        data-clerk-publishable-key="pk_test_cGxlYXNpbmctbW9sbHktODYuY2xlcmsuYWNjb3VudHMuZGV2JA" 
-        src="https://pleasing-molly-86.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js" 
+        data-clerk-publishable-key="pk_test_ZmVhc2libGUtZmFsY29uLTkzLmNsZXJrLmFjY291bnRzLmRldiQ"
+        src="https://feasible-falcon-93.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
         type="text/javascript">
     </script>
     <link rel="stylesheet" href="/style.css">
@@ -50,43 +50,56 @@
         Loading 3D scene
     </div>
 
-    <div class="gateway-glow"></div>
-    
-    <div class="gateway-container">
-        <div class="auth-container">
-            <div id="user-info">
-                <img id="user-avatar" src="" alt="User Avatar">
-                <span id="user-name"></span>
-            </div>
-            <button id="login-button" class="auth-button">
-                <i class="fas fa-sign-in-alt"></i>
-                <span>Login</span>
-            </button>
-            <button id="logout-button" class="auth-button secondary" style="display: none;">
-                <i class="fas fa-sign-out-alt"></i>
-                <span>Logout</span>
-            </button>
-        </div>
+    <!-- Darkens only the region the conversation occupies so light text stays
+         readable over the scene's near-white studio backdrop, without filtering
+         or tinting the model itself. See style.css section 3. -->
+    <div id="chat-scrim" aria-hidden="true"></div>
 
+    <!-- Auth lives in fixed page corners, not in the header: the chat shell is
+         transparent and full width, so these need to hold the corners
+         independently of the reading column. -->
+    <div class="auth-container">
+        <div id="user-info">
+            <img id="user-avatar" src="" alt="">
+            <span id="user-name"></span>
+        </div>
+        <button id="login-button" class="auth-button">
+            <i class="fas fa-sign-in-alt"></i>
+            <span>Login</span>
+        </button>
+        <button id="signup-button" class="auth-button primary-cta">
+            <span>Sign up for free</span>
+        </button>
+        <button id="logout-button" class="auth-button secondary" style="display: none;">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>Logout</span>
+        </button>
+    </div>
+
+    <!-- Second entry point, bottom-left: the top-right pair is easy to miss
+         once the user is reading the conversation. -->
+    <div class="auth-dock" id="auth-dock">
+        <button id="dock-signin" class="auth-button">
+            <span>Sign in</span>
+        </button>
+        <button id="dock-signup" class="auth-button primary-cta">
+            <span>Sign up for free</span>
+        </button>
+    </div>
+
+    <div class="gateway-container">
+        <!-- Slim brand bar. The logo image is the full lockup (mark + wordmark +
+             tagline), so no separate tagline element is needed. -->
         <header>
-                        <div class="logo-container">
-                <img src="/logo.png" class="logo-image" alt="EleenAI Logo">
-            </div>
-            <div class="aurora-line"></div>
-            <div class="tagline">YOUR GATEWAY TO THE REALM</div>
-            <p style="margin-top: 0.5rem; color: var(--text-light); font-size: 0.9rem; opacity: 0.9;">
-                Powered by CSECNIX Technologies
-            </p>
+            <img src="/logo.png" class="logo-image" alt="EleenAI — your gateway to the realm of AI">
         </header>
 
         <div class="chat-container">
             <div id="chat-messages" class="chat-messages">
                 <div class="message assistant-message">
-                    <p>
-                        Welcome to the ELEENAI Gateway! I'm your conduit to the realm of artificial intelligence.
-                        How may I assist you on this journey?<br><br>
-                        <em style="font-size: 0.9em; opacity: 0.8;">✨ Chat freely or ask me to generate images — just describe what you want! Sign in for unlimited access.</em>
-                    </p>
+                    <div class="ai-avatar">E</div>
+                    <p>Welcome to EleenAI. Ask me anything, or describe an image and I'll generate it.</p>
+                    <p><em>Sign in for unlimited access.</em></p>
                 </div>
             </div>
 
@@ -98,9 +111,9 @@
             <div class="message-input">
                 <div class="controls-row">
                     <div class="mode-selector">
-                        <button class="mode-btn active" data-mode="balanced">⚖️ Balanced</button>
-                        <button class="mode-btn" data-mode="creative">🎨 Creative</button>
-                        <button class="mode-btn" data-mode="logical">🧠 Logical</button>
+                        <button class="mode-btn active" data-mode="balanced">Balanced</button>
+                        <button class="mode-btn" data-mode="creative">Creative</button>
+                        <button class="mode-btn" data-mode="logical">Logical</button>
                     </div>
                     <button id="enhance-btn" title="Enhance prompt">✨</button>
                 </div>
@@ -115,20 +128,27 @@
         </div>
 
         <footer>
-            <p>EleenAI Personal Assistant &copy; 2026 | Portal to the Realm of Intelligence</p>
+            <p>EleenAI &copy; 2026 &middot; Powered by CSECNIX Technologies</p>
         </footer>
     </div>
 
     <!-- Chat app script -->
     <script src="chat.js"></script>
 
+    <!-- WebMCP: exposes page actions to browser-resident agents.
+         Loaded after chat.js so window.chat exists; a silent no-op in
+         browsers without navigator.modelContext. -->
+    <script src="/js/webmcp.js" defer></script>
+
     <script>
         // ============================================
         // CLERK AUTHENTICATION
         // ============================================
 
-        // Replace with your Clerk Publishable Key from https://dashboard.clerk.com
-        const CLERK_PUBLISHABLE_KEY = 'pk_test_cGxlYXNpbmctbW9sbHktODYuY2xlcmsuYWNjb3VudHMuZGV2JA';
+        // Clerk instance: feasible-falcon-93. Must stay in sync with the SDK
+        // <script src> host above and CLERK_PUBLISHABLE_KEY in wrangler.jsonc —
+        // the key encodes the frontend API host the SDK is served from.
+        const CLERK_PUBLISHABLE_KEY = 'pk_test_ZmVhc2libGUtZmFsY29uLTkzLmNsZXJrLmFjY291bnRzLmRldiQ';
 
         // Simple notification function
 
@@ -161,10 +181,16 @@
         }
 
 
+        // Set when Clerk could not be initialised at all. Guests can still chat,
+        // so this only suppresses controls that would otherwise be dead.
+        let authUnavailable = false;
+
         // Update auth-related UI state based on Clerk session
         async function updateAuthUI() {
             const loginButton = document.getElementById('login-button');
+            const signupButton = document.getElementById('signup-button');
             const logoutButton = document.getElementById('logout-button');
+            const authDock = document.getElementById('auth-dock');
             const userInfoEl = document.getElementById('user-info');
             const userAvatar = document.getElementById('user-avatar');
             const userName = document.getElementById('user-name');
@@ -175,8 +201,11 @@
 
             if (user) {
                 loginButton.style.display = 'none';
+                signupButton.style.display = 'none';
                 logoutButton.style.display = 'flex';
                 userInfoEl.style.display = 'flex';
+                // Nothing left to offer a signed-in user down here.
+                authDock.classList.add('is-hidden');
                 userName.textContent = user.fullName || user.primaryEmailAddress?.emailAddress || 'User';
                 userAvatar.src = user.imageUrl ||
                     `https://ui-avatars.com/api/?name=${encodeURIComponent(userName.textContent)}&background=6C63FF&color=fff`;
@@ -184,11 +213,19 @@
                 userInput.disabled = false;
                 sendButton.disabled = false;
             } else {
-                loginButton.style.display = 'flex';
+                // If auth never came up, these would be dead controls — they can
+                // only open a modal that cannot work. Hide them all and say so in
+                // the placeholder instead.
+                const entryDisplay = authUnavailable ? 'none' : 'flex';
+                loginButton.style.display = entryDisplay;
+                signupButton.style.display = entryDisplay;
                 logoutButton.style.display = 'none';
                 userInfoEl.style.display = 'none';
+                authDock.classList.toggle('is-hidden', authUnavailable);
                 // Guest mode: keep input ENABLED for unauthenticated users
-                userInput.placeholder = 'Ask me anything... (sign in for unlimited access)';
+                userInput.placeholder = authUnavailable
+                    ? 'Ask me anything... (guest mode)'
+                    : 'Ask me anything... (sign in for unlimited access)';
                 userInput.disabled = false;
                 sendButton.disabled = false;
             }
@@ -239,49 +276,29 @@
                 });
             }
 
-            // Wait for Clerk to be available
-            let retryCount = 0;
-            const maxRetries = 50; // 5 seconds total
-            
-            while (!window.Clerk && retryCount < maxRetries) {
-                await new Promise(resolve => setTimeout(resolve, 100));
-                retryCount++;
-            }
-
-            if (!window.Clerk) {
-                console.error('Clerk SDK failed to load after retries.');
-                showNotification('Error: Auth service failed to load. Please refresh.');
-                return;
-            }
-
-            if (!window.Clerk.loaded) {
-                await window.Clerk.load({ publishableKey: CLERK_PUBLISHABLE_KEY });
-            }
-            
-            console.log('Clerk loaded. User:', window.Clerk.user?.id ?? 'Not signed in');
-
-            // Listen for auth state changes
-            window.Clerk.addListener(({ user }) => {
-                updateAuthUI();
-                if (user) {
-                    showNotification(`Welcome, ${user.fullName || 'Explorer'}!`);
+            // The Spline viewer's render loop throws roughly 240 times a second
+            // ("Cannot read properties of undefined (reading 'position')") — an
+            // internal fault in @splinetool/viewer's onFrame, present in both
+            // 1.12.88 and 1.12.98, and unrelated to anything on this page. It
+            // costs no measurable performance (measured 244fps against 238 with
+            // the viewer blocked) but it drowns the console.
+            //
+            // Swallow that one error and nothing else, matched on both the
+            // message and the originating script, so a genuine fault in our own
+            // code is never hidden.
+            window.addEventListener('error', (event) => {
+                const fromSplineViewer = event.filename && event.filename.includes('spline-viewer');
+                const isOnFramePositionError =
+                    event.message && event.message.includes("reading 'position'");
+                if (fromSplineViewer && isOnFramePositionError) {
+                    event.preventDefault();
                 }
             });
 
-            // Set button handlers
-            document.getElementById('login-button').addEventListener('click', () => {
-                window.Clerk.openSignIn();
-            });
-            document.getElementById('logout-button').addEventListener('click', async () => {
-                await window.Clerk.signOut();
-                showNotification('Logged out successfully');
-                updateAuthUI();
-            });
-
-            // Sync initial UI state
-            await updateAuthUI();
-
-            // Spline 3D background fade-in
+            // Spline 3D background fade-in.
+            // Deliberately before the Clerk block and outside it: a 3D backdrop
+            // has nothing to do with authentication, and it used to be stranded
+            // whenever Clerk failed.
             const splineBg = document.getElementById('spline-bg');
             const splineLoader = document.getElementById('spline-loader');
             if (splineBg) {
@@ -295,6 +312,69 @@
                     // Shorter fallback — show after 3s even if event doesn't fire
                     setTimeout(onLoaded, 3000);
                 }
+            }
+
+            // ── Auth is best-effort ──────────────────────────────────────
+            // Everything below is wrapped so that a Clerk failure degrades the
+            // page to guest mode rather than bricking it. Guests are a
+            // first-class case here — they chat against /api/chat/guest under a
+            // per-hour rate limit — so losing auth must never cost them the
+            // composer. updateAuthUI() runs in the finally because it is the
+            // only code that enables #user-input and #send-button; it reads
+            // window.Clerk?.user optionally, so it is safe with no Clerk at all.
+            try {
+                // Wait for the async SDK <script> to define window.Clerk.
+                let retryCount = 0;
+                const maxRetries = 50; // 5 seconds total
+
+                while (!window.Clerk && retryCount < maxRetries) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    retryCount++;
+                }
+
+                if (!window.Clerk) {
+                    // No `return` here: falling through to the finally is what
+                    // keeps the chat usable.
+                    throw new Error('Clerk SDK did not load within 5s.');
+                }
+
+                if (!window.Clerk.loaded) {
+                    await window.Clerk.load({ publishableKey: CLERK_PUBLISHABLE_KEY });
+                }
+
+                console.log('Clerk loaded. User:', window.Clerk.user?.id ?? 'Not signed in');
+
+                // Listen for auth state changes
+                window.Clerk.addListener(({ user }) => {
+                    updateAuthUI();
+                    if (user) {
+                        showNotification(`Welcome, ${user.fullName || 'Explorer'}!`);
+                    }
+                });
+
+                // Set button handlers. Sign-in and sign-up are separate Clerk
+                // modals; both entry points (header and dock) open the same pair.
+                const openSignIn = () => window.Clerk.openSignIn();
+                const openSignUp = () => window.Clerk.openSignUp();
+
+                document.getElementById('login-button').addEventListener('click', openSignIn);
+                document.getElementById('signup-button').addEventListener('click', openSignUp);
+                document.getElementById('dock-signin').addEventListener('click', openSignIn);
+                document.getElementById('dock-signup').addEventListener('click', openSignUp);
+
+                document.getElementById('logout-button').addEventListener('click', async () => {
+                    await window.Clerk.signOut();
+                    showNotification('Logged out successfully');
+                    updateAuthUI();
+                });
+            } catch (error) {
+                console.error('Auth unavailable, continuing as guest:', error);
+                showNotification('Sign-in is unavailable right now — you can still chat as a guest.', 5000, 'error');
+                // Read by updateAuthUI() below, which owns every auth control.
+                authUnavailable = true;
+            } finally {
+                // Runs on every path: Clerk present, absent, or throwing.
+                await updateAuthUI();
             }
 
             console.log('EleenAI Gateway ready!');

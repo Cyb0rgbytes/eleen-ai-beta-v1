@@ -13,7 +13,38 @@
 	],
 	"assets": {
 		"binding": "ASSETS",
-		"directory": "./public"
+		"directory": "./public",
+		// The Asset Worker normally runs BEFORE the User Worker, so "/" would be
+		// served straight from public/index.html and our fetch handler would never
+		// see it. We need it to, in order to attach RFC 8288 Link headers and do
+		// Accept: text/markdown negotiation. env.ASSETS.fetch() bypasses this
+		// setting, so delegating back to it (see src/index.ts) does not loop.
+		// Only these two paths match a static asset; every other route already
+		// falls through to the Worker on its own.
+		"run_worker_first": [
+			"/",
+			"/index.html"
+		]
+	},
+	// Import *.md as strings so agent-facing renditions (home, docs, auth, skills)
+	// are compiled into the bundle. The alternative — fetching them at runtime —
+	// is impossible here: global_fetch_strictly_public forbids the Worker from
+	// fetching its own hostname.
+	"rules": [
+		{
+			"type": "Text",
+			"globs": [
+				"**/*.md"
+			],
+			"fallthrough": true
+		}
+	],
+	// Regenerate the skill digest manifest on dev, deploy and dry-run. The
+	// package.json predeploy hook alone would miss a `wrangler deploy` typed
+	// directly, or a CI provider running its own build command — either of
+	// which would ship digests that no longer match the skill documents.
+	"build": {
+		"command": "node scripts/gen-skill-digests.mjs"
 	},
 	"observability": {
 		"enabled": true
@@ -38,6 +69,6 @@
 	// For local dev, set these in a .dev.vars file (never commit secrets!)
 	// For production, set via: wrangler secret put CLERK_SECRET_KEY
 	"vars": {
-		"CLERK_PUBLISHABLE_KEY": "pk_test_cGxlYXNpbmctbW9sbHktODYuY2xlcmsuYWNjb3VudHMuZGV2JA"
+		"CLERK_PUBLISHABLE_KEY": "pk_test_ZmVhc2libGUtZmFsY29uLTkzLmNsZXJrLmFjY291bnRzLmRldiQ"
 	}
 }

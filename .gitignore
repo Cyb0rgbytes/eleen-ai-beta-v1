@@ -199,6 +199,7 @@ dist
 !.dev.vars.example
 
 ### Internal planning ###
-# Strategy and roadmap notes. This repository is public; these stay local.
+# Strategy, roadmap and session notes. This repository is public; these stay local.
 NEW ROADMAP.md
 Deepseek Guidance Roadmap.md
+until-now.md
