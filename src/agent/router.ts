@@ -73,6 +73,11 @@ export async function handleAgentRoutes(
 		const asset = await env.ASSETS.fetch(request);
 		// Header objects on a fetched Response are immutable; clone to decorate.
 		const decorated = new Response(asset.body, asset);
+		// The asset binding serves a bare "text/html". The page declares UTF-8
+		// in a meta tag, but the header is what a non-browser client reads.
+		if (decorated.headers.get("content-type") === "text/html") {
+			decorated.headers.set("content-type", "text/html; charset=utf-8");
+		}
 		decorated.headers.set("link", LINK_HEADER_HOME);
 		decorated.headers.append("vary", "Accept");
 		// Two variants behind one URL, and Cloudflare's cache ignores Vary.

@@ -6,14 +6,51 @@
  * functions validate the parsed body, which is the only thing that reflects
  * what was actually sent.
  */
-import { ChatMessage } from "../types";
+import { Attachment, ChatMessage } from "../types";
 
 export const MAX_MESSAGES = 40;
 export const MAX_CONTENT_CHARS = 8000;
 export const MAX_ATTACHMENTS = 5;
 export const MAX_ATTACHMENT_B64 = 7 * 1024 * 1024;
+/** All attachments together, in base64 characters (~7.5 MiB decoded). */
+export const MAX_TOTAL_ATTACHMENT_B64 = 10 * 1024 * 1024;
+export const MAX_ATTACHMENT_NAME_CHARS = 128;
 export const MAX_PROMPT_CHARS = 2000;
 export const MAX_QUERY_CHARS = 1000;
+
+/**
+ * Types the attachment path actually knows how to read: images go to vision,
+ * everything else is decoded as UTF-8 text. Anything outside this list was
+ * previously forwarded to the vision API or decoded as text regardless.
+ */
+const ALLOWED_ATTACHMENT_TYPES = new Set([
+	"image/png",
+	"image/jpeg",
+	"image/gif",
+	"image/webp",
+	"text/plain",
+	"text/markdown",
+	"text/csv",
+	"application/json",
+]);
+
+/**
+ * Reduce a client-supplied file name to something safe to show a model.
+ *
+ * The name is attacker-controlled text that lands in the prompt, so it loses
+ * control and bidi-override characters (which can visually reorder text) and
+ * the brackets and quotes that would let it imitate a prompt delimiter.
+ */
+export function sanitizeAttachmentName(raw: unknown): string {
+	if (typeof raw !== "string") return "attachment";
+	const cleaned = raw
+		.replace(/[\u0000-\u001f\u007f​-‏‪-‮⁦-⁩﻿]/g, "")
+		.replace(/[<>\[\]{}"'`]/g, "")
+		.replace(/\s+/g, " ")
+		.trim()
+		.slice(0, MAX_ATTACHMENT_NAME_CHARS);
+	return cleaned || "attachment";
+}
 
 const ALLOWED_ROLES = new Set(["user", "assistant"]);
 
@@ -62,7 +99,7 @@ function requireString(
 export function validateChatBody(raw: unknown): {
 	messages: ChatMessage[];
 	mode?: string;
-	attachments?: unknown[];
+	attachments?: Attachment[];
 } {
 	const failures: ValidationFailure[] = [];
 	const body = (raw ?? {}) as Record<string, unknown>;
@@ -110,6 +147,8 @@ export function validateChatBody(raw: unknown): {
 		messages.push({ role: role as ChatMessage["role"], content: message.content });
 	});
 
+	const attachments: Attachment[] = [];
+
 	if (body.attachments !== undefined) {
 		if (!Array.isArray(body.attachments)) {
 			failures.push({ field: "attachments", message: "must be an array" });
@@ -120,20 +159,48 @@ export function validateChatBody(raw: unknown): {
 					message: `must contain at most ${MAX_ATTACHMENTS} entries`,
 				});
 			}
+			let totalSize = 0;
 			body.attachments.slice(0, MAX_ATTACHMENTS).forEach((entry, index) => {
 				const attachment = (entry ?? {}) as Record<string, unknown>;
-				if (typeof attachment.data !== "string" || !attachment.data) {
+				const data = attachment.data;
+				const mimeType = attachment.mimeType;
+				let valid = true;
+
+				if (typeof data !== "string" || !data) {
 					failures.push({ field: `attachments[${index}].data`, message: "must be a string" });
-				} else if (attachment.data.length > MAX_ATTACHMENT_B64) {
+					valid = false;
+				} else if (data.length > MAX_ATTACHMENT_B64) {
 					failures.push({ field: `attachments[${index}].data`, message: "exceeds the size limit" });
+					valid = false;
+				} else {
+					totalSize += data.length;
 				}
-				if (typeof attachment.mimeType !== "string" || !attachment.mimeType) {
+
+				if (typeof mimeType !== "string" || !mimeType) {
 					failures.push({
 						field: `attachments[${index}].mimeType`,
 						message: "must be a string",
 					});
+					valid = false;
+				} else if (!ALLOWED_ATTACHMENT_TYPES.has(mimeType.toLowerCase())) {
+					failures.push({
+						field: `attachments[${index}].mimeType`,
+						message: "is not a supported file type",
+					});
+					valid = false;
+				}
+
+				if (valid) {
+					attachments.push({
+						data: data as string,
+						mimeType: (mimeType as string).toLowerCase(),
+						name: sanitizeAttachmentName(attachment.name),
+					});
 				}
 			});
+			if (totalSize > MAX_TOTAL_ATTACHMENT_B64) {
+				failures.push({ field: "attachments", message: "exceed the total size limit" });
+			}
 		}
 	}
 
@@ -151,7 +218,7 @@ export function validateChatBody(raw: unknown): {
 	return {
 		messages,
 		mode: body.mode as string | undefined,
-		attachments: body.attachments as unknown[] | undefined,
+		attachments: body.attachments === undefined ? undefined : attachments,
 	};
 }
 

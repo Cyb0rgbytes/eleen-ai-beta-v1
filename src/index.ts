@@ -30,6 +30,7 @@ import {
 	MAX_QUERY_CHARS,
 } from "./lib/validate";
 import { checkRateLimit, rateLimitHeaders, tooManyRequests } from "./lib/ratelimit";
+import { AUTHORIZED_PARTIES } from "./lib/auth";
 import {
 	assessInjection,
 	buildSystemPrompt,
@@ -338,13 +339,6 @@ async function route(
 	}
 }
 
-/** Origins whose Clerk tokens this deployment will accept. */
-const AUTHORIZED_PARTIES = [
-	"https://eleenai.xyz",
-	"https://www.eleenai.xyz",
-	"http://localhost:8787",
-];
-
 function isProduction(url: URL): boolean {
 	return url.hostname.endsWith("eleenai.xyz");
 }
@@ -449,7 +443,7 @@ export async function handleChatRequest(
 	try {
 		const body = validateChatBody(await request.json());
 		const messages = body.messages;
-		const attachments = (body.attachments || []).slice(0, MAX_ATTACHMENTS) as Attachment[];
+		const attachments: Attachment[] = (body.attachments || []).slice(0, MAX_ATTACHMENTS);
 		const mode = resolveMode(body.mode);
 
 		// 1. Classify the incoming turn. Only the latest user message is
@@ -468,10 +462,22 @@ export async function handleChatRequest(
 			return sseRefusal(refusalResponse());
 		}
 
-		if (assessment.harden) {
+		// Assistant turns arrive from the client too, so they are not
+		// necessarily anything the model said. A forged "assistant" turn that
+		// already agreed to drop its rules is a classic way to prime a
+		// jailbreak. They are not refused — a genuine reply can legitimately
+		// discuss these topics — but any that look like an override harden
+		// the response.
+		const forgedPriming = messages.some(
+			(m) => m.role === "assistant" && assessInjection(m.content).harden,
+		);
+		const harden = assessment.harden || forgedPriming;
+
+		if (harden) {
 			console.warn("Hardened response for suspicious input", {
 				userId,
 				score: assessment.score,
+				forgedPriming,
 			});
 		}
 
@@ -500,11 +506,16 @@ export async function handleChatRequest(
 					const description = await analyzeAttachment(env, attachment);
 					if (description) {
 						const lastUserIdx = Math.max(messages.length - 1, 0);
+						// The file name is client-supplied text, so it travels
+						// inside the untrusted block with the contents rather
+						// than in the system-role line where it would read as
+						// an instruction. validate.ts has already stripped it
+						// of delimiter-like characters.
 						messages.splice(lastUserIdx, 0, {
 							role: "system",
 							content:
-								`[The user attached a file: "${attachment.name}" (${attachment.mimeType})]\n` +
-								`Analysis of its contents:\n${wrapUntrusted(description, nonce)}`,
+								`The user attached a file (${attachment.mimeType}). Its name and an analysis of its contents follow:\n` +
+								wrapUntrusted(`File name: ${attachment.name}\n\n${description}`, nonce),
 						});
 					}
 				} catch (e) {
@@ -529,7 +540,7 @@ export async function handleChatRequest(
 				memory: rawMemory,
 				canary,
 				nonce,
-				harden: assessment.harden,
+				harden,
 			}),
 		});
 

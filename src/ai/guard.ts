@@ -58,7 +58,47 @@ const SUSPICIOUS_PATTERNS: { pattern: RegExp; weight: number }[] = [
 	{ pattern: /(?:new|updated|revised)\s+(?:system\s+)?(?:instructions|rules|directives)\s*:/i, weight: 0.4 },
 	{ pattern: /repeat\s+(?:the\s+)?(?:text|words|everything)\s+above/i, weight: 0.4 },
 	{ pattern: /(?:what|which)\s+(?:model|llm|api|framework|platform)\s+(?:are\s+you|do\s+you)\s+(?:using|built|running)/i, weight: 0.25 },
+
+	// Arabic renditions of the override and extraction shapes above. The
+	// product is Arabic-first; an English-only screen is a one-step bypass.
+	{ pattern: /(?:تجاهل|انس|أهمل|اهمل)\s+(?:كل\s+|جميع\s+)?(?:التعليمات|الأوامر|الاوامر|القواعد)\s+(?:السابقة|السابقه|أعلاه|اعلاه)/, weight: 0.45 },
+	{ pattern: /(?:اكشف|أظهر|اظهر|اعرض|اطبع|كرر)\s+(?:لي\s+)?(?:موجه|تعليمات|أوامر|اوامر)\s+النظام/, weight: 0.5 },
+	{ pattern: /أنت\s+الآن\s+(?:في\s+)?(?:وضع|نموذج)/, weight: 0.3 },
 ];
+
+/**
+ * Characters that change nothing visible but split a keyword in two, so
+ * "ig​nore previous instructions" reads normally and matches nothing.
+ * Arabic tashkeel and tatweel are included: they decorate a word without
+ * changing it, and would otherwise defeat every Arabic pattern above.
+ */
+const INVISIBLE = /[­ـً-ٟ​-‏‪-‮⁠-⁤⁦-⁩﻿]/g;
+
+/**
+ * Cyrillic and Greek letters that render identically to Latin ones. Only the
+ * common look-alikes — enough to defeat "іgnore" with a Cyrillic і, not a
+ * full confusables table.
+ */
+const CONFUSABLES: Record<string, string> = {
+	"а": "a", "в": "b", "е": "e", "к": "k", "м": "m", "н": "h", "о": "o", "р": "p",
+	"с": "c", "т": "t", "у": "y", "х": "x", "і": "i", "ј": "j", "ѕ": "s", "ԁ": "d",
+	"ɡ": "g", "α": "a", "ε": "e", "ι": "i", "κ": "k", "ν": "v", "ο": "o", "ρ": "p",
+	"τ": "t", "υ": "u",
+};
+
+/**
+ * The form of the text that the patterns are matched against. Used only for
+ * screening — the model always receives the original.
+ */
+export function normalizeForScreening(text: string): string {
+	return text
+		.normalize("NFKC")
+		.replace(INVISIBLE, "")
+		.replace(/[ɐ-ʯͰ-ϿЀ-ӿԀ-ԯ]/g, (ch) => {
+			const lower = ch.toLowerCase();
+			return CONFUSABLES[lower] ?? ch;
+		});
+}
 
 export interface InjectionAssessment {
 	score: number;
@@ -72,9 +112,10 @@ export interface InjectionAssessment {
 export function assessInjection(text: string): InjectionAssessment {
 	let score = 0;
 	const matched: string[] = [];
+	const screened = normalizeForScreening(text);
 
 	for (const { pattern, weight } of SUSPICIOUS_PATTERNS) {
-		if (pattern.test(text)) {
+		if (pattern.test(screened)) {
 			score += weight;
 			matched.push(pattern.source.slice(0, 48));
 		}
@@ -162,7 +203,11 @@ export interface FilterVerdict {
 }
 
 export function inspectOutput(text: string, canary: string): FilterVerdict {
-	if (text.includes(canary)) {
+	// Compared case-insensitively and with spacing removed: a model told to
+	// "spell it out with spaces" or to lowercase it would otherwise slip the
+	// canary past an exact-match check.
+	const compact = text.replace(/[\s​-‏⁠﻿]/g, "").toLowerCase();
+	if (compact.includes(canary.toLowerCase())) {
 		return { blocked: true, reason: "canary" };
 	}
 
@@ -188,7 +233,9 @@ export function inspectOutput(text: string, canary: string): FilterVerdict {
  * and holds back the tail of each chunk until enough context has arrived to
  * rule out a partial match.
  */
-const LOOKBEHIND = 64;
+// Must exceed the longest form of a match the filter normalises: the
+// 34-character canary spelled out with a space between every character is 67.
+const LOOKBEHIND = 96;
 
 export function createOutputFilter(canary: string) {
 	let window = "";
