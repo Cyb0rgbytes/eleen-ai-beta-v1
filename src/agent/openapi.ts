@@ -251,8 +251,9 @@ export const OPENAPI_DOCUMENT = {
 				operationId: "chat",
 				summary: "Streaming chat completion (authenticated)",
 				description:
-					"Conversation history is persisted to a per-user memory profile in the " +
-					"background. Request bodies are limited to 6 MiB.",
+					"Conversation history is not stored. A short summarised profile of the " +
+					"user (at most 2 KB) is updated in the background. Request bodies are " +
+					"limited to 6 MiB.",
 				security: [{ clerkBearer: [] }],
 				requestBody: chatBody(false),
 				responses: { ...CHAT_RESPONSE, ...UNAUTHORIZED, ...JSON_ERRORS },

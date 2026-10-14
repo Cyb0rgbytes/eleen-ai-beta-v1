@@ -16,6 +16,7 @@ const SCRIPT_SOURCES = [
 	"'self'",
 	"https://unpkg.com", // Spline viewer
 	"https://cdnjs.cloudflare.com", // Font Awesome
+	"https://cdn.jsdelivr.net", // Motion (index.html module script)
 	"https://*.clerk.accounts.dev",
 	"https://clerk.eleenai.xyz",
 	"https://challenges.cloudflare.com", // Clerk bot protection
