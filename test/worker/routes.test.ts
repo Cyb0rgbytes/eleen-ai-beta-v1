@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { env, exports } from "cloudflare:workers";
-import { RULES } from "../../src/lib/ratelimit";
+import { Bucket, RULES, rateLimitKey } from "../../src/lib/ratelimit";
 
 const ORIGIN = "https://eleenai.xyz";
 
@@ -12,19 +12,15 @@ function fetchWorker(path: string, init?: RequestInit) {
 	return exports.default.fetch(new Request(`${ORIGIN}${path}`, init));
 }
 
-async function sha256Hex(value: string): Promise<string> {
-	const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-	return Array.from(new Uint8Array(digest))
-		.map((b) => b.toString(16).padStart(2, "0"))
-		.join("");
-}
-
-/** The KV key ratelimit.ts uses for a guest, so a test can pre-spend it. */
-async function guestKey(bucket: string, ip: string): Promise<string> {
-	const windowSeconds = RULES[bucket].guest.windowSeconds;
-	const window = Math.floor(Date.now() / 1000 / windowSeconds);
-	const hashed = (await sha256Hex(`${ip}:${window}`)).slice(0, 32);
-	return `rl:v1:${bucket}:ip:${hashed}:${window}`;
+/** Spend a guest's whole allowance in a bucket, as ratelimit.ts counts it. */
+async function exhaustGuest(bucket: Bucket, ip: string): Promise<void> {
+	const request = new Request(ORIGIN, { headers: { "cf-connecting-ip": ip } });
+	const { key, windowStart } = await rateLimitKey(request, bucket, "guest");
+	await env.DB.prepare(
+		"INSERT INTO usage_counters (key, window_start, units, expires_at) VALUES (?, ?, ?, ?)",
+	)
+		.bind(key, windowStart, RULES[bucket].guest.limit, windowStart + 7200)
+		.run();
 }
 
 describe("D1", () => {
@@ -50,7 +46,7 @@ describe("MCP rate limiting", () => {
 	// no rate limit at all, so /mcp was an unmetered path to inference.
 	it("refuses a guest tool call once the chat bucket is spent", async () => {
 		const ip = "203.0.113.7";
-		await env.ELEEN_MEMORY.put(await guestKey("chat", ip), String(RULES.chat.guest.limit));
+		await exhaustGuest("chat", ip);
 
 		const response = await fetchWorker("/mcp", {
 			method: "POST",
@@ -83,6 +79,37 @@ describe("MCP rate limiting", () => {
 			}),
 		});
 		expect(response.status).toBe(401);
+	});
+});
+
+describe("voice transcription routes", () => {
+	it("requires sign-in on the full-tier route", async () => {
+		const response = await fetchWorker("/api/voice/transcribe", {
+			method: "POST",
+			headers: { "content-type": "audio/webm" },
+			body: new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]),
+		});
+		expect(response.status).toBe(401);
+	});
+
+	it("refuses a non-audio upload on the guest route", async () => {
+		const response = await fetchWorker("/api/voice/transcribe/guest", {
+			method: "POST",
+			headers: { "content-type": "audio/webm", "cf-connecting-ip": "203.0.113.9" },
+			body: "<html>not audio</html>",
+		});
+		expect(response.status).toBe(415);
+	});
+
+	it("is metered by the voice bucket", async () => {
+		const ip = "203.0.113.10";
+		await exhaustGuest("voice", ip);
+		const response = await fetchWorker("/api/voice/transcribe/guest", {
+			method: "POST",
+			headers: { "content-type": "audio/webm", "cf-connecting-ip": ip },
+			body: new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]),
+		});
+		expect(response.status).toBe(429);
 	});
 });
 

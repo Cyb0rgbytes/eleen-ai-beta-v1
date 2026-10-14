@@ -73,6 +73,18 @@
 			"migrations_dir": "migrations"
 		}
 	],
+	// Burst guard: 15 requests per 10 seconds per caller, across every API
+	// bucket. The hourly quotas live in D1 (src/lib/ratelimit.ts).
+	"ratelimits": [
+		{
+			"name": "BURST",
+			"namespace_id": "1001",
+			"simple": {
+				"limit": 15,
+				"period": 10
+			}
+		}
+	],
 	"r2_buckets": [
 		{
 			"binding": "SPLINE_ASSETS",

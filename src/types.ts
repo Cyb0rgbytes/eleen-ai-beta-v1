@@ -45,6 +45,12 @@ export interface Env {
 	 * `npm run db:migrate:remote` before deploying code that needs it.
 	 */
 	DB: D1Database;
+
+	/**
+	 * Per-caller burst guard (Workers Rate Limiting). Optional so a missing
+	 * binding degrades to the D1 quota alone rather than failing requests.
+	 */
+	BURST?: RateLimit;
 }
 
 /**

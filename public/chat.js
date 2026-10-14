@@ -271,6 +271,7 @@ function initializeChat() {
 
     sendButton.addEventListener('click', sendMessage);
     initMessageActions();
+    initVoiceInput();
     initWheelForwarding();
     console.log('Chat initialized successfully');
 }
@@ -340,6 +341,226 @@ function initWheelForwarding() {
         chatMessages.scrollTop += event.deltaY;
         event.preventDefault();
     }, { passive: false });
+}
+
+// ─── Voice input ─────────────────────────────────────────────────────────────
+
+/**
+ * Record a voice note, transcribe it on the server, and put the text in the
+ * composer. The transcript is never sent on its own: the user reads it, edits
+ * it if Whisper misheard, and sends it themselves. The one exception is a
+ * transcript that is exactly a command word ("send", "new chat"), which acts
+ * on what is already there rather than sending anything new.
+ */
+const VOICE_MAX_MS = 60_000;
+
+// First type the browser can record wins. Chrome and Firefox take WebM/Opus,
+// Safari only records MP4.
+const VOICE_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+
+// Whole-transcript commands, English and Arabic. Matched after lowercasing
+// and stripping punctuation, so "Send." and "send" are the same.
+const VOICE_COMMANDS = {
+    'send': 'send',
+    'send it': 'send',
+    'أرسل': 'send',
+    'ارسل': 'send',
+    'إرسال': 'send',
+    'new chat': 'new-chat',
+    'محادثة جديدة': 'new-chat',
+};
+
+let voice = null; // { recorder, stream, timer, tick, startedAt, cancelled }
+
+function initVoiceInput() {
+    const button = document.getElementById('mic-button');
+    if (!button) return;
+
+    // No recording API (old browser, or an insecure context): no button.
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+        button.hidden = true;
+        return;
+    }
+
+    button.addEventListener('click', () => (voice ? stopVoice() : startVoice()));
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && voice) stopVoice({ cancel: true });
+    });
+}
+
+async function startVoice() {
+    if (isProcessing) return;
+
+    let stream;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (error) {
+        const blocked = error?.name === 'NotAllowedError';
+        showNotification(
+            blocked
+                ? 'Microphone access is blocked. Allow it in your browser settings to use voice input.'
+                : 'No microphone was found.',
+            4000,
+            'error',
+        );
+        return;
+    }
+
+    const mimeType = VOICE_TYPES.find((type) => MediaRecorder.isTypeSupported(type));
+    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    const chunks = [];
+
+    recorder.addEventListener('dataavailable', (event) => {
+        if (event.data.size) chunks.push(event.data);
+    });
+    recorder.addEventListener('stop', () => finishVoice(chunks, recorder.mimeType));
+
+    voice = {
+        recorder,
+        stream,
+        cancelled: false,
+        startedAt: Date.now(),
+        timer: setTimeout(() => stopVoice(), VOICE_MAX_MS),
+        tick: setInterval(updateVoiceTimer, 250),
+    };
+    recorder.start();
+    setVoiceState('recording');
+}
+
+function stopVoice({ cancel = false } = {}) {
+    if (!voice) return;
+    voice.cancelled = cancel;
+    clearTimeout(voice.timer);
+    clearInterval(voice.tick);
+    // Release the microphone at once, so the browser's recording indicator
+    // goes off when the user stops rather than after the upload.
+    voice.stream.getTracks().forEach((track) => track.stop());
+    if (voice.recorder.state !== 'inactive') voice.recorder.stop();
+}
+
+async function finishVoice(chunks, mimeType) {
+    const cancelled = voice?.cancelled;
+    voice = null;
+
+    if (cancelled || !chunks.length) {
+        setVoiceState('idle');
+        return;
+    }
+
+    setVoiceState('transcribing');
+    try {
+        const blob = new Blob(chunks, { type: mimeType || 'audio/webm' });
+        const authenticated = isAuthenticated();
+        const headers = await buildHeaders(authenticated);
+        headers['Content-Type'] = blob.type.split(';')[0] || 'application/octet-stream';
+
+        const response = await fetch(
+            authenticated ? '/api/voice/transcribe' : '/api/voice/transcribe/guest',
+            { method: 'POST', headers, body: blob },
+        );
+
+        if (response.status === 429) {
+            showNotification("You've reached the hourly voice limit. Please try again later.", 4000, 'error');
+            return;
+        }
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+
+        applyTranscript((data.text || '').trim());
+    } catch (error) {
+        console.error('Transcription failed:', error);
+        showNotification('Could not transcribe that recording. Please try again.', 4000, 'error');
+    } finally {
+        setVoiceState('idle');
+    }
+}
+
+function applyTranscript(text) {
+    const input = document.getElementById('user-input');
+    if (!input) return;
+
+    if (!text) {
+        showNotification("Didn't catch that. Try speaking a little closer to the microphone.", 3500);
+        return;
+    }
+
+    const normalized = text.toLowerCase().replace(/[.,!?؟،]/g, '').replace(/\s+/g, ' ').trim();
+    const command = VOICE_COMMANDS[normalized];
+
+    if (command === 'new-chat') {
+        clearChat({ confirm: false });
+        showNotification('Started a new chat.', 2500, 'success');
+        return;
+    }
+    if (command === 'send') {
+        if (input.value.trim()) {
+            document.getElementById('send-button')?.click();
+        } else {
+            showNotification('Nothing to send yet.', 2500);
+        }
+        return;
+    }
+
+    // Dictation appends, so a long message can be spoken in several takes.
+    input.value = input.value.trim() ? `${input.value.trimEnd()} ${text}` : text;
+    input.style.height = 'auto';
+    input.style.height = `${input.scrollHeight}px`;
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+}
+
+function updateVoiceTimer() {
+    const timer = document.getElementById('mic-timer');
+    if (!timer || !voice) return;
+    const seconds = Math.floor((Date.now() - voice.startedAt) / 1000);
+    timer.textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+function setVoiceState(state) {
+    const button = document.getElementById('mic-button');
+    const timer = document.getElementById('mic-timer');
+    const input = document.getElementById('user-input');
+    if (!button) return;
+
+    const icon = button.querySelector('i');
+    const label = button.querySelector('span');
+
+    button.classList.toggle('recording', state === 'recording');
+    button.classList.toggle('transcribing', state === 'transcribing');
+    button.setAttribute('aria-pressed', String(state === 'recording'));
+    button.disabled = state === 'transcribing';
+
+    if (icon) {
+        icon.className = {
+            recording: 'fas fa-stop',
+            transcribing: 'fas fa-circle-notch fa-spin',
+            idle: 'fas fa-microphone',
+        }[state];
+    }
+    if (label) {
+        label.textContent = {
+            recording: 'Stop recording',
+            transcribing: 'Transcribing',
+            idle: 'Record voice',
+        }[state];
+    }
+
+    if (timer) {
+        timer.hidden = state !== 'recording';
+        if (state === 'recording') timer.textContent = '0:00';
+    }
+    if (input && state === 'transcribing') input.placeholder = 'Transcribing…';
+    // updateAuthUI() owns the placeholder; only the copy saved when recording
+    // started is put back, then dropped so a later sign-in can change it.
+    if (input && state === 'idle' && input.dataset.placeholder) {
+        input.placeholder = input.dataset.placeholder;
+        delete input.dataset.placeholder;
+    }
+    if (input && state === 'recording') {
+        input.dataset.placeholder ??= input.placeholder;
+        input.placeholder = 'Listening… press the button again to finish';
+    }
 }
 
 // ─── Rate limit UI ───────────────────────────────────────────────────────────
