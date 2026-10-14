@@ -39,6 +39,12 @@ export interface Env {
 	 * KV Namespace for long-term memory
 	 */
 	ELEEN_MEMORY: KVNamespace;
+
+	/**
+	 * D1 database (`eleen-db`). Schema lives in migrations/, applied with
+	 * `npm run db:migrate:remote` before deploying code that needs it.
+	 */
+	DB: D1Database;
 }
 
 /**

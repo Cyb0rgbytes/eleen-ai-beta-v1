@@ -17,12 +17,11 @@
 		"publish": true
 	},
 	"devDependencies": {
-		"@cloudflare/vitest-pool-workers": "^0.12.8",
-		"@cloudflare/workers-types": "^4.20250425.0",
+		"@cloudflare/vitest-plugin": "^1.4.2",
 		"@types/node": "24.10.1",
 		"typescript": "5.9.3",
-		"vitest": "3.2.4",
-		"wrangler": "^4.92.0"
+		"vitest": "^4.1.11",
+		"wrangler": "^4.151.0"
 	},
 	"private": true,
 	"scripts": {
@@ -31,9 +30,11 @@
 		"check": "node scripts/gen-skill-digests.mjs --check && tsc --noEmit && wrangler deploy --dry-run",
 		"predeploy": "node scripts/gen-skill-digests.mjs",
 		"deploy": "wrangler deploy",
-		"dev": "wrangler dev --remote",
-		"start": "wrangler dev --remote",
-		"test": "vitest"
+		"dev": "wrangler dev",
+		"start": "wrangler dev",
+		"test": "vitest",
+		"db:migrate:local": "wrangler d1 migrations apply eleen-db --local",
+		"db:migrate:remote": "wrangler d1 migrations apply eleen-db --remote"
 	},
 	"dependencies": {
 		"@clerk/backend": "^2.33.7"
