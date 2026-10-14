@@ -31,6 +31,7 @@ import {
 } from "./lib/validate";
 import { Bucket, checkRateLimit, rateLimitHeaders, tooManyRequests } from "./lib/ratelimit";
 import { AUTHORIZED_PARTIES } from "./lib/auth";
+import { handleTranscribe } from "./ai/voice";
 import {
 	assessInjection,
 	buildSystemPrompt,
@@ -395,6 +396,16 @@ const ROUTES: Record<string, RouteDefinition> = {
 		guest: true,
 		bucket: "search",
 		handler: (request, env) => handleWebSearch(request, env),
+	},
+	"/api/voice/transcribe": {
+		guest: false,
+		bucket: "voice",
+		handler: (request, env) => handleTranscribe(request, env),
+	},
+	"/api/voice/transcribe/guest": {
+		guest: true,
+		bucket: "voice",
+		handler: (request, env) => handleTranscribe(request, env),
 	},
 	// Was entirely unmetered, sitting above the auth gate. On the free tier
 	// this endpoint alone could exhaust the inference allowance.

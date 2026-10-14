@@ -82,6 +82,37 @@ describe("MCP rate limiting", () => {
 	});
 });
 
+describe("voice transcription routes", () => {
+	it("requires sign-in on the full-tier route", async () => {
+		const response = await fetchWorker("/api/voice/transcribe", {
+			method: "POST",
+			headers: { "content-type": "audio/webm" },
+			body: new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]),
+		});
+		expect(response.status).toBe(401);
+	});
+
+	it("refuses a non-audio upload on the guest route", async () => {
+		const response = await fetchWorker("/api/voice/transcribe/guest", {
+			method: "POST",
+			headers: { "content-type": "audio/webm", "cf-connecting-ip": "203.0.113.9" },
+			body: "<html>not audio</html>",
+		});
+		expect(response.status).toBe(415);
+	});
+
+	it("is metered by the voice bucket", async () => {
+		const ip = "203.0.113.10";
+		await exhaustGuest("voice", ip);
+		const response = await fetchWorker("/api/voice/transcribe/guest", {
+			method: "POST",
+			headers: { "content-type": "audio/webm", "cf-connecting-ip": ip },
+			body: new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]),
+		});
+		expect(response.status).toBe(429);
+	});
+});
+
 describe("chat validation", () => {
 	it("rejects an attachment type the handler cannot read, before any inference", async () => {
 		const response = await fetchWorker("/api/chat/guest", {

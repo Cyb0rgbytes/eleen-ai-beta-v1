@@ -921,6 +921,67 @@ header {
 	white-space: nowrap;
 }
 
+/* Voice input. Secondary to send: outlined until it is recording, when it
+   takes the error accent and pulses so it is obvious the mic is live. */
+#mic-button {
+	flex-shrink: 0;
+	width: 40px;
+	height: 40px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-dim);
+	background: var(--field);
+	border: 1px solid var(--field-line);
+	border-radius: 50%;
+	transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
+}
+
+#mic-button:hover:not(:disabled) {
+	color: var(--text);
+	border-color: var(--accent-line);
+}
+
+#mic-button.recording {
+	color: #fff;
+	background: #d6336c;
+	border-color: transparent;
+	animation: micPulse 1.4s ease-out infinite;
+}
+
+#mic-button.transcribing {
+	cursor: progress;
+}
+
+#mic-button i {
+	font-size: 15px;
+}
+
+/* Same screen-reader-only treatment as the send button's label. */
+#mic-button span {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.mic-timer {
+	align-self: center;
+	min-width: 2.6em;
+	font-family: "JetBrains Mono", monospace;
+	font-size: 0.78rem;
+	font-variant-numeric: tabular-nums;
+	color: #ff8fb8;
+	text-align: end;
+}
+
+@keyframes micPulse {
+	0% { box-shadow: 0 0 0 0 rgba(214, 51, 108, 0.55); }
+	100% { box-shadow: 0 0 0 10px rgba(214, 51, 108, 0); }
+}
+
 /* Three-dot pulse swapped into the send button while sending */
 .send-loading {
 	display: flex;
@@ -1128,7 +1189,8 @@ footer {
 		font-size: 0.72rem;
 	}
 
-	#send-button {
+	#send-button,
+	#mic-button {
 		width: 36px;
 		height: 36px;
 	}

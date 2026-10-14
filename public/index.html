@@ -119,6 +119,11 @@
                 </div>
                 <div class="input-row">
                     <textarea id="user-input" placeholder="Enter your query to open the gateway..." rows="1" autofocus></textarea>
+                    <span id="mic-timer" class="mic-timer" aria-live="polite" hidden>0:00</span>
+                    <button id="mic-button" type="button" title="Voice input (Esc to cancel)" aria-pressed="false">
+                        <i class="fas fa-microphone"></i>
+                        <span>Record voice</span>
+                    </button>
                     <button id="send-button">
                         <i class="fas fa-arrow-up"></i>
                         <span>Send</span>
