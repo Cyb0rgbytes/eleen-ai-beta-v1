@@ -36,6 +36,6 @@
 		"test": "vitest"
 	},
 	"dependencies": {
-		"@clerk/backend": "^2.32.0"
+		"@clerk/backend": "^2.33.7"
 	}
 }
