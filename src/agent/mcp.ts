@@ -17,7 +17,7 @@ import { AgentHandlers, GUEST_TIER, Tier } from "./deps";
 import { bearerChallenge } from "./wellknown";
 import { collectSseText } from "./sse";
 import { AUTHORIZED_PARTIES } from "../lib/auth";
-import { RULES, checkRateLimit } from "../lib/ratelimit";
+import { Bucket, checkRateLimit } from "../lib/ratelimit";
 
 /** Newest first. We echo the client's version when we know it. */
 const SUPPORTED_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26"];
@@ -94,7 +94,7 @@ const TOOLS = [
 ] as const;
 
 /** Rate-limit bucket each tool draws from — the same as its REST route. */
-const TOOL_BUCKETS: Record<string, keyof typeof RULES> = {
+const TOOL_BUCKETS: Record<string, Bucket> = {
 	eleenai_chat: "chat",
 	eleenai_generate_image: "image",
 	eleenai_search: "search",

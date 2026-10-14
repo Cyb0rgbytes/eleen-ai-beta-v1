@@ -29,7 +29,7 @@ import {
 	validationResponse,
 	MAX_QUERY_CHARS,
 } from "./lib/validate";
-import { checkRateLimit, rateLimitHeaders, tooManyRequests } from "./lib/ratelimit";
+import { Bucket, checkRateLimit, rateLimitHeaders, tooManyRequests } from "./lib/ratelimit";
 import { AUTHORIZED_PARTIES } from "./lib/auth";
 import {
 	assessInjection,
@@ -346,7 +346,7 @@ function isProduction(url: URL): boolean {
 interface RouteDefinition {
 	/** Reachable without credentials. */
 	guest: boolean;
-	bucket: "chat" | "image" | "vision" | "search" | "enhance";
+	bucket: Bucket;
 	handler: (
 		request: Request,
 		env: Env,
