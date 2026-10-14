@@ -1,0 +1,30 @@
+# Checks only — nothing here deploys. Deploys stay a manual `npm run deploy`
+# from a clean checkout of main.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Skill digests match the served documents
+        run: node scripts/gen-skill-digests.mjs --check
+      - name: Typecheck
+        run: npx tsc --noEmit
+      # Unit tests in Node, worker tests in workerd. Remote bindings are off in
+      # vitest.config.mts, so no Cloudflare credentials are needed.
+      - name: Tests
+        run: npx vitest run

@@ -49,13 +49,28 @@
 	"observability": {
 		"enabled": true
 	},
+	// Models always run on Cloudflare, so local dev calls (and is billed for)
+	// real inference. Stated explicitly rather than left as a warning.
 	"ai": {
-		"binding": "AI"
+		"binding": "AI",
+		"remote": true
 	},
 	"kv_namespaces": [
 		{
 			"binding": "ELEEN_MEMORY",
 			"id": "66feaec842224318820adb53c0c99492"
+		}
+	],
+	// `npm run dev` runs locally, so this binding uses a local SQLite copy and
+	// never the production database. Do not reintroduce `wrangler dev --remote`
+	// without a preview_database_id: in remote mode, a binding with no preview
+	// ID connects to database_id, which is production.
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "eleen-db",
+			"database_id": "6a11307f-335d-4269-b615-94912feaea85",
+			"migrations_dir": "migrations"
 		}
 	],
 	"r2_buckets": [

@@ -837,7 +837,7 @@ export async function handleImageGenerate(
 		console.log("Using Flux-1-Schnell for image generation");
 		const result = await env.AI.run(FALLBACK_IMAGE_MODEL, {
 			prompt: prompt.trim(),
-			num_steps: 4,
+			steps: 4,
 		});
 
 		const fluxImage = (result as { image?: string }).image;
