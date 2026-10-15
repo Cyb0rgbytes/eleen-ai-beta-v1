@@ -96,6 +96,10 @@
 	// For local dev, set these in a .dev.vars file (never commit secrets!)
 	// For production, set via: wrangler secret put CLERK_SECRET_KEY
 	"vars": {
-		"CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsuZWxlZW5haS54eXok"
+		"CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsuZWxlZW5haS54eXok",
+		// Workers AI calls are routed through this gateway (src/ai/gateway.ts).
+		// It must hold no provider keys: the gateway falls back to a stored key
+		// when a request carries none, which would bill the owner silently.
+		"AI_GATEWAY_ID": "eleenai-gateway"
 	}
 }

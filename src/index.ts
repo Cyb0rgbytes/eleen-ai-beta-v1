@@ -32,6 +32,7 @@ import {
 import { Bucket, checkRateLimit, rateLimitHeaders, tooManyRequests } from "./lib/ratelimit";
 import { AUTHORIZED_PARTIES } from "./lib/auth";
 import { handleTranscribe } from "./ai/voice";
+import { gatewayOptions } from "./ai/gateway";
 import {
 	assessInjection,
 	buildSystemPrompt,
@@ -568,7 +569,7 @@ export async function handleChatRequest(
 			messages,
 			max_tokens: maxTokens,
 			stream: true,
-		});
+		}, gatewayOptions(env, { route: "chat" }));
 
 		// 7. Background memory update.
 		if (userId !== "guest" && env.ELEEN_MEMORY) {
@@ -697,7 +698,7 @@ async function handleEnhancePrompt(
 				{ role: "user", content: clipped },
 			],
 			max_tokens: 300,
-		})) as { response?: string };
+		}, gatewayOptions(env, { route: "enhance" }))) as { response?: string };
 
 		const enhanced = (result.response || "").trim();
 
@@ -785,7 +786,7 @@ If there is nothing new or important to add, output the Current Memory Profile e
 		const response = await env.AI.run(MODEL_ID, {
 			messages: [{ role: "user", content: summaryPrompt }],
 			max_tokens: 256,
-		});
+		}, gatewayOptions(env, { route: "memory" }));
 
 		const newMemory = (response as any).response;
 		if (!newMemory || !newMemory.trim()) return;
@@ -857,7 +858,7 @@ export async function handleImageGenerate(
 		const result = await env.AI.run(FALLBACK_IMAGE_MODEL, {
 			prompt: prompt.trim(),
 			steps: 4,
-		});
+		}, gatewayOptions(env, { route: "image" }));
 
 		const fluxImage = (result as { image?: string }).image;
 		if (!fluxImage) {

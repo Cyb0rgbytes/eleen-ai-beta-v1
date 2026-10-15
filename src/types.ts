@@ -36,6 +36,13 @@ export interface Env {
 	GEMINI_API_KEY: string;
 
 	/**
+	 * AI Gateway name. Every Workers AI call is routed through it for logging
+	 * and the spend limit (src/ai/gateway.ts). Optional so a missing var
+	 * degrades to direct calls rather than failing requests.
+	 */
+	AI_GATEWAY_ID?: string;
+
+	/**
 	 * KV Namespace for long-term memory
 	 */
 	ELEEN_MEMORY: KVNamespace;

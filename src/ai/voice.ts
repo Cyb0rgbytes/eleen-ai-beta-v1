@@ -7,6 +7,7 @@
  * act on its own.
  */
 import { Env } from "../types";
+import { gatewayOptions } from "./gateway";
 
 const WHISPER_MODEL = "@cf/openai/whisper-large-v3-turbo";
 
@@ -84,7 +85,7 @@ export async function handleTranscribe(request: Request, env: Env): Promise<Resp
 			...(lang && LANGUAGE_HINTS.has(lang) ? { language: lang } : {}),
 			// Silence and room noise are where Whisper invents text; skip them.
 			vad_filter: true,
-		});
+		}, gatewayOptions(env, { route: "voice" }));
 
 		const text = (result.text || "").trim().slice(0, MAX_TRANSCRIPT_CHARS);
 		return json({ text, language: result.transcription_info?.language ?? null });

@@ -205,3 +205,6 @@ Deepseek Guidance Roadmap.md
 until-now.md
 # Holds working exploit payloads. Stays local until the fixes it lists are deployed.
 docs/security/audit-*.md
+
+# Playwright MCP scratch output (browser checks run from Claude Code)
+.playwright-mcp/
