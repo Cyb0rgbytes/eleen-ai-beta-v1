@@ -7,6 +7,8 @@
  * what was actually sent.
  */
 import { Attachment, ChatMessage } from "../types";
+import { resolveModel } from "../ai/registry";
+import { Protocol, isProtocol } from "../ai/sse";
 
 export const MAX_MESSAGES = 40;
 export const MAX_CONTENT_CHARS = 8000;
@@ -100,6 +102,10 @@ export function validateChatBody(raw: unknown): {
 	messages: ChatMessage[];
 	mode?: string;
 	attachments?: Attachment[];
+	/** A registry model id or tier name. Absent means the default model. */
+	model?: string;
+	/** Stream encoding; absent means the published v1 framing. */
+	protocol?: Protocol;
 } {
 	const failures: ValidationFailure[] = [];
 	const body = (raw ?? {}) as Record<string, unknown>;
@@ -208,6 +214,20 @@ export function validateChatBody(raw: unknown): {
 		failures.push({ field: "mode", message: "must be a string" });
 	}
 
+	// An unknown model is refused here rather than forwarded: the registry is
+	// the only source of ids a provider will ever be asked for.
+	if (body.model !== undefined) {
+		if (typeof body.model !== "string") {
+			failures.push({ field: "model", message: "must be a string" });
+		} else if (body.model !== "" && resolveModel(body.model) === null) {
+			failures.push({ field: "model", message: "is not a known model or tier" });
+		}
+	}
+
+	if (body.protocol !== undefined && !isProtocol(body.protocol)) {
+		failures.push({ field: "protocol", message: "must be 1 or 2" });
+	}
+
 	if (failures.length) throw new ValidationError(failures);
 	if (!messages.length) {
 		throw new ValidationError([
@@ -219,6 +239,8 @@ export function validateChatBody(raw: unknown): {
 		messages,
 		mode: body.mode as string | undefined,
 		attachments: body.attachments === undefined ? undefined : attachments,
+		model: typeof body.model === "string" && body.model !== "" ? body.model : undefined,
+		protocol: isProtocol(body.protocol) ? body.protocol : undefined,
 	};
 }
 

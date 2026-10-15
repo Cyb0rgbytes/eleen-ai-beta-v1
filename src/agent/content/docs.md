@@ -21,7 +21,8 @@ Most capabilities are reachable two ways.
 |---|---|---|
 | Path | `/api/…/guest` | `/api/…` |
 | Credentials | none | `Authorization: Bearer <token>` |
-| Chat output cap | 512 tokens | 1024 tokens |
+| Chat output cap | 512 tokens | 1024 tokens on the default model; more on larger models |
+| Model tiers | `fast`, `smart` | `fast`, `smart`, `reasoning` |
 | Memory profile | not retained | retained per user |
 
 Tokens are issued by the authorization server named in
@@ -44,6 +45,11 @@ Streaming conversational completion.
 to 5 base64-encoded files. Request bodies are limited to 6 MiB. Any `system`
 message supplied by the client is discarded server-side.
 
+`model` is optional: a model id or a tier name (`fast`, `smart`, `reasoning`)
+from `GET /api/v1/models`. Omitted means the default model. An unknown value
+is a `422`; a model the caller may not use is a `403` whose `reason` is
+`sign-in` or `key-required`.
+
 The response is `text/event-stream`. Each `data:` line holds a JSON object with
 a `response` string carrying the next token delta; the stream ends with
 `data: [DONE]`.
@@ -53,6 +59,35 @@ data: {"response":"TLS"}
 data: {"response":" session"}
 data: [DONE]
 ```
+
+Send `"protocol": 2` to receive named events instead, which carry a reasoning
+model's thinking separately from its answer, plus token usage:
+
+```
+event: meta
+data: {"model":"…","tier":"reasoning","protocol":2}
+
+event: reasoning
+data: {"text":"…"}
+
+event: token
+data: {"text":"TLS"}
+
+event: usage
+data: {"promptTokens":120,"completionTokens":48}
+
+event: done
+data: {}
+```
+
+An `error` event replaces the reply when a request is refused mid-stream.
+
+### `GET /api/v1/models`
+
+The models the chat endpoint can run, with each entry's `access` requirement:
+`guest`, `sign-in`, or `key-required` for third-party models that run only
+with the caller's own provider key. Costs no inference. Filter with
+`?tier=fast|smart|reasoning`.
 
 ### `POST /api/image/generate` · `POST /api/image/generate/guest`
 

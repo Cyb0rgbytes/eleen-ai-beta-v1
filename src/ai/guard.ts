@@ -13,6 +13,7 @@
  *   4. Streaming output filter
  *   5. Untrusted-memory containment
  */
+import { modelIdentifiers } from "./registry";
 
 // ─── Layer 1: structured delimiting ──────────────────────────────────────────
 
@@ -159,12 +160,15 @@ export function newCanary(): string {
 /**
  * Terms that would disclose how the platform is built. The requirement is that
  * the assistant not explain its own infrastructure.
+ *
+ * Exact identifiers are matched as substrings: a model id or an internal
+ * binding name has no innocent reading. Model ids come from the registry so
+ * adding a model cannot leave the guard behind.
  */
-const INFRASTRUCTURE_TERMS = [
-	"cloudflare",
+const INFRASTRUCTURE_TERMS: readonly string[] = [
 	"workers ai",
 	"wrangler",
-	"clerk",
+	"ai gateway",
 	"@cf/",
 	"llama-3",
 	"flux-1-schnell",
@@ -175,6 +179,22 @@ const INFRASTRUCTURE_TERMS = [
 	"kv namespace",
 	"durable object",
 	"r2 bucket",
+	...modelIdentifiers(),
+];
+
+/**
+ * Company names are matched only as a statement about this service. The bare
+ * words used to be on the list above, which blocked any reply that mentioned
+ * Cloudflare's earnings or a shop clerk (audit item 17). What must not leak is
+ * "I run on Cloudflare" or "sign-in is handled by Clerk", so the match needs
+ * the preposition or the product noun that makes it a disclosure.
+ */
+const INFRASTRUCTURE_PHRASES: readonly RegExp[] = [
+	/\b(?:on|by|with|using|via|through|to|from|inside|behind)\s+cloudflare\b/,
+	/\bcloudflare(?:'s)?\s+(?:workers?|pages|ai|d1|kv|r2|edge|network|platform|infrastructure|account|gateway|binding)\b/,
+	/\b(?:on|by|with|using|via|through|to|from)\s+clerk\b/,
+	/\bclerk(?:'s)?\s+(?:auth\w*|session\w*|tokens?|sdk|js|sign-?in|sign-?up|dashboard|instance|user\w*|modal)\b/,
+	/\bclerk\.(?:com|dev)\b/,
 ];
 
 /**
@@ -220,6 +240,10 @@ export function inspectOutput(text: string, canary: string): FilterVerdict {
 
 	for (const term of INFRASTRUCTURE_TERMS) {
 		if (lower.includes(term)) return { blocked: true, reason: `infrastructure:${term}` };
+	}
+
+	for (const phrase of INFRASTRUCTURE_PHRASES) {
+		if (phrase.test(lower)) return { blocked: true, reason: `infrastructure:${phrase.source.slice(0, 32)}` };
 	}
 
 	return { blocked: false };

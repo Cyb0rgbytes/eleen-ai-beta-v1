@@ -12,13 +12,16 @@
  */
 import { Env } from "../types";
 
-/** Signature of the streaming chat handler in src/index.ts. */
+/**
+ * Signature of the streaming chat handler in src/index.ts. The optional
+ * ceiling can lower the model's output cap for a caller, never raise it.
+ */
 export type ChatHandler = (
 	request: Request,
 	env: Env,
 	ctx: ExecutionContext,
 	userId: string,
-	maxTokens: number,
+	maxTokens?: number,
 ) => Promise<Response>;
 
 /** Signature shared by the image, vision and search handlers. */

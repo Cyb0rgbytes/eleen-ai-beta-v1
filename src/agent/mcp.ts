@@ -55,6 +55,13 @@ const TOOLS = [
 						"balanced (default), creative for open-ended generation, logical for " +
 						"step-by-step rigor.",
 				},
+				tier: {
+					type: "string",
+					enum: ["fast", "smart", "reasoning"],
+					description:
+						"Model tier. fast (default) answers quickly; smart is a larger model; " +
+						"reasoning thinks before answering and needs an authenticated caller.",
+				},
 			},
 			required: ["message"],
 			additionalProperties: false,
@@ -235,8 +242,13 @@ async function callChat(
 	const request = syntheticRequest("/api/chat", {
 		messages: [{ role: "user", content: message }],
 		mode,
+		// Validated by the chat handler against the registry; an unknown value
+		// comes back as a 422 the caller sees as an error result.
+		...(typeof args.tier === "string" ? { model: args.tier } : {}),
 	});
 
+	// The caller tier's cap is a ceiling: the registry may set a lower one
+	// for the model, never a higher one here.
 	const response = await handlers.chat(request, env, ctx, tier.userId, tier.maxTokens);
 	if (!response.ok) {
 		return {

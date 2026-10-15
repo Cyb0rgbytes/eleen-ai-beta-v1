@@ -12,7 +12,10 @@ Send a conversation to EleenAI and read back a streamed reply.
 | Tier | Path | Credentials | Output cap |
 |---|---|---|---|
 | Guest | `POST /api/chat/guest` | none | 512 tokens |
-| Authenticated | `POST /api/chat` | `Authorization: Bearer <token>` | 1024 tokens |
+| Authenticated | `POST /api/chat` | `Authorization: Bearer <token>` | 1024 tokens on the default model; larger models allow more |
+
+`GET /api/v1/models` lists every model with its `access` requirement (`guest`,
+`sign-in`, or `key-required`). It costs no inference.
 
 Base URL: `https://eleenai.xyz`
 
@@ -34,6 +37,13 @@ Base URL: `https://eleenai.xyz`
   supplied by the client is discarded server-side, so it cannot be used to
   change the assistant's behaviour.
 - `mode` is `balanced` (default), `creative`, or `logical`.
+- `model` is optional: a model id or a tier name (`fast`, `smart`,
+  `reasoning`) from `/api/v1/models`. Unknown values are a `422`; a model the
+  caller may not use is a `403` with `reason` `sign-in` or `key-required`.
+  The `reasoning` tier needs an authenticated caller.
+- `protocol` is optional: `1` (default) for the framing below, `2` for named
+  events (`meta`, `reasoning`, `token`, `usage`, `error`, `done`) that carry
+  a reasoning model's thinking separately from its answer.
 - `attachments` is optional, up to 5 entries of
   `{ "data": "<base64>", "mimeType": "...", "name": "..." }`.
 - The request body is limited to 6 MiB.

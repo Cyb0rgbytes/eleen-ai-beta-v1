@@ -51,12 +51,36 @@ const UNAUTHORIZED = {
 	},
 };
 
+const MODEL_FORBIDDEN = {
+	"403": {
+		description:
+			"The requested model is not available to this caller: `reason` is " +
+			"`sign-in` for a model reserved for authenticated users, or `key-required` " +
+			"for a third-party model that runs only with the caller's own provider key.",
+		content: {
+			"application/json": {
+				schema: {
+					type: "object",
+					properties: {
+						error: { type: "string" },
+						model: { type: "string" },
+						reason: { type: "string", enum: ["sign-in", "key-required"] },
+					},
+					required: ["error", "model", "reason"],
+				},
+			},
+		},
+	},
+};
+
 const CHAT_RESPONSE = {
 	"200": {
 		description:
-			"Server-sent event stream. Each `data:` line carries a JSON object with a " +
-			"`response` string holding the next token delta; the stream terminates with " +
-			"`data: [DONE]`.",
+			"Server-sent event stream. With the default `protocol` 1, each `data:` line " +
+			"carries a JSON object with a `response` string holding the next token " +
+			"delta and the stream terminates with `data: [DONE]`. With `protocol` 2 the " +
+			"stream uses named events: `meta`, `reasoning`, `token`, `usage`, `error`, " +
+			"`done`, each with a JSON `data:` payload.",
 		content: {
 			"text/event-stream": {
 				schema: { type: "string" },
@@ -167,8 +191,53 @@ export const OPENAPI_DOCUMENT = {
 						enum: ["balanced", "creative", "logical"],
 						default: "balanced",
 					},
+					model: {
+						type: "string",
+						description:
+							"A model id or tier name (`fast`, `smart`, `reasoning`) from " +
+							"/api/v1/models. Omitted means the default model. An unknown value " +
+							"is a 422.",
+					},
+					protocol: {
+						type: "integer",
+						enum: [1, 2],
+						default: 1,
+						description:
+							"Stream encoding. 1 is the `response`/`[DONE]` framing; 2 uses named " +
+							"events and carries reasoning and usage.",
+					},
 				},
 				required: ["messages"],
+			},
+			ModelsResponse: {
+				type: "object",
+				properties: {
+					default: { type: "string" },
+					tiers: { type: "array", items: { type: "string" } },
+					models: {
+						type: "array",
+						items: {
+							type: "object",
+							properties: {
+								id: { type: "string" },
+								label: { type: "string" },
+								provider: { type: "string" },
+								tier: { type: "string", enum: ["fast", "smart", "reasoning"] },
+								billing: { type: "string", enum: ["owner", "user-key"] },
+								vision: { type: "boolean" },
+								reasoning: { type: "boolean" },
+								maxTokens: {
+									type: "object",
+									properties: { guest: { type: "integer" }, user: { type: "integer" } },
+								},
+								contextWindow: { type: "integer" },
+								access: { type: "string", enum: ["guest", "sign-in", "key-required"] },
+							},
+							required: ["id", "label", "provider", "tier", "billing", "access"],
+						},
+					},
+				},
+				required: ["default", "tiers", "models"],
 			},
 			ImageRequest: {
 				type: "object",
@@ -256,7 +325,7 @@ export const OPENAPI_DOCUMENT = {
 					"limited to 6 MiB.",
 				security: [{ clerkBearer: [] }],
 				requestBody: chatBody(false),
-				responses: { ...CHAT_RESPONSE, ...UNAUTHORIZED, ...JSON_ERRORS },
+				responses: { ...CHAT_RESPONSE, ...UNAUTHORIZED, ...MODEL_FORBIDDEN, ...JSON_ERRORS },
 			},
 		},
 		"/api/chat/guest": {
@@ -266,7 +335,7 @@ export const OPENAPI_DOCUMENT = {
 				summary: "Streaming chat completion (guest)",
 				security: [],
 				requestBody: chatBody(true),
-				responses: { ...CHAT_RESPONSE, ...JSON_ERRORS },
+				responses: { ...CHAT_RESPONSE, ...MODEL_FORBIDDEN, ...JSON_ERRORS },
 			},
 		},
 		"/api/image/generate": {
@@ -428,6 +497,36 @@ export const OPENAPI_DOCUMENT = {
 						},
 					},
 					...JSON_ERRORS,
+				},
+			},
+		},
+		"/api/v1/models": {
+			get: {
+				tags: ["meta"],
+				operationId: "listModels",
+				summary: "Models the chat endpoint can run",
+				description:
+					"Static and inference-free. Each entry's `access` says what a caller " +
+					"needs: `guest` for anyone, `sign-in` for a bearer token, `key-required` " +
+					"for the caller's own provider key. Filter with `?tier=fast|smart|reasoning`.",
+				security: [],
+				parameters: [
+					{
+						name: "tier",
+						in: "query",
+						required: false,
+						schema: { type: "string", enum: ["fast", "smart", "reasoning"] },
+					},
+				],
+				responses: {
+					"200": {
+						description: "The model listing.",
+						content: {
+							"application/json": {
+								schema: { $ref: "#/components/schemas/ModelsResponse" },
+							},
+						},
+					},
 				},
 			},
 		},

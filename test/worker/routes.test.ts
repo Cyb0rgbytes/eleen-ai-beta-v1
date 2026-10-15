@@ -113,6 +113,91 @@ describe("voice transcription routes", () => {
 	});
 });
 
+describe("models", () => {
+	it("lists the registry without auth and names the default", async () => {
+		const response = await fetchWorker("/api/v1/models");
+		expect(response.status).toBe(200);
+		const body = (await response.json()) as {
+			default: string;
+			models: { id: string; tier: string; access: string }[];
+		};
+		expect(body.default).toBe("@cf/meta/llama-3.1-8b-instruct-fp8");
+		expect(body.models.find((m) => m.id === body.default)?.access).toBe("guest");
+		expect(body.models.find((m) => m.tier === "reasoning")?.access).toBe("sign-in");
+		expect(body.models.some((m) => m.access === "key-required")).toBe(true);
+	});
+
+	it("filters by tier", async () => {
+		const response = await fetchWorker("/api/v1/models?tier=smart");
+		const body = (await response.json()) as { models: { tier: string }[] };
+		expect(body.models.length).toBeGreaterThan(0);
+		expect(body.models.every((m) => m.tier === "smart")).toBe(true);
+	});
+});
+
+describe("chat model selection", () => {
+	const headers = { "content-type": "application/json", "cf-connecting-ip": "203.0.113.11" };
+
+	it("rejects an unknown model before any inference", async () => {
+		const response = await fetchWorker("/api/chat/guest", {
+			method: "POST",
+			headers,
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }], model: "@cf/nope/x" }),
+		});
+		expect(response.status).toBe(422);
+	});
+
+	it("rejects an unknown protocol", async () => {
+		const response = await fetchWorker("/api/chat/guest", {
+			method: "POST",
+			headers,
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }], protocol: 3 }),
+		});
+		expect(response.status).toBe(422);
+	});
+
+	it("keeps the reasoning tier for signed-in users", async () => {
+		const response = await fetchWorker("/api/chat/guest", {
+			method: "POST",
+			headers,
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }], model: "reasoning" }),
+		});
+		expect(response.status).toBe(403);
+		const body = (await response.json()) as { reason: string };
+		expect(body.reason).toBe("sign-in");
+	});
+
+	it("refuses a user-key model before any provider call", async () => {
+		const response = await fetchWorker("/api/chat/guest", {
+			method: "POST",
+			headers,
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }], model: "openai/gpt-5.5" }),
+		});
+		expect(response.status).toBe(403);
+		const body = (await response.json()) as { reason: string };
+		expect(body.reason).toBe("key-required");
+	});
+
+	it("passes an MCP tier argument through to the same checks", async () => {
+		const response = await fetchWorker("/mcp", {
+			method: "POST",
+			headers,
+			body: JSON.stringify({
+				jsonrpc: "2.0",
+				id: 3,
+				method: "tools/call",
+				params: { name: "eleenai_chat", arguments: { message: "hello", tier: "reasoning" } },
+			}),
+		});
+		expect(response.status).toBe(200);
+		const body = (await response.json()) as {
+			result: { isError?: boolean; content: { text: string }[] };
+		};
+		expect(body.result.isError).toBe(true);
+		expect(body.result.content[0].text).toMatch(/signed-in/i);
+	});
+});
+
 describe("chat validation", () => {
 	it("rejects an attachment type the handler cannot read, before any inference", async () => {
 		const response = await fetchWorker("/api/chat/guest", {

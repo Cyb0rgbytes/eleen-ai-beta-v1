@@ -36,17 +36,25 @@ import { gatewayOptions } from "./ai/gateway";
 import {
 	assessInjection,
 	buildSystemPrompt,
-	createOutputFilter,
 	newCanary,
 	newNonce,
 	refusalResponse,
 	wrapUntrusted,
 } from "./ai/guard";
+import { UTILITY_MODEL, canUse, outputCap, resolveModel } from "./ai/registry";
+import { KeyRequiredError, runChat } from "./ai/providers";
+import { createChunkParser } from "./ai/parse";
+import { SSE_HEADERS, SseEncoder, createEncoder } from "./ai/sse";
+import { filterModelStream, refusalStream } from "./ai/stream";
 
 // ─── Model Configuration ─────────────────────────────────────────────────────
 
-/** Workers AI text model */
-const MODEL_ID = "@cf/meta/llama-3.1-8b-instruct-fp8";
+/**
+ * Workers AI model for internal utility calls (prompt enhancement, memory
+ * summaries). Chat models come from src/ai/registry.ts. The literal type
+ * keeps the binding's typed inputs for these two call sites.
+ */
+const MODEL_ID = UTILITY_MODEL.id as "@cf/meta/llama-3.1-8b-instruct-fp8";
 
 /** Fallback image generation model */
 const FALLBACK_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell";
@@ -366,15 +374,18 @@ interface RouteDefinition {
 }
 
 const ROUTES: Record<string, RouteDefinition> = {
+	// Output caps come from the registry per model and caller tier: 512 for
+	// guests on the default model, 1024 for signed-in users, more on the
+	// larger models.
 	"/api/chat": {
 		guest: false,
 		bucket: "chat",
-		handler: (request, env, ctx, userId) => handleChatRequest(request, env, ctx, userId, 1024),
+		handler: (request, env, ctx, userId) => handleChatRequest(request, env, ctx, userId),
 	},
 	"/api/chat/guest": {
 		guest: true,
 		bucket: "chat",
-		handler: (request, env, ctx) => handleChatRequest(request, env, ctx, "guest", 512),
+		handler: (request, env, ctx) => handleChatRequest(request, env, ctx, "guest"),
 	},
 	"/api/image/generate": {
 		guest: false,
@@ -458,13 +469,37 @@ export async function handleChatRequest(
 	env: Env,
 	ctx: ExecutionContext,
 	userId: string,
-	maxTokens: number = 1024,
+	/** Optional ceiling on output tokens. Lowers the model's cap, never raises it. */
+	maxTokens?: number,
 ): Promise<Response> {
+	// Set once the body is known so an error after that point can still be
+	// answered in the protocol the client asked for.
+	let encoder: SseEncoder = createEncoder(1);
+
 	try {
 		const body = validateChatBody(await request.json());
 		const messages = body.messages;
 		const attachments: Attachment[] = (body.attachments || []).slice(0, MAX_ATTACHMENTS);
 		const mode = resolveMode(body.mode);
+		encoder = createEncoder(body.protocol ?? 1);
+
+		// validateChatBody has already rejected an unknown id with a 422, so
+		// this cannot be null; the fallback is for the type system.
+		const spec = resolveModel(body.model) ?? UTILITY_MODEL;
+		if (!canUse(spec, userId)) {
+			const reason = spec.billing === "user-key" ? "key-required" : "sign-in";
+			return new Response(
+				JSON.stringify({
+					error:
+						reason === "key-required"
+							? `${spec.label} runs only with your own ${spec.provider} API key.`
+							: `${spec.label} is available to signed-in users.`,
+					model: spec.id,
+					reason,
+				}),
+				{ status: 403, headers: { "content-type": "application/json" } },
+			);
+		}
 
 		// 1. Classify the incoming turn. Only the latest user message is
 		//    assessed — earlier turns already passed through this check, and
@@ -479,7 +514,7 @@ export async function handleChatRequest(
 				score: assessment.score,
 				matched: assessment.matched,
 			});
-			return sseRefusal(refusalResponse());
+			return sseRefusal(encoder, refusalResponse());
 		}
 
 		// Assistant turns arrive from the client too, so they are not
@@ -564,12 +599,12 @@ export async function handleChatRequest(
 			}),
 		});
 
-		// 6. Run the model.
-		const stream = await env.AI.run(MODEL_ID, {
+		// 6. Run the model through its provider.
+		const run = await runChat(env, spec, {
 			messages,
-			max_tokens: maxTokens,
-			stream: true,
-		}, gatewayOptions(env, { route: "chat" }));
+			maxTokens: outputCap(spec, userId, maxTokens),
+			route: "chat",
+		});
 
 		// 7. Background memory update.
 		if (userId !== "guest" && env.ELEEN_MEMORY) {
@@ -577,17 +612,24 @@ export async function handleChatRequest(
 		}
 
 		// 8. Filter the outbound stream. Nothing reaches the client until it
-		//    has been checked for the canary and for infrastructure leakage.
-		return new Response(filterSseStream(stream as ReadableStream, canary), {
-			headers: {
-				"content-type": "text/event-stream; charset=utf-8",
-				"cache-control": "no-cache",
-				connection: "keep-alive",
-				"x-content-type-options": "nosniff",
-			},
+		//    has been checked for the canary and for infrastructure leakage;
+		//    a reasoning model's thinking is screened the same way.
+		const filtered = filterModelStream(run.stream, {
+			canary,
+			parser: createChunkParser(spec.reasoning),
+			encoder,
+			meta: { model: spec.id, tier: spec.tier },
 		});
+
+		return new Response(filtered, { headers: SSE_HEADERS });
 	} catch (error) {
 		if (error instanceof ValidationError) return validationResponse(error);
+		if (error instanceof KeyRequiredError) {
+			return new Response(
+				JSON.stringify({ error: error.message, model: error.spec.id, reason: "key-required" }),
+				{ status: 403, headers: { "content-type": "application/json" } },
+			);
+		}
 		console.error("Error processing chat request:", error);
 		return new Response(
 			JSON.stringify({ error: "Failed to process request" }),
@@ -596,87 +638,9 @@ export async function handleChatRequest(
 	}
 }
 
-/** Emit a refusal in the SSE shape the client already parses. */
-function sseRefusal(message: string): Response {
-	const body =
-		`data: ${JSON.stringify({ response: message })}\n\n` + `data: [DONE]\n\n`;
-
-	return new Response(body, {
-		headers: {
-			"content-type": "text/event-stream; charset=utf-8",
-			"cache-control": "no-cache",
-		},
-	});
-}
-
-/**
- * Wrap the model's SSE stream in the output filter.
- *
- * Re-emits the same framing the frontend already parses, so this is invisible
- * to the client unless something is actually blocked — in which case the
- * stream is cut and replaced with a refusal rather than truncated silently.
- */
-function filterSseStream(stream: ReadableStream, canary: string): ReadableStream {
-	const filter = createOutputFilter(canary);
-	const decoder = new TextDecoder();
-	const encoder = new TextEncoder();
-
-	let buffered = "";
-
-	function emit(controller: TransformStreamDefaultController, text: string) {
-		if (!text) return;
-		controller.enqueue(encoder.encode(`data: ${JSON.stringify({ response: text })}\n\n`));
-	}
-
-	const transform = new TransformStream({
-		transform(chunk, controller) {
-			if (filter.isBlocked) return;
-
-			buffered += decoder.decode(chunk, { stream: true });
-			const lines = buffered.split("\n");
-			buffered = lines.pop() ?? "";
-
-			for (const line of lines) {
-				const trimmed = line.trim();
-				if (!trimmed.startsWith("data:")) continue;
-
-				const payload = trimmed.slice(5).trim();
-				if (payload === "[DONE]") continue;
-				if (!payload) continue;
-
-				let delta = "";
-				try {
-					delta = (JSON.parse(payload) as { response?: string }).response || "";
-				} catch {
-					continue;
-				}
-				if (!delta) continue;
-
-				const safe = filter.push(delta);
-				if (safe === null) {
-					console.error("Blocked model output", { reason: filter.reason });
-					controller.enqueue(
-						encoder.encode(
-							`data: ${JSON.stringify({ response: refusalResponse() })}\n\n`,
-						),
-					);
-					controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-					return;
-				}
-				emit(controller, safe);
-			}
-		},
-
-		flush(controller) {
-			if (!filter.isBlocked) {
-				const tail = filter.flush();
-				if (tail) emit(controller, tail);
-				controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-			}
-		},
-	});
-
-	return stream.pipeThrough(transform);
+/** Emit a refusal as a complete stream in the client's protocol. */
+function sseRefusal(encoder: SseEncoder, message: string): Response {
+	return new Response(refusalStream(encoder, message), { headers: SSE_HEADERS });
 }
 
 // ─── Prompt Enhancer ─────────────────────────────────────────────────────────

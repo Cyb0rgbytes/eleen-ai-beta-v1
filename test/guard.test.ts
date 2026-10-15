@@ -100,8 +100,24 @@ describe("inspectOutput", () => {
 			"I'm powered by Workers AI.",
 			"My model is @cf/meta/llama-3.1-8b-instruct-fp8.",
 			"Authentication is handled by Clerk.",
+			"This service is hosted on Cloudflare.",
+			"Sign-in uses Clerk's session tokens.",
+			"The reasoning model is @cf/deepseek-ai/deepseek-r1-distill-qwen-32b.",
+			"Requests go through an AI Gateway.",
 		]) {
 			expect(inspectOutput(text, canary).blocked, text).toBe(true);
+		}
+	});
+
+	it("lets ordinary mentions of the company names through (audit item 17)", () => {
+		for (const text of [
+			"Cloudflare reported higher revenue this quarter.",
+			"A CDN such as Cloudflare or Fastly caches static assets.",
+			"The clerk at the counter stamped the form.",
+			"A court clerk files the paperwork.",
+			"Cloudflare and Akamai both sell DDoS protection.",
+		]) {
+			expect(inspectOutput(text, canary).blocked, text).toBe(false);
 		}
 	});
 

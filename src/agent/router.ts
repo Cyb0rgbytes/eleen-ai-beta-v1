@@ -27,6 +27,7 @@ import { LINK_HEADER_DOCS, LINK_HEADER_HOME } from "./links";
 import { prefersMarkdown } from "./negotiate";
 import { DOCS_HTML } from "./docs";
 import { HEALTH_DOCUMENT, OPENAPI_JSON } from "./openapi";
+import { buildModelsDocument } from "./models";
 import { MCP_SERVER_CARD, handleMcp } from "./mcp";
 import { buildSkillsIndex, findSkill } from "./skills";
 import {
@@ -166,6 +167,18 @@ export async function handleAgentRoutes(
 		return json(request, HEALTH_DOCUMENT, "application/json; charset=utf-8", {
 			"cache-control": "no-store",
 		});
+	}
+
+	// The model listing. Public and inference-free, like health; the `access`
+	// field on each entry says what a caller needs before it will answer.
+	if (path === "/api/v1/models") {
+		if (!isRead(request)) return methodNotAllowed(READ_ONLY);
+		return json(
+			request,
+			buildModelsDocument(url.searchParams.get("tier") ?? undefined),
+			"application/json; charset=utf-8",
+			{ "cache-control": "public, max-age=300" },
+		);
 	}
 
 	// ── Item 5: API catalog ──────────────────────────────────────────────
