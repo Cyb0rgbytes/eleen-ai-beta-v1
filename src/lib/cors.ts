@@ -10,7 +10,6 @@
 
 const ALLOWED_ORIGINS = new Set([
 	"https://eleenai.xyz",
-	"https://www.eleenai.xyz",
 	"https://assets.eleenai.xyz",
 ]);
 

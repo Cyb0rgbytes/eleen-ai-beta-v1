@@ -17,15 +17,13 @@ const SCRIPT_SOURCES = [
 	"https://unpkg.com", // Spline viewer
 	"https://cdnjs.cloudflare.com", // Font Awesome
 	"https://cdn.jsdelivr.net", // Motion (index.html module script)
-	"https://*.clerk.accounts.dev",
-	"https://clerk.eleenai.xyz",
+	"https://clerk.eleenai.xyz", // Clerk production frontend API (SDK script)
 	"https://challenges.cloudflare.com", // Clerk bot protection
 ];
 
 const CONNECT_SOURCES = [
 	"'self'",
 	"https://assets.eleenai.xyz",
-	"https://*.clerk.accounts.dev",
 	"https://clerk.eleenai.xyz",
 	"https://unpkg.com",
 ];

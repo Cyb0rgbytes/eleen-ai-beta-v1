@@ -10,6 +10,5 @@
 /** Origins whose Clerk tokens this deployment will accept. */
 export const AUTHORIZED_PARTIES = [
 	"https://eleenai.xyz",
-	"https://www.eleenai.xyz",
 	"http://localhost:8787",
 ];
