@@ -56,8 +56,16 @@ const MAX_MEMORY_SIZE = 2048;
 /** Gemini API base URL */
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
-/** Gemini model used for image generation (supports responseModalities: ["IMAGE"]) */
-const GEMINI_IMAGE_MODEL = "gemini-2.0-flash-exp";
+/**
+ * Gemini models. `gemini-2.0-flash-exp`, which used to serve every call here,
+ * was retired from the API (404 as of 2026-10-16), and the 2.5 family refuses
+ * new projects. Verified live against the production key on that date:
+ * 3.6-flash answers text and image-input requests on the free tier. Grounded
+ * search and image output are refused with 429 until the Google project has
+ * billing, so search fails and image generation falls through to Flux.
+ */
+const GEMINI_TEXT_MODEL = "gemini-3.6-flash"; // vision, attachments, grounded search
+const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image"; // supports responseModalities: ["IMAGE"]
 
 /** Max number of attachments processed per chat request. */
 const MAX_ATTACHMENTS = 5;
@@ -712,7 +720,7 @@ async function analyzeAttachment(env: Env, attachment: Attachment): Promise<stri
 	if (!env.GEMINI_API_KEY) throw new Error("No Gemini API key");
 
 	const isImage = attachment.mimeType.startsWith("image/");
-	const geminiUrl = `${GEMINI_API_BASE}/models/gemini-2.0-flash-exp:generateContent`;
+	const geminiUrl = `${GEMINI_API_BASE}/models/${GEMINI_TEXT_MODEL}:generateContent`;
 
 	if (isImage) {
 		const response = await fetch(geminiUrl, {
@@ -892,7 +900,7 @@ export async function handleVisionAnalysis(
 		const { image, mimeType, question } = validateVisionBody(await request.json());
 
 		const prompt = question || "Analyze this image in detail. Describe everything you see.";
-		const geminiUrl = `${GEMINI_API_BASE}/models/gemini-2.0-flash-exp:generateContent`;
+		const geminiUrl = `${GEMINI_API_BASE}/models/${GEMINI_TEXT_MODEL}:generateContent`;
 
 		const response = await fetch(geminiUrl, {
 			method: "POST",
@@ -946,7 +954,7 @@ export async function handleWebSearch(
 
 		const query = validatePrompt(await request.json(), "query", MAX_QUERY_CHARS);
 
-		const geminiUrl = `${GEMINI_API_BASE}/models/gemini-2.0-flash-exp:generateContent`;
+		const geminiUrl = `${GEMINI_API_BASE}/models/${GEMINI_TEXT_MODEL}:generateContent`;
 
 		const response = await fetch(geminiUrl, {
 			method: "POST",

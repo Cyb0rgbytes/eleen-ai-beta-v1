@@ -169,6 +169,7 @@ const INFRASTRUCTURE_TERMS = [
 	"llama-3",
 	"flux-1-schnell",
 	"gemini-2.0",
+	"gemini-3.",
 	"generativelanguage.googleapis.com",
 	"eleen_memory",
 	"kv namespace",
