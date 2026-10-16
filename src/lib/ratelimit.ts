@@ -89,6 +89,12 @@ export const RULES = {
 		user: { limit: 30, windowSeconds: HOUR },
 		failClosedForGuests: true,
 	},
+	// Storing a provider key makes one call to that provider to check it.
+	keys: {
+		guest: { limit: 0, windowSeconds: HOUR },
+		user: { limit: 20, windowSeconds: HOUR },
+		failClosedForGuests: true,
+	},
 } satisfies Record<string, BucketRules>;
 
 export type Bucket = keyof typeof RULES;

@@ -89,6 +89,15 @@ The models the chat endpoint can run, with each entry's `access` requirement:
 with the caller's own provider key. Costs no inference. Filter with
 `?tier=fast|smart|reasoning`.
 
+### `GET` · `PUT` · `DELETE /api/v1/keys`
+
+Authenticated only. Third-party models (OpenAI, Anthropic, Google, DeepSeek)
+run on the caller's own API key, never on EleenAI's. `PUT` with
+`{ "provider": "anthropic", "key": "sk-ant-…" }` checks the key with one
+inference-free call to the provider and stores it encrypted; `GET` lists
+providers with the key's last four characters; `DELETE` with
+`{ "provider": "…" }` removes it. The key itself is never returned.
+
 ### `POST /api/image/generate` · `POST /api/image/generate/guest`
 
 ```json

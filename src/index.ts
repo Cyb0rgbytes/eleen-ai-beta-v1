@@ -46,6 +46,17 @@ import { KeyRequiredError, runChat } from "./ai/providers";
 import { createChunkParser } from "./ai/parse";
 import { SSE_HEADERS, SseEncoder, createEncoder } from "./ai/sse";
 import { filterModelStream, refusalStream } from "./ai/stream";
+import {
+	KeyStoreUnavailable,
+	MAX_KEY_CHARS,
+	checkKey,
+	deleteKey,
+	isKeyProvider,
+	listKeys,
+	loadKey,
+	looksLikeKey,
+	storeKey,
+} from "./lib/keys";
 
 // ─── Model Configuration ─────────────────────────────────────────────────────
 
@@ -298,8 +309,9 @@ async function route(
 		const route = ROUTES[url.pathname];
 		if (!route) return new Response("Not found", { status: 404 });
 
-		if (request.method !== "POST") {
-			return new Response(null, { status: 405, headers: { allow: "POST, OPTIONS" } });
+		const methods = route.methods ?? ["POST"];
+		if (!methods.includes(request.method)) {
+			return new Response(null, { status: 405, headers: { allow: `${methods.join(", ")}, OPTIONS` } });
 		}
 
 		// ── Auth ─────────────────────────────────────────────────────────
@@ -364,6 +376,8 @@ function isProduction(url: URL): boolean {
 interface RouteDefinition {
 	/** Reachable without credentials. */
 	guest: boolean;
+	/** Accepted methods. Defaults to POST only. */
+	methods?: readonly string[];
 	bucket: Bucket;
 	handler: (
 		request: Request,
@@ -434,7 +448,79 @@ const ROUTES: Record<string, RouteDefinition> = {
 		bucket: "enhance",
 		handler: (request, env) => handleEnhancePrompt(request, env),
 	},
+	// The caller's own provider keys for premium models. Signed-in only: a
+	// guest has no identity to attach a key to.
+	"/api/v1/keys": {
+		guest: false,
+		methods: ["GET", "PUT", "DELETE"],
+		bucket: "keys",
+		handler: (request, env, _ctx, userId) => handleKeys(request, env, userId),
+	},
 };
+
+// ─── Provider keys ───────────────────────────────────────────────────────────
+
+/**
+ * GET lists providers with a stored key (provider, last4, dates). PUT stores
+ * `{ provider, key }` after one check call to the provider. DELETE removes
+ * `{ provider }`. The key itself is never in any response or log.
+ */
+async function handleKeys(request: Request, env: Env, userId: string): Promise<Response> {
+	const jsonHeaders = { "content-type": "application/json", "cache-control": "no-store" };
+	const reply = (status: number, body: unknown) =>
+		new Response(JSON.stringify(body), { status, headers: jsonHeaders });
+
+	try {
+		if (request.method === "GET") {
+			return reply(200, { keys: await listKeys(env, userId) });
+		}
+
+		let body: Record<string, unknown>;
+		try {
+			body = ((await request.json()) ?? {}) as Record<string, unknown>;
+		} catch {
+			return reply(400, { error: "Body must be JSON." });
+		}
+
+		const provider = body.provider;
+		if (!isKeyProvider(provider)) {
+			return reply(422, { error: "provider must be one of openai, anthropic, google, deepseek." });
+		}
+
+		if (request.method === "DELETE") {
+			const removed = await deleteKey(env, userId, provider);
+			return reply(removed ? 200 : 404, { provider, removed });
+		}
+
+		// PUT
+		const key = typeof body.key === "string" ? body.key.trim() : "";
+		if (!key || key.length > MAX_KEY_CHARS) {
+			return reply(422, { error: "key is required." });
+		}
+		if (!looksLikeKey(provider, key)) {
+			return reply(422, { error: `That does not look like a ${provider} API key.` });
+		}
+
+		const check = await checkKey(provider, key);
+		if (!check.ok && check.reason === "rejected") {
+			return reply(422, { error: `${provider} rejected this key.`, status: check.status });
+		}
+
+		// An outage at the provider is not the user's fault: store the key
+		// unverified and let the first chat prove it.
+		const verifiedAt = check.ok ? Math.floor(Date.now() / 1000) : null;
+		const stored = await storeKey(env, userId, provider, key, verifiedAt);
+		return reply(200, { ...stored, verified: check.ok });
+	} catch (error) {
+		if (error instanceof KeyStoreUnavailable) {
+			console.error("Key store unavailable:", error.message);
+			return reply(503, { error: "Key storage is not available on this deployment." });
+		}
+		// Deliberately no body or key material in this log line.
+		console.error("Key route failed:", error instanceof Error ? error.message : "unknown");
+		return reply(500, { error: "Failed to process request" });
+	}
+}
 
 /**
  * Collector for Content-Security-Policy violation reports.
@@ -487,18 +573,32 @@ export async function handleChatRequest(
 		// this cannot be null; the fallback is for the type system.
 		const spec = resolveModel(body.model) ?? UTILITY_MODEL;
 		if (!canUse(spec, userId)) {
-			const reason = spec.billing === "user-key" ? "key-required" : "sign-in";
 			return new Response(
 				JSON.stringify({
-					error:
-						reason === "key-required"
-							? `${spec.label} runs only with your own ${spec.provider} API key.`
-							: `${spec.label} is available to signed-in users.`,
+					error: `${spec.label} is available to signed-in users.`,
 					model: spec.id,
-					reason,
+					reason: "sign-in",
 				}),
 				{ status: 403, headers: { "content-type": "application/json" } },
 			);
+		}
+
+		// A premium model runs only on the caller's own key. Looked up before
+		// any work is done on the request so a missing key costs nothing.
+		let userKey: string | undefined;
+		if (spec.billing === "user-key" && spec.provider !== "workers-ai") {
+			const stored = env.KEY_ENCRYPTION_KEY ? await loadKey(env, userId, spec.provider) : null;
+			if (!stored) {
+				return new Response(
+					JSON.stringify({
+						error: `${spec.label} runs only with your own ${spec.provider} API key. Add one at /api/v1/keys.`,
+						model: spec.id,
+						reason: "key-required",
+					}),
+					{ status: 403, headers: { "content-type": "application/json" } },
+				);
+			}
+			userKey = stored;
 		}
 
 		// 1. Classify the incoming turn. Only the latest user message is
@@ -604,6 +704,7 @@ export async function handleChatRequest(
 			messages,
 			maxTokens: outputCap(spec, userId, maxTokens),
 			route: "chat",
+			userKey,
 		});
 
 		// 7. Background memory update.

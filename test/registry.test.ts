@@ -65,10 +65,10 @@ describe("registry", () => {
 			expect(canUse(defaultForTier("reasoning"), "guest")).toBe(false);
 		});
 
-		it("refuses user-key models for everyone until the key store exists", () => {
+		it("keeps user-key models away from guests; signed-in users still need a key", () => {
 			const premium = MODELS.find((m) => m.billing === "user-key")!;
 			expect(canUse(premium, "guest")).toBe(false);
-			expect(canUse(premium, "user_1")).toBe(false);
+			expect(canUse(premium, "user_1")).toBe(true);
 		});
 	});
 

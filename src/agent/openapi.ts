@@ -209,6 +209,24 @@ export const OPENAPI_DOCUMENT = {
 				},
 				required: ["messages"],
 			},
+			StoredKey: {
+				type: "object",
+				properties: {
+					provider: { type: "string", enum: ["openai", "anthropic", "google", "deepseek"] },
+					last4: { type: "string" },
+					createdAt: { type: "integer", description: "Unix seconds." },
+					verifiedAt: { type: ["integer", "null"], description: "Unix seconds, or null if unverified." },
+					verified: { type: "boolean" },
+				},
+				required: ["provider", "last4", "createdAt"],
+			},
+			KeysResponse: {
+				type: "object",
+				properties: {
+					keys: { type: "array", items: { $ref: "#/components/schemas/StoredKey" } },
+				},
+				required: ["keys"],
+			},
 			ModelsResponse: {
 				type: "object",
 				properties: {
@@ -497,6 +515,94 @@ export const OPENAPI_DOCUMENT = {
 						},
 					},
 					...JSON_ERRORS,
+				},
+			},
+		},
+		"/api/v1/keys": {
+			get: {
+				tags: ["keys"],
+				operationId: "listKeys",
+				summary: "Providers the caller has stored a key for",
+				description:
+					"Returns provider, the key's last four characters and dates. The key " +
+					"itself is never returned.",
+				security: [{ clerkBearer: [] }],
+				responses: {
+					"200": {
+						description: "The caller's stored keys.",
+						content: {
+							"application/json": { schema: { $ref: "#/components/schemas/KeysResponse" } },
+						},
+					},
+					...UNAUTHORIZED,
+				},
+			},
+			put: {
+				tags: ["keys"],
+				operationId: "storeKey",
+				summary: "Store the caller's own API key for a provider",
+				description:
+					"The key is checked with one inference-free call to the provider, then " +
+					"stored encrypted. A key the provider rejects is a 422. If the provider " +
+					"cannot be reached the key is stored unverified. Replaces any existing key " +
+					"for that provider.",
+				security: [{ clerkBearer: [] }],
+				requestBody: {
+					required: true,
+					content: {
+						"application/json": {
+							schema: {
+								type: "object",
+								properties: {
+									provider: { type: "string", enum: ["openai", "anthropic", "google", "deepseek"] },
+									key: { type: "string", maxLength: 512 },
+								},
+								required: ["provider", "key"],
+							},
+						},
+					},
+				},
+				responses: {
+					"200": {
+						description: "Stored.",
+						content: {
+							"application/json": { schema: { $ref: "#/components/schemas/StoredKey" } },
+						},
+					},
+					"422": {
+						description: "Unknown provider, malformed key, or a key the provider rejected.",
+						content: { "application/json": { schema: ERROR_SCHEMA } },
+					},
+					"503": {
+						description: "Key storage is not configured on this deployment.",
+						content: { "application/json": { schema: ERROR_SCHEMA } },
+					},
+					...UNAUTHORIZED,
+				},
+			},
+			delete: {
+				tags: ["keys"],
+				operationId: "deleteKey",
+				summary: "Remove the caller's stored key for a provider",
+				security: [{ clerkBearer: [] }],
+				requestBody: {
+					required: true,
+					content: {
+						"application/json": {
+							schema: {
+								type: "object",
+								properties: {
+									provider: { type: "string", enum: ["openai", "anthropic", "google", "deepseek"] },
+								},
+								required: ["provider"],
+							},
+						},
+					},
+				},
+				responses: {
+					"200": { description: "Removed." },
+					"404": { description: "No key was stored for that provider." },
+					...UNAUTHORIZED,
 				},
 			},
 		},

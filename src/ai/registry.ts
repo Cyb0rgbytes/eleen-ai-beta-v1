@@ -165,10 +165,13 @@ export function resolveModel(requested: unknown): ModelSpec | null {
 	return BY_ID.get(requested) ?? null;
 }
 
-/** Whether this caller may run this model at all. */
+/**
+ * Whether this caller may run this model at all, before any key lookup. A
+ * user-key model additionally needs a stored key, which the chat handler
+ * checks against the key store (src/lib/keys.ts).
+ */
 export function canUse(spec: ModelSpec, userId: string): boolean {
-	if (spec.billing === "user-key") return false; // until the key store ships
-	if (userId === "guest") return spec.maxTokens.guest > 0;
+	if (userId === "guest") return spec.billing === "owner" && spec.maxTokens.guest > 0;
 	return true;
 }
 

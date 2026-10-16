@@ -26,9 +26,48 @@ async function exhaustGuest(bucket: Bucket, ip: string): Promise<void> {
 describe("D1", () => {
 	it("has the migrated schema", async () => {
 		const { results } = await env.DB.prepare(
-			"SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'usage_counters'",
-		).all();
-		expect(results).toHaveLength(1);
+			"SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('usage_counters', 'provider_keys') ORDER BY name",
+		).all<{ name: string }>();
+		expect(results.map((r) => r.name)).toEqual(["provider_keys", "usage_counters"]);
+	});
+});
+
+describe("provider keys route", () => {
+	it("requires sign-in for every method", async () => {
+		for (const method of ["GET", "PUT", "DELETE"]) {
+			const response = await fetchWorker("/api/v1/keys", {
+				method,
+				headers: { "content-type": "application/json" },
+				body: method === "GET" ? undefined : JSON.stringify({ provider: "openai", key: "sk-x" }),
+			});
+			expect(response.status, method).toBe(401);
+		}
+	});
+
+	it("refuses methods it does not serve", async () => {
+		const response = await fetchWorker("/api/v1/keys", { method: "POST" });
+		expect(response.status).toBe(405);
+		expect(response.headers.get("allow")).toContain("PUT");
+	});
+
+	it("never has a plaintext key in the database after a store", async () => {
+		// Exercise the store directly: the route needs a Clerk token, which no
+		// test has. What matters is the invariant on the row.
+		const { storeKey, loadKey } = await import("../../src/lib/keys");
+		const master = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))));
+		const testEnv = { ...env, KEY_ENCRYPTION_KEY: master } as unknown as import("../../src/types").Env;
+		const key = "sk-ant-" + "q".repeat(40);
+
+		await storeKey(testEnv, "user_test", "anthropic", key, null);
+
+		const row = await env.DB.prepare("SELECT * FROM provider_keys WHERE user_id = 'user_test'").first<
+			Record<string, unknown>
+		>();
+		expect(row).toBeTruthy();
+		expect(JSON.stringify(row)).not.toContain(key);
+		expect(row!.last4).toBe("qqqq");
+		expect(await loadKey(testEnv, "user_test", "anthropic")).toBe(key);
+		expect(await loadKey(testEnv, "someone_else", "anthropic")).toBeNull();
 	});
 });
 
@@ -167,7 +206,7 @@ describe("chat model selection", () => {
 		expect(body.reason).toBe("sign-in");
 	});
 
-	it("refuses a user-key model before any provider call", async () => {
+	it("sends a guest asking for a user-key model to sign in, before any provider call", async () => {
 		const response = await fetchWorker("/api/chat/guest", {
 			method: "POST",
 			headers,
@@ -175,7 +214,7 @@ describe("chat model selection", () => {
 		});
 		expect(response.status).toBe(403);
 		const body = (await response.json()) as { reason: string };
-		expect(body.reason).toBe("key-required");
+		expect(body.reason).toBe("sign-in");
 	});
 
 	it("passes an MCP tier argument through to the same checks", async () => {

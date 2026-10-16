@@ -43,6 +43,13 @@ export interface Env {
 	AI_GATEWAY_ID?: string;
 
 	/**
+	 * Master key for users' stored provider keys: 32 random bytes, base64.
+	 * Set via `wrangler secret put KEY_ENCRYPTION_KEY`. Without it the key
+	 * store is unavailable and premium models stay locked (src/lib/keys.ts).
+	 */
+	KEY_ENCRYPTION_KEY?: string;
+
+	/**
 	 * KV Namespace for long-term memory
 	 */
 	ELEEN_MEMORY: KVNamespace;
