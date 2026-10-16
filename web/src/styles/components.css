@@ -715,9 +715,112 @@ header {
 	box-shadow: var(--shadow-composer);
 }
 
+.message-input {
+	position: relative;
+}
+
 .message-input:focus-within {
 	border-color: var(--accent);
-	box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* The focus ring (DESIGN.md 7): 2px --accent-line just outside the pill.
+   Its own layer, so it can bloom with transform and opacity. */
+.message-input::after {
+	content: "";
+	position: absolute;
+	inset: -4px;
+	border: 2px solid var(--accent-line);
+	border-radius: calc(var(--r-md) + 4px);
+	opacity: 0;
+	transform: scale(0.985);
+	pointer-events: none;
+}
+
+.message-input:focus-within::after {
+	opacity: 1;
+	transform: none;
+}
+
+/* ── Jump to latest (DESIGN.md 7) ───────────────────────────────────────── */
+
+.jump-anchor {
+	position: relative;
+	block-size: 0;
+	inline-size: 100%;
+	max-inline-size: var(--column);
+	margin-inline: auto;
+}
+
+.jump-pill {
+	position: absolute;
+	inset-block-end: var(--sp-2);
+	inset-inline-start: 50%;
+	translate: -50% 0;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	padding: 0.4rem 0.85rem;
+	font-size: var(--fs-sm);
+	font-weight: 500;
+	color: var(--text);
+	background: var(--surface-solid);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--r-pill);
+	box-shadow: var(--shadow-plate);
+	pointer-events: auto;
+}
+
+:root[dir="rtl"] .jump-pill {
+	translate: 50% 0;
+}
+
+.jump-pill:hover {
+	border-color: var(--accent-line);
+}
+
+/* ── Reply tools: copy and regenerate ───────────────────────────────────── */
+
+.message-tools {
+	display: inline-flex;
+	gap: 0.2rem;
+	margin-inline-end: 0.35rem;
+	padding-inline-end: 0.35rem;
+	border-inline-end: 1px solid var(--line);
+}
+
+.message-action {
+	display: inline-flex;
+	padding: 0.2rem 0.35rem;
+	color: var(--text-faint);
+	background: none;
+	border: none;
+	border-radius: 6px;
+}
+
+.message-action:hover {
+	color: var(--text-dim);
+}
+
+.message-action.is-done {
+	color: var(--ok);
+}
+
+/* ── Recording level meter ──────────────────────────────────────────────── */
+
+.mic-wave {
+	align-self: center;
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	block-size: 20px;
+}
+
+.mic-wave span {
+	inline-size: 3px;
+	block-size: 100%;
+	border-radius: var(--r-pill);
+	background: var(--recording);
+	transform-origin: center;
 }
 
 .controls-row {

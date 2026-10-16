@@ -156,6 +156,75 @@ test("the empty state sends a card's prompt, and comes back on a new chat", asyn
 	await expect(page.locator(".prompt-card")).toHaveCount(4);
 });
 
+test("Copy puts the reply's text on the clipboard and confirms with a check", async ({ page, context }) => {
+	await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+	await page.route("**/api/chat/guest", (route) =>
+		route.fulfill({
+			headers: { "content-type": "text/event-stream" },
+			body: v2([["token", { text: "**Bold** answer.\n[SUGGEST]More?[/SUGGEST]" }], ["done", {}]]),
+		}),
+	);
+	await page.goto("/");
+	await send(page, "hi");
+	const copy = page.locator(".assistant-message .copy-button").last();
+	await copy.click();
+	await expect(copy).toHaveClass(/is-done/);
+	await expect(copy.locator("svg")).toHaveAttribute("data-icon", "check");
+	// Markers are not copied; the markdown source is.
+	expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("**Bold** answer.");
+	await expect(copy.locator("svg")).toHaveAttribute("data-icon", "copy", { timeout: 3000 });
+});
+
+test("Regenerate replaces the newest reply and is offered only on it", async ({ page }) => {
+	let calls = 0;
+	await page.route("**/api/chat/guest", async (route) => {
+		calls++;
+		const body = JSON.parse(route.request().postData() ?? "{}") as { messages: { role: string }[] };
+		await route.fulfill({
+			headers: { "content-type": "text/event-stream" },
+			// The resent history must end on the user's turn, not the old reply.
+			body: v2([["token", { text: `reply ${calls}, last turn ${body.messages.at(-1)?.role}` }], ["done", {}]]),
+		});
+	});
+	await page.goto("/");
+	await send(page, "first");
+	await expect(page.locator(".assistant-message .message-body p").last()).toHaveText("reply 1, last turn user");
+	await send(page, "second");
+	await expect(page.locator(".assistant-message .message-body p").last()).toHaveText("reply 2, last turn user");
+	await expect(page.locator(".regenerate-button")).toHaveCount(1);
+
+	await page.locator(".regenerate-button").click();
+	await expect(page.locator(".assistant-message .message-body p").last()).toHaveText("reply 3, last turn user");
+	await expect(page.locator(".assistant-message:not(.is-error) .message-body p", { hasText: "reply 2" })).toHaveCount(0);
+	await expect(page.locator(".user-message")).toHaveCount(2);
+	expect(await page.evaluate(() => window.chat?.history().filter((m) => m.role === "assistant").length)).toBe(3);
+});
+
+test("Jump to latest appears when scrolled up during a reply and takes you back", async ({ page }) => {
+	const long = Array.from({ length: 80 }, (_, i) => `Line ${i + 1} of a long answer.`).join("\n\n");
+	let release: () => void = () => {};
+	let calls = 0;
+	await page.route("**/api/chat/guest", async (route) => {
+		calls++;
+		if (calls === 2) await new Promise<void>((resolve) => (release = resolve));
+		await route.fulfill({ headers: { "content-type": "text/event-stream" }, body: v2([["token", { text: long }], ["done", {}]]) }).catch(() => {});
+	});
+	await page.goto("/");
+	await send(page, "long please");
+	await expect(page.locator(".message-usage, .message-actions").last()).toBeAttached();
+
+	await send(page, "again");
+	const scroller = page.locator("#chat-messages");
+	await scroller.evaluate((el) => el.scrollTo({ top: 0 }));
+	const pill = page.locator(".jump-pill");
+	await expect(pill).toBeVisible();
+
+	await pill.click();
+	await expect(pill).toBeHidden();
+	await expect.poll(() => scroller.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThan(40);
+	release();
+});
+
 test("a rate limit gets a designed notice, not a generic error", async ({ page }) => {
 	await page.route("**/api/chat/guest", (route) =>
 		route.fulfill({

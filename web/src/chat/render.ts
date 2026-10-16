@@ -103,6 +103,21 @@ function chips(suggestions: string[]): HTMLElement | null {
 	return row;
 }
 
+/** The clean text of each finished reply, for Copy. Markers already stripped. */
+export const replyText = new WeakMap<Element, string>();
+
+function actionButton(kind: "copy" | "regenerate"): HTMLButtonElement {
+	const button = el("button", `message-action ${kind}-button`);
+	button.type = "button";
+	button.dataset.action = kind;
+	button.append(icon(kind === "copy" ? "copy" : "arrow-clockwise"));
+	const label = el("span", "sr-only");
+	label.textContent = t(kind === "copy" ? "copy" : "regenerate");
+	button.append(label);
+	button.title = label.textContent;
+	return button;
+}
+
 export interface AssistantView {
 	readonly root: HTMLElement;
 	/** Re-render from the full text so far. Batched to one paint per frame. */
@@ -176,9 +191,13 @@ export function createAssistantMessage(): AssistantView {
 			const row = chips(extracted.suggestions);
 			if (row) body.append(row);
 
+			replyText.set(root, extracted.text);
 			const actions = el("div", "message-actions");
 			const feedback = el("div", "message-feedback");
-			feedback.append(feedbackButton("up"), feedbackButton("down"));
+			const tools = el("div", "message-tools");
+			if (extracted.text) tools.append(actionButton("copy"));
+			tools.append(actionButton("regenerate"));
+			feedback.append(tools, feedbackButton("up"), feedbackButton("down"));
 			actions.append(feedback);
 			if (typeof options.completionTokens === "number") {
 				const usage = el("span", "message-usage");

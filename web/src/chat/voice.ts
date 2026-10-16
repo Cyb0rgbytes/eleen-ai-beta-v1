@@ -14,6 +14,7 @@ import { isSignedIn } from "../auth/clerk";
 import { t } from "../i18n";
 import { setIcon } from "../ui/icons";
 import { showToast } from "../ui/toast";
+import { createWaveformElement, startWaveform, type Waveform } from "./waveform";
 import type { ChatApi } from "./controller";
 
 const MAX_MS = 60_000;
@@ -40,6 +41,7 @@ interface Recording {
 	cancelled: boolean;
 	limit: ReturnType<typeof setTimeout>;
 	tick: ReturnType<typeof setInterval>;
+	wave: Waveform;
 }
 
 export function normaliseCommand(text: string): "send" | "new-chat" | null {
@@ -59,6 +61,9 @@ export function initVoice(chat: ChatApi): void {
 	}
 
 	const label = button.querySelector("span");
+	// The level meter sits just before the timer, inside the composer row.
+	const waveEl = createWaveformElement();
+	(timer ?? button).before(waveEl);
 	let recording: Recording | null = null;
 	let savedPlaceholder: string | null = null;
 
@@ -150,6 +155,7 @@ export function initVoice(chat: ChatApi): void {
 		recording.cancelled = cancel;
 		clearTimeout(recording.limit);
 		clearInterval(recording.tick);
+		recording.wave.stop();
 		for (const track of recording.stream.getTracks()) track.stop();
 		if (recording.recorder.state !== "inactive") recording.recorder.stop();
 	}
@@ -184,6 +190,7 @@ export function initVoice(chat: ChatApi): void {
 			cancelled: false,
 			limit: setTimeout(() => stop(), MAX_MS),
 			tick: setInterval(updateTimer, 250),
+			wave: startWaveform(stream, waveEl),
 		};
 		recorder.start();
 		setState("recording");
