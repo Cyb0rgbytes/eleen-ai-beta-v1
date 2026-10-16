@@ -133,6 +133,9 @@ describe("content security policy", () => {
 		expect(policies).toHaveLength(2);
 		expect(policies[1]).toContain("require-trusted-types-for 'script'");
 		expect(policies[0]).not.toContain("require-trusted-types-for");
+		// Only the main policy reports to the Worker; see security-headers.ts.
+		expect(policies[0]).toContain("report-uri /api/csp-report");
+		expect(policies[1]).not.toContain("report-uri");
 	});
 
 	// The nonce lets Cloudflare's injected JavaScript Detections script run
