@@ -90,12 +90,12 @@ Body text 4.5:1 against its surface in both themes. The wordmark and the footer 
 
 ## 4. Typography
 
-Two families, loaded from `/fonts/` once the Vite port self-hosts them (M3.5). Until then they come from Google Fonts with `display=swap`.
+Three families, self-hosted from `/fonts/` as WOFF2 with `font-display: swap` (M3.5).
 
 | Role | Family | Why |
 |---|---|---|
 | Latin UI and body | **Inter** | Already the brand's face. Kept under preserve mode; its neutrality suits a reading surface. |
-| Arabic UI and body | **Noto Sans Arabic** | Metrics sit well beside Inter, full weight range, correct shaping for Gulf and Levantine text. Loaded only when `lang="ar"`. |
+| Arabic UI and body | **Noto Sans Arabic** | Metrics sit well beside Inter, full weight range, correct shaping for Gulf and Levantine text. Its `@font-face` is scoped by `unicode-range` to Arabic code points, so the browser fetches it only when Arabic text renders, in either UI language. An English-only session never downloads it. |
 | Code | **JetBrains Mono** | Already in use. Code blocks, inline code, token counts. |
 
 Font stacks:
@@ -169,7 +169,9 @@ Full-width transparent shell, 52rem reading column. The empty state shows a gree
 
 A pill, `--surface` with `blur(24px)`, `--r-pill`. From inline-start: attach, the text area, microphone, send. Send is a solid `--accent` circle; it is the one control on the page that must read as solid at a glance. The mode pills (Balanced, Creative, Logical) move from above the field into the picker popover. The enhance action stays as an icon inside the pill.
 
-Focus ring: 2px `--accent-line` outside the pill. Disabled: 50% opacity, no pointer. Recording: microphone fills `--recording`, a timer appears inline, Escape cancels.
+Focus ring: 2px `--accent-line` outside the pill. Disabled: 50% opacity, no pointer. Recording: microphone fills `--recording`, a timer and a live level waveform from the microphone stream appear inline, Escape cancels.
+
+While a reply streams, Send becomes **Stop**: the same `--accent` circle with a stop glyph and the label "Stop generating". Pressing it aborts the request; the text received so far stays in the panel, marked as stopped.
 
 ### Model picker (M3.6)
 
@@ -193,24 +195,37 @@ Only on the v2 stream, only when a `reasoning` event arrives. A collapsible row 
 
 Assistant: `--assistant-bubble`, `--r-lg`, a small "E" avatar at the inline-start, actions (copy, regenerate, feedback) revealed on hover or focus in a row under the text. User: `--user-bubble`, `--on-user-bubble`, `--r-lg` with the trailing corner at `--r-sm`, aligned to `inset-inline-end`, max 75% of the column.
 
-Streaming: the newest token is appended without a caret animation; a 1px `--accent-line` left rule on the panel pulses only while tokens arrive, and stops. Under reduced motion it is static.
+Streaming: the newest token is appended without a caret animation; a 1px `--accent-line` rule on the panel's inline-start edge pulses only while tokens arrive, and stops. Under reduced motion it is static.
+
+Usage: on the v2 stream, the actions row ends with the output token count in `--fs-xs` `--text-faint` ("212 tokens"). Not shown for v1.
+
+### Jump to latest
+
+A pill, `--surface-solid` with a `--line` border and `--r-pill`, centred above the composer. It appears when the user has scrolled more than 160px up from the bottom while a reply is streaming, reads "Jump to latest" with a down arrow, and scrolls to the end on click or Enter. It hides when the user is back within the stick threshold.
 
 ### Sidebar (M4.4)
 
 Off-canvas on viewports under 1024px, pinned at 280px above. `--bg-deep` fill, since it should not show the scene through it. Sections: New chat, Pinned, Folders, Recent, and a search field at the top. Items are single-line with `text-overflow: ellipsis`; the active item has `--accent-soft`. The toggle lives at the top inline-start corner and mirrors in RTL. The sidebar never covers the composer on desktop.
 
-### Keys form (M3.4 part two)
+### Keys form (M3.6)
+
+The UI for `/api/v1/keys`, which shipped in M3.4 part two.
 
 A `--surface-solid` dialog listing the four providers. Each row: provider name, a masked field showing the stored key's last four, a Replace action and a Remove action. Adding a key shows one field with a label above it, inline validation below it on 422, and a success state that shows the last four. No placeholder-as-label.
 
 ### Toasts
 
-Bottom inline-end, `--surface-solid`, one line, auto-dismiss at 4s with a visible dismiss control. Icons from the icon font, never emoji glyphs; the mojibake incident came from a `charset` header, but emoji in UI strings is not worth the risk in either case.
+Bottom inline-end, `--surface-solid`, one line, auto-dismiss at 4s with a visible dismiss control. Icons from the inline SVG set, never emoji glyphs; the mojibake incident came from a `charset` header, but emoji in UI strings is not worth the risk in either case.
 
 ## 8. Motion
 
 - `--ease: cubic-bezier(0.16, 1, 0.3, 1)`, durations 160 ms for state changes, 240 ms for reveals, 320 ms for the sidebar and popovers.
-- Animate `transform` and `opacity` only.
+- Animate `transform` and `opacity` only. No springs: every motion uses `--ease`, so the page has one feel.
+- Entrances, all 240 ms on `--ease`:
+  - User turn: opacity from 0 and `translateX(12px)` toward the inline-end side, so it arrives from the side it lives on.
+  - Assistant panel: opacity from 0 and `translateY(8px)`.
+  - Empty-state greeting and prompt cards: same rise, staggered 40 ms per element.
+- Prompt card hover: `translateY(-2px)` and the border moves to `--accent-line`. No box-shadow glow.
 - `@media (prefers-reduced-motion: reduce)` sets every transition to `0ms` and removes the streaming pulse.
 - The scene itself is the motion layer. On `prefers-reduced-motion`, `saveData`, under four cores, or on a coarse pointer, the scene is skipped and a static WebP poster of the robot takes its place at `z-index: 0` (M5.5).
 
@@ -222,6 +237,15 @@ Bottom inline-end, `--surface-solid`, one line, auto-dismiss at 4s with a visibl
 - Buttons have text labels, even when visually icon-only, via a visually hidden span.
 - Touch targets at least 44px on coarse pointers.
 - The scene is `aria-hidden`.
+
+### Rendering model output
+
+Model output is attacker-influenced: a prompt injection in a document or search result can make the model write anything. So:
+
+- Our code has **no HTML sinks**. Markdown is tokenised and turned into DOM nodes from an allowlist of elements and attributes. Raw HTML in a reply renders as text.
+- Links pass a scheme allowlist (`http`, `https`, `mailto`) and open with `rel="noopener noreferrer nofollow"` and `target="_blank"`.
+- Markdown images never render as `<img>`. A model-written image URL is the classic exfiltration channel; it is shown as a link instead.
+- Trusted Types runs in a Report-Only header. Our code would pass enforcement; Clerk and the Spline viewer may not, and enforcing on their behalf would mean a permissive default policy.
 
 ## 10. What we deliberately do not do
 

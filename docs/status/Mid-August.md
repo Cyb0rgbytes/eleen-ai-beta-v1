@@ -106,7 +106,7 @@ before, deliberately.
 RFC 8414 §3.3 requires the `issuer` in that document to equal the URL prefix it was fetched from.
 Clerk mints the tokens, not EleenAI. This is the identical conflict that made
 `/.well-known/openid-configuration` a 307 redirect rather than a synthetic document — the reasoning
-is recorded at [wellknown.ts:140-153](src/agent/wellknown.ts#L140-L153).
+is recorded at [wellknown.ts:140-153](../../src/agent/wellknown.ts#L140-L153).
 
 The difference is that `agent_auth` has nowhere else to go. It describes how agents authenticate to
 *EleenAI*, and Clerk's document — the only RFC-conformant place to look — cannot carry a block
@@ -132,7 +132,7 @@ accident.
 `anonymous` is not a placeholder — it maps to the `/guest` routes that serve unauthenticated agents
 today. `identity_assertion` and `service_auth` are omitted because both need a registration
 endpoint, a claim ceremony and a JWT-bearer exchange that does not exist here. Advertising them
-would point agents at URLs that 404 — the same failure [openapi.ts:254](src/agent/openapi.ts#L254)
+would point agents at URLs that 404 — the same failure [openapi.ts:254](../../src/agent/openapi.ts#L254)
 is already criticised for in EndofJuly.md.
 
 ### Verified against Clerk, not guessed
@@ -143,12 +143,12 @@ up `revocation_endpoint` and S256 PKCE support, both now included.
 
 ### Wiring
 
-- Route in [router.ts](src/agent/router.ts), beside the protected-resource pair.
-- `Link` relation in [links.ts](src/agent/links.ts), propagating to both header constants. It is
+- Route in [router.ts](../../src/agent/router.ts), beside the protected-resource pair.
+- `Link` relation in [links.ts](../../src/agent/links.ts), propagating to both header constants. It is
   unregistered, like `oauth-protected-resource` and `mcp-server` beside it; the conformance note
   says so.
 - `service-meta` entries in the API catalog.
-- [auth.md](src/agent/content/auth.md) gains an **Agent registration** section carrying the block —
+- [auth.md](../../src/agent/content/auth.md) gains an **Agent registration** section carrying the block —
   the file's first machine-readable content. Its Authorization Server section was corrected: it
   claimed EleenAI serves no discovery document of its own, which is no longer true.
 
@@ -156,7 +156,7 @@ up `revocation_endpoint` and S256 PKCE support, both now included.
 
 ## DNS-AID
 
-Documentation only. [docs/dns-aid-records.md](docs/dns-aid-records.md) gains:
+Documentation only. [docs/dns-aid-records.md](../../docs/dns-aid-records.md) gains:
 
 - **`_index._agents.eleenai.xyz`**, the entrypoint record scanners probe. The runbook previously
   prescribed only the protocol-specific `_eleenai._mcp` record, so a valid record set still left
@@ -215,7 +215,7 @@ middle, then snapped. That was the instability — jumping, not stuttering. Fram
 the problem (240fps, zero dropped frames).
 
 Events now go to `.message` rather than the scroller, so text selection survives while the gaps
-pass through. The wheel is handled by a forwarder in [chat.js](public/chat.js). **Touch is exempt**
+pass through. The wheel is handled by a forwarder in [chat.js](../../web/public/chat.js). **Touch is exempt**
 — touch scrolling is hit-test driven and the forwarder only covers `wheel`, so a coarse pointer
 gives the scroller its events back. Keyed on `(hover: none), (pointer: coarse)` rather than width,
 since a narrow desktop window still has a cursor and a large tablet still needs touch.
@@ -229,7 +229,7 @@ since a narrow desktop window still has a cursor and a large tablet still needs 
   real thing. The technique: route `**/style.css*` to the local file while loading the live page,
   so production's scene renders behind local CSS.
 - **`wrangler deploy` uploads the working directory, not a branch.** Pushing does not deploy —
-  there is no CI deploy pipeline, only [codeql.yml](.github/workflows/codeql.yml). A deploy run
+  there is no CI deploy pipeline, only [codeql.yml](../../.github/workflows/codeql.yml). A deploy run
   from a stale checkout will succeed and publish old code.
 - **A Worker-code route is the reliable deploy check.** Static assets can be edge-cached, so old
   HTML/CSS proves nothing. A 404 on a route that exists in source proves the Worker itself is
@@ -263,11 +263,11 @@ Unchanged from EndofJuly.md unless noted.
 
 - [ ] **KV memory has no notice and no opt-out** while storing name, job, location and preferences
       at a 90-day TTL. Still the most pressing gap; consent work gates anything else that stores data.
-- [ ] `/` is served without `charset=utf-8` ([router.ts:74](src/agent/router.ts#L74)) — mojibake in
+- [ ] `/` is served without `charset=utf-8` ([router.ts:74](../../src/agent/router.ts#L74)) — mojibake in
       toast icons. One-line fix.
 - [ ] `currentMode` is never sent to the server, so Balanced/Creative/Logical does nothing
       server-side despite `validateChatBody` accepting it.
-- [ ] [openapi.ts:254](src/agent/openapi.ts#L254) still claims conversation history is persisted;
+- [ ] [openapi.ts:254](../../src/agent/openapi.ts#L254) still claims conversation history is persisted;
       only a 2KB summarised profile is stored.
 - [ ] No `vitest.config.ts`, so `@cloudflare/vitest-pool-workers` is unused and nothing touching
       KV, `Env` or `Request` is testable. The new agent surfaces have **no test coverage**.
