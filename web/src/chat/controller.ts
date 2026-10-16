@@ -19,15 +19,20 @@ import { ApiError, request, streamChat } from "../api/client";
 import { isSignedIn, openSignIn } from "../auth/clerk";
 import { t } from "../i18n";
 import { showToast } from "../ui/toast";
-import { createAssistantMessage, createImageMessage, createNotice, createThinking, createUserMessage } from "./render";
+import {
+	createAssistantMessage,
+	createImageMessage,
+	createImageSkeleton,
+	createNotice,
+	createThinking,
+	createUserMessage,
+} from "./render";
 import { follow } from "./scroll";
 
 const MAX_HISTORY = 20;
 
 export interface ChatControllerOptions {
 	messages: HTMLElement;
-	/** The status line above the composer, used for image generation. */
-	status: HTMLElement | null;
 	onBusyChange(busy: boolean): void;
 	/** Builds the empty state shown before the first message and on a new chat. */
 	emptyState(): HTMLElement;
@@ -47,7 +52,7 @@ function greeting(): ChatMessage[] {
 }
 
 export function createChat(options: ChatControllerOptions): ChatApi {
-	const { messages, status } = options;
+	const { messages } = options;
 	let history: ChatMessage[] = greeting();
 	let busy = false;
 	let mode: ResponseMode = "balanced";
@@ -68,12 +73,6 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 			const first = history[0];
 			history = first ? [first, ...history.slice(-(MAX_HISTORY - 1))] : history.slice(-MAX_HISTORY);
 		}
-	}
-
-	function showStatus(text: string | null) {
-		if (!status) return;
-		status.textContent = text ?? "";
-		status.classList.toggle("visible", text !== null);
 	}
 
 	/** A designed notice for the failures a person can act on. */
@@ -115,7 +114,9 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 	}
 
 	async function generateImage(prompt: string): Promise<boolean> {
-		showStatus(t("generatingImage"));
+		// A skeleton where the image will appear, instead of a status line.
+		const placeholder = createImageSkeleton(prompt);
+		append(placeholder, { force: true });
 		try {
 			const authenticated = isSignedIn();
 			const response = await request(authenticated ? "/api/image/generate" : "/api/image/generate/guest", {
@@ -125,19 +126,19 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 				timeoutMs: 90_000,
 			});
 			const url = URL.createObjectURL(await response.blob());
-			append(createImageMessage(url, prompt));
+			placeholder.replaceWith(createImageMessage(url, prompt));
 			return true;
 		} catch (error) {
 			const notice = failureNotice(error);
-			if (notice) append(notice, { force: true });
+			if (notice) placeholder.replaceWith(notice);
 			else {
 				const view = createAssistantMessage();
-				append(view.root);
+				placeholder.replaceWith(view.root);
 				view.fail(t("errorImage"));
 			}
 			return false;
 		} finally {
-			showStatus(null);
+			requestAnimationFrame(() => follow(messages));
 		}
 	}
 

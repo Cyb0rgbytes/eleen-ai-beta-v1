@@ -66,6 +66,19 @@ describe("assistant message", () => {
 		expect(view.root.querySelector(".message-body")?.textContent).toBe("abc");
 	});
 
+	it("marks itself receiving while tokens arrive, and settles after", () => {
+		vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "setTimeout", "clearTimeout"] });
+		const view = createAssistantMessage();
+		view.update("a");
+		expect(view.root.classList.contains("is-receiving")).toBe(true);
+		vi.advanceTimersByTime(600);
+		expect(view.root.classList.contains("is-receiving")).toBe(false);
+		view.update("ab");
+		view.finish("ab");
+		expect(view.root.classList.contains("is-receiving")).toBe(false);
+		expect(view.root.classList.contains("is-streaming")).toBe(false);
+	});
+
 	it("shows a designed error state", () => {
 		const view = createAssistantMessage();
 		view.fail("Could not reach EleenAI.");
@@ -80,6 +93,24 @@ describe("assistant message", () => {
 		const view = createAssistantMessage();
 		view.finish("x", { completionTokens: 5 });
 		expect(view.root.querySelector(".message-usage")?.textContent).toBe("5 رمز");
+	});
+});
+
+describe("skeletons", () => {
+	it("shapes the first-token wait like the reply it becomes", async () => {
+		const { createThinking } = await import("./render");
+		const node = createThinking();
+		expect(node.getAttribute("role")).toBe("status");
+		expect(node.querySelectorAll(".skeleton-line")).toHaveLength(3);
+		expect(node.querySelector(".ai-avatar")).not.toBeNull();
+		expect(node.textContent).toContain("EleenAI is thinking");
+	});
+
+	it("holds the image's place with a 4:3 frame", async () => {
+		const { createImageSkeleton } = await import("./render");
+		const node = createImageSkeleton("<script>x</script>");
+		expect(node.querySelector(".skeleton-image")).not.toBeNull();
+		expect(node.querySelector("script")).toBeNull();
 	});
 });
 

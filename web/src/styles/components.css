@@ -622,46 +622,80 @@ header {
 	color: var(--text-faint);
 }
 
-/* ── Status and thinking indicators ─────────────────────────────────────── */
+/* ── Skeletons (DESIGN.md principle 7) ──────────────────────────────────── */
 
-/* Only shown for image generation; replies use the thinking dots. */
-.typing-indicator {
-	display: none;
-	flex-shrink: 0;
-	padding: 0 var(--sp-3) var(--sp-2);
-	font-size: 0.78rem;
-	color: var(--text-faint);
-}
-
-.typing-indicator.visible {
-	display: block;
-}
-
-/* Mirrors the assistant grid so the dots sit where the reply will appear. */
+/* The first-token wait: the assistant grid with a panel of three lines, so
+   the reply takes its place without the layout moving. */
 .thinking-indicator {
 	display: grid;
 	grid-template-columns: 26px minmax(0, 1fr);
 	column-gap: var(--sp-2);
-	align-items: center;
+	align-items: start;
+	max-inline-size: 92%;
+	inline-size: 32rem;
 	margin-block-end: 1.25rem;
 }
 
-.thinking-dots {
+.skeleton-panel {
 	display: flex;
-	align-items: center;
-	gap: 4px;
-	block-size: 26px;
+	flex-direction: column;
+	gap: 0.6rem;
+	padding: 0.95rem 1rem;
+	background: var(--assistant-bubble);
+	backdrop-filter: var(--blur-panel);
+	-webkit-backdrop-filter: var(--blur-panel);
+	border: 1px solid var(--line);
+	border-radius: var(--r-md);
+	box-shadow: var(--shadow-panel);
 }
 
-.thinking-dots div {
-	inline-size: 6px;
-	block-size: 6px;
-	border-radius: 50%;
+.skeleton-line,
+.skeleton-image {
+	position: relative;
+	overflow: hidden;
+	background: var(--field-hover);
+	border-radius: var(--r-xs);
+}
+
+.skeleton-line {
+	block-size: 0.7rem;
+}
+
+/* The image wait: a 4:3 frame where the picture will land. */
+.skeleton-image {
+	inline-size: min(100%, 360px);
+	aspect-ratio: 4 / 3;
+	border-radius: var(--r-md);
+}
+
+/* The sheen that sweeps across a skeleton, animated by transform. */
+.skeleton-line::after,
+.skeleton-image::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(90deg, transparent, var(--field-hover), transparent);
+	transform: translateX(-100%);
+}
+
+/* ── Streaming rule (DESIGN.md section 7) ───────────────────────────────── */
+
+/* A 1px accent line on the panel's inline-start edge, shown only while
+   tokens are arriving (.is-receiving, set by render.ts). */
+.assistant-message .message-body {
+	position: relative;
+}
+
+.assistant-message .message-body::before {
+	content: "";
+	position: absolute;
+	inset-block: 0.7rem;
+	inset-inline-start: -1px;
+	inline-size: 2px;
+	border-radius: var(--r-pill);
 	background: var(--accent);
-}
-
-.thinking-text {
-	display: none;
+	opacity: 0;
+	pointer-events: none;
 }
 
 /* ── Composer ───────────────────────────────────────────────────────────── */
@@ -864,18 +898,6 @@ header {
 	font-variant-numeric: tabular-nums;
 	color: var(--recording-text);
 	text-align: end;
-}
-
-.send-loading {
-	display: flex;
-	gap: 3px;
-}
-
-.send-loading div {
-	inline-size: 5px;
-	block-size: 5px;
-	border-radius: 50%;
-	background: var(--on-accent);
 }
 
 /* Icons are inline SVG sized by the font, so they follow button text. */

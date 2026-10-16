@@ -43,14 +43,39 @@ export function createUserMessage(text: string): HTMLElement {
 	return root;
 }
 
+/**
+ * The wait for the first token: a skeleton shaped like the reply panel it
+ * becomes (DESIGN.md principle 7), not a spinner. Same grid as an assistant
+ * turn, so the reply replaces it without the layout moving.
+ */
 export function createThinking(): HTMLElement {
 	const root = el("div", "thinking-indicator");
 	root.setAttribute("role", "status");
-	const dots = el("div", "thinking-dots");
-	dots.append(el("div"), el("div"), el("div"));
+	const panel = el("div", "skeleton-panel");
+	for (const width of ["92%", "78%", "54%"]) {
+		const line = el("div", "skeleton-line");
+		line.style.inlineSize = width;
+		panel.append(line);
+	}
 	const label = el("span", "sr-only");
 	label.textContent = t("thinking");
-	root.append(avatar(), dots, label);
+	root.append(avatar(), panel, label);
+	return root;
+}
+
+/** The wait for a generated image: a skeleton at the image's place and size. */
+export function createImageSkeleton(prompt: string): HTMLElement {
+	const root = el("div", "message assistant-message is-pending");
+	root.setAttribute("role", "status");
+	const body = el("div", "message-body");
+	const frame = el("div", "skeleton-image");
+	const caption = el("span", "chat-image-caption");
+	caption.dir = "auto";
+	caption.textContent = t("generatingImage");
+	const label = el("span", "sr-only");
+	label.textContent = prompt;
+	body.append(frame, caption, label);
+	root.append(avatar(), body);
 	return root;
 }
 
@@ -96,6 +121,21 @@ export function createAssistantMessage(): AssistantView {
 
 	let pending: string | null = null;
 	let frame = 0;
+	// The accent rule pulses only while tokens are arriving (DESIGN.md 7):
+	// each update re-arms a short timer, and a pause lets it settle.
+	let receiving: ReturnType<typeof setTimeout> | undefined;
+	const RECEIVING_MS = 500;
+
+	function markReceiving() {
+		root.classList.add("is-receiving");
+		clearTimeout(receiving);
+		receiving = setTimeout(() => root.classList.remove("is-receiving"), RECEIVING_MS);
+	}
+
+	function stopReceiving() {
+		clearTimeout(receiving);
+		root.classList.remove("is-receiving");
+	}
 
 	function paint(raw: string, streaming: boolean): Extracted {
 		const extracted = extractMarkers(raw, { streaming });
@@ -107,6 +147,7 @@ export function createAssistantMessage(): AssistantView {
 		root,
 		update(raw) {
 			pending = raw;
+			markReceiving();
 			if (frame) return;
 			frame = requestAnimationFrame(() => {
 				frame = 0;
@@ -120,6 +161,7 @@ export function createAssistantMessage(): AssistantView {
 			pending = null;
 
 			const extracted = paint(raw, false);
+			stopReceiving();
 			root.classList.remove("is-streaming");
 			if (!extracted.text && !options.stopped) {
 				const p = el("p");
@@ -149,6 +191,7 @@ export function createAssistantMessage(): AssistantView {
 		fail(message) {
 			if (frame) cancelAnimationFrame(frame);
 			frame = 0;
+			stopReceiving();
 			root.classList.remove("is-streaming");
 			root.classList.add("is-error");
 			const p = el("p", "message-error");

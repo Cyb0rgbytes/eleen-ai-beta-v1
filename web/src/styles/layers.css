@@ -105,7 +105,6 @@
 .gateway-container header,
 .gateway-container footer,
 .message-input,
-.typing-indicator,
 .message,
 .thinking-indicator,
 .guest-limit-prompt,
@@ -136,8 +135,7 @@ header,
 footer,
 #chat-messages,
 .chat-messages,
-.message-input,
-.typing-indicator {
+.message-input {
 	inline-size: 100%;
 	max-inline-size: var(--column);
 	margin-inline: auto;

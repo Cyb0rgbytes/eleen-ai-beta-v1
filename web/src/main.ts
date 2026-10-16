@@ -61,7 +61,6 @@ async function boot(): Promise<void> {
 	};
 	const chat = createChat({
 		messages,
-		status: document.getElementById("typing-indicator"),
 		onBusyChange: (busy) => composer?.setBusy(busy),
 		emptyState,
 	});
