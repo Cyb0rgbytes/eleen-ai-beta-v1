@@ -32,7 +32,7 @@
 		"cf-typegen": "wrangler types",
 		"skills": "node scripts/gen-skill-digests.mjs",
 		"build": "node scripts/gen-skill-digests.mjs && vite build",
-		"check": "node scripts/gen-skill-digests.mjs --check && tsc --noEmit && tsc -p web/tsconfig.json && wrangler deploy --dry-run && node scripts/check-bundle-size.mjs",
+		"check": "node scripts/gen-skill-digests.mjs --check && node scripts/gen-icons.mjs --check && tsc --noEmit && tsc -p web/tsconfig.json && wrangler deploy --dry-run && node scripts/check-bundle-size.mjs",
 		"deploy": "node scripts/deploy.mjs",
 		"verify-deploy": "node scripts/verify-deploy.mjs",
 		"dev": "wrangler dev",

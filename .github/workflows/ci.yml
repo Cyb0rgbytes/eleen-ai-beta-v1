@@ -22,6 +22,8 @@ jobs:
       - run: npm ci
       - name: Skill digests match the served documents
         run: node scripts/gen-skill-digests.mjs --check
+      - name: Icon data matches the generator
+        run: node scripts/gen-icons.mjs --check
       - name: Typecheck Worker
         run: npx tsc --noEmit
       - name: Typecheck frontend
