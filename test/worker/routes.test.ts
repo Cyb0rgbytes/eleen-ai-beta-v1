@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { env, exports } from "cloudflare:workers";
 import { Bucket, RULES, rateLimitKey } from "../../src/lib/ratelimit";
+import { withSecurityHeaders } from "../../src/lib/security-headers";
 
 const ORIGIN = "https://eleenai.xyz";
 
@@ -104,6 +105,7 @@ describe("content security policy", () => {
 				"https://cdn.protect.clerk.com",
 				"https://challenges.cloudflare.com",
 				"https://clerk.eleenai.xyz",
+				"https://static.cloudflareinsights.com",
 				"https://unpkg.com",
 			].sort(),
 		);
@@ -131,6 +133,40 @@ describe("content security policy", () => {
 		expect(policies).toHaveLength(2);
 		expect(policies[1]).toContain("require-trusted-types-for 'script'");
 		expect(policies[0]).not.toContain("require-trusted-types-for");
+	});
+
+	// The nonce lets Cloudflare's injected JavaScript Detections script run
+	// while every other inline script stays blocked.
+	function securedPage(): string[] {
+		const page = new Response("<!doctype html>", { headers: { "content-type": "text/html; charset=utf-8" } });
+		const header = withSecurityHeaders(page, new URL("https://eleenai.xyz/")).headers.get(
+			"content-security-policy-report-only",
+		);
+		return directive(header ?? "", "script-src");
+	}
+
+	it("gives each HTML document a fresh, unguessable script nonce", () => {
+		const first = securedPage().filter((s) => s.startsWith("'nonce-"));
+		const second = securedPage().filter((s) => s.startsWith("'nonce-"));
+		expect(first).toHaveLength(1);
+		expect(second).toHaveLength(1);
+		expect(first[0]).not.toEqual(second[0]);
+		// 16 random bytes, base64: 24 characters inside 'nonce-…'.
+		expect(first[0]).toMatch(/^'nonce-[A-Za-z0-9+/]{22}=='$/);
+		// The nonce adds to the allowlist; it never brings inline back.
+		expect(securedPage()).not.toContain("'unsafe-inline'");
+	});
+
+	it("puts no nonce on API responses", async () => {
+		const response = await fetchWorker("/api/v1/health");
+		const csp = response.headers.get("content-security-policy-report-only") ?? "";
+		expect(directive(csp, "script-src").some((s) => s.startsWith("'nonce-"))).toBe(false);
+	});
+
+	it("allows the Web Analytics beacon to report", async () => {
+		const response = await fetchWorker("/api/v1/health");
+		const csp = response.headers.get("content-security-policy-report-only") ?? "";
+		expect(directive(csp, "connect-src")).toContain("https://cloudflareinsights.com");
 	});
 });
 
