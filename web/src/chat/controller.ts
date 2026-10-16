@@ -18,6 +18,7 @@ import type { ChatMessage, ResponseMode } from "../../../src/shared/chat";
 import { ApiError, request, streamChat } from "../api/client";
 import { isSignedIn, openSignIn } from "../auth/clerk";
 import { t } from "../i18n";
+import { setIcon } from "../ui/icons";
 import { showToast } from "../ui/toast";
 import {
 	createAssistantMessage,
@@ -26,6 +27,7 @@ import {
 	createNotice,
 	createThinking,
 	createUserMessage,
+	replyText,
 } from "./render";
 import { follow } from "./scroll";
 
@@ -42,6 +44,7 @@ export interface ChatApi {
 	sendMessage(text?: string): Promise<void>;
 	stop(): void;
 	clearChat(options?: { confirm?: boolean }): boolean;
+	regenerate(): Promise<void>;
 	history(): ChatMessage[];
 	isProcessing(): boolean;
 	setMode(mode: ResponseMode): void;
@@ -149,23 +152,50 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 
 		setBusy(true);
 		messages.querySelector(".empty-state")?.remove();
-		const thinking = createThinking();
 		append(createUserMessage(message), { force: true });
-		append(thinking, { force: true });
 		if (input && text === undefined) {
 			input.value = "";
 			input.dispatchEvent(new Event("input"));
 		}
 		history.push({ role: "user", content: message });
 
-		try {
-			if (message.toLowerCase().startsWith("/imagine ")) {
-				thinking.remove();
+		if (message.toLowerCase().startsWith("/imagine ")) {
+			try {
 				const prompt = message.slice("/imagine ".length).trim();
 				if (await generateImage(prompt)) history.push({ role: "assistant", content: `[Generated image: ${prompt}]` });
-				return;
+			} finally {
+				bound();
+				setBusy(false);
+				document.dispatchEvent(new CustomEvent("eleen:turn-complete"));
 			}
+			return;
+		}
+		await runTurn();
+	}
 
+	/**
+	 * Ask again for the newest reply: drop it from the page and the history,
+	 * then stream a fresh one from the same conversation.
+	 */
+	async function regenerate(): Promise<void> {
+		if (busy) return;
+		const last = history.at(-1);
+		if (last?.role !== "assistant" || history.length < 2) return;
+		history.pop();
+		const replies = messages.querySelectorAll(".assistant-message");
+		replies[replies.length - 1]?.remove();
+		setBusy(true);
+		await runTurn();
+	}
+
+	/** Stream one assistant turn from the current history. Owns busy and the turn-complete event. */
+	async function runTurn(): Promise<void> {
+		const thinking = createThinking();
+		append(thinking, { force: true });
+		// Only the newest reply offers Regenerate.
+		messages.querySelectorAll(".regenerate-button").forEach((b) => b.remove());
+
+		try {
 			controller = new AbortController();
 			const view = createAssistantMessage();
 			let raw = "";
@@ -276,14 +306,45 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 			return;
 		}
 
+		const action = event.target.closest<HTMLButtonElement>("[data-action]");
+		if (action) {
+			const reply = action.closest(".assistant-message");
+			if (action.dataset.action === "regenerate") {
+				void regenerate();
+			} else if (action.dataset.action === "copy" && reply) {
+				void copyReply(action, replyText.get(reply) ?? "");
+			}
+			return;
+		}
+
 		const image = event.target.closest<HTMLImageElement>(".chat-image");
 		if (image) window.open(image.src, "_blank", "noopener");
 	});
+
+	/** Copy a reply's text; the icon morphs to a check and back (DESIGN.md 7). */
+	async function copyReply(button: HTMLButtonElement, text: string): Promise<void> {
+		try {
+			await navigator.clipboard.writeText(text);
+		} catch {
+			showToast(t("copyFailed"), "error");
+			return;
+		}
+		const label = button.querySelector(".sr-only");
+		button.classList.add("is-done");
+		setIcon(button, "check");
+		if (label) label.textContent = t("copied");
+		setTimeout(() => {
+			button.classList.remove("is-done");
+			setIcon(button, "copy");
+			if (label) label.textContent = t("copy");
+		}, 1500);
+	}
 
 	return {
 		sendMessage,
 		stop,
 		clearChat,
+		regenerate,
 		history: () => history,
 		isProcessing: () => busy,
 		setMode: (next) => {

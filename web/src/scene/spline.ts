@@ -35,6 +35,22 @@ export function skipReason(): string | null {
 	return null;
 }
 
+/**
+ * Trusted Types: assigning a script's src is a sink. The page's only one
+ * goes through this policy, which accepts exactly the pinned viewer URL and
+ * nothing else, so our own code would pass `require-trusted-types-for`.
+ */
+interface TrustedTypesLike {
+	createPolicy(name: string, rules: { createScriptURL(url: string): string }): { createScriptURL(url: string): unknown };
+}
+
+const viewerPolicy = (window as Window & { trustedTypes?: TrustedTypesLike }).trustedTypes?.createPolicy("eleenai-scene", {
+	createScriptURL(url) {
+		if (url !== VIEWER_SRC) throw new TypeError("Only the pinned Spline viewer may be loaded.");
+		return url;
+	},
+});
+
 function loadViewer(): void {
 	const prefetch = document.createElement("link");
 	prefetch.rel = "prefetch";
@@ -46,7 +62,8 @@ function loadViewer(): void {
 	const script = document.createElement("script");
 	script.type = "module";
 	script.async = true;
-	script.src = VIEWER_SRC;
+	// A TrustedScriptURL where Trusted Types exist, the plain string elsewhere.
+	script.src = (viewerPolicy?.createScriptURL(VIEWER_SRC) ?? VIEWER_SRC) as string;
 	document.head.append(script);
 }
 

@@ -111,6 +111,27 @@ describe("content security policy", () => {
 		expect(directive(csp, "object-src")).toEqual(["'none'"]);
 		expect(directive(csp, "frame-ancestors")).toEqual(["'none'"]);
 	});
+
+	it("allows images only from the page, Clerk avatars and the Spline badge", async () => {
+		const response = await fetchWorker("/api/v1/health");
+		const csp = response.headers.get("content-security-policy-report-only") ?? "";
+		const images = directive(csp, "img-src");
+		// A bare https: would let injected markup exfiltrate by image URL.
+		expect(images).not.toContain("https:");
+		expect(images.sort()).toEqual(
+			["'self'", "blob:", "data:", "https://app.spline.design", "https://img.clerk.com"].sort(),
+		);
+		expect(directive(csp, "connect-src")).toContain("https://fonts.gstatic.com");
+	});
+
+	it("reports Trusted Types as a separate policy", async () => {
+		const response = await fetchWorker("/api/v1/health");
+		const header = response.headers.get("content-security-policy-report-only") ?? "";
+		const policies = header.split(",").map((p) => p.trim());
+		expect(policies).toHaveLength(2);
+		expect(policies[1]).toContain("require-trusted-types-for 'script'");
+		expect(policies[0]).not.toContain("require-trusted-types-for");
+	});
 });
 
 describe("health", () => {

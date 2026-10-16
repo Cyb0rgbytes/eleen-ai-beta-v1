@@ -6,8 +6,10 @@
  *
  * CSP ships Report-Only. Since the M3.5 rebuild the page has no inline
  * script and no inline handler: every script of ours is a hashed same-origin
- * module, so script-src no longer carries 'unsafe-inline' or 'unsafe-eval'.
- * The policy goes enforcing after 48 hours of clean reports (M3.6).
+ * module, so script-src no longer carries 'unsafe-inline'. 'unsafe-eval'
+ * stays for the Spline viewer (see script-src below). The policy goes
+ * enforcing after 48 hours of clean reports (M3.6); Trusted Types stays
+ * Report-Only as a separate policy.
  */
 
 /** Every script origin the page loads. Pinned by e2e/chat.spec.ts. */
@@ -23,6 +25,10 @@ const CONNECT_SOURCES = [
 	"'self'",
 	"https://assets.eleenai.xyz", // the scene
 	"https://unpkg.com", // the viewer's own sub-modules
+	// The viewer fetches the scene's text fonts itself, from Google's font
+	// CDN (measured in the 2026-10-16 sweep). The page's own fonts stay
+	// self-hosted under font-src 'self'.
+	"https://fonts.gstatic.com",
 	"https://clerk.eleenai.xyz",
 	// Clerk Protect probes per-instance hosts, some on non-standard ports.
 	"https://*.protect.clerk.com",
@@ -43,8 +49,10 @@ const CSP_DIRECTIVES = [
 	"style-src 'self' 'unsafe-inline'",
 	// Self-hosted WOFF2 under /fonts/ only (M3.5).
 	"font-src 'self'",
-	// blob: and data: are required for generated images.
-	"img-src 'self' data: blob: https:",
+	// blob: and data: carry generated images. No longer "https:": an open
+	// image source lets injected markup exfiltrate by URL. The only remote
+	// images are Clerk avatars and the Spline viewer's badge.
+	"img-src 'self' data: blob: https://img.clerk.com https://app.spline.design",
 	`connect-src ${CONNECT_SOURCES.join(" ")}`,
 	// WebGL workers for the Spline scene.
 	"worker-src 'self' blob:",
@@ -59,6 +67,15 @@ const CSP_DIRECTIVES = [
 ];
 
 const CSP = CSP_DIRECTIVES.join("; ");
+
+/**
+ * Trusted Types, as its own policy so it can stay Report-Only after the main
+ * CSP goes enforcing. Our one sink (the viewer's script URL) goes through
+ * the "eleenai-scene" policy in web/src/scene/spline.ts; Clerk's bundle and
+ * the Spline viewer still assign raw strings, so enforcing this would break
+ * sign-in and the scene.
+ */
+export const TRUSTED_TYPES_POLICY = "require-trusted-types-for 'script'; report-uri /api/csp-report";
 
 const BASE_HEADERS: Record<string, string> = {
 	"X-Content-Type-Options": "nosniff",
@@ -91,9 +108,12 @@ function hstsApplies(url: URL): boolean {
 export function withSecurityHeaders(response: Response, url: URL): Response {
 	const result = new Response(response.body, response);
 
+	const ownReportOnly = !result.headers.has("Content-Security-Policy-Report-Only");
 	for (const [name, value] of Object.entries(BASE_HEADERS)) {
 		if (!result.headers.has(name)) result.headers.set(name, value);
 	}
+	// A second policy in the same header: browsers evaluate each separately.
+	if (ownReportOnly) result.headers.append("Content-Security-Policy-Report-Only", TRUSTED_TYPES_POLICY);
 
 	if (hstsApplies(url) && !result.headers.has("Strict-Transport-Security")) {
 		result.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
