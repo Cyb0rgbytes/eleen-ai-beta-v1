@@ -1,10 +1,13 @@
 /**
- * Voice input: record, transcribe on the Worker with Whisper, review.
+ * Voice input: record, transcribe on the Worker with Whisper, send.
  *
- * The transcript goes into the composer and is never sent on its own; the
- * user reads it, fixes what Whisper misheard, and sends. The one exception
- * is a transcript that is exactly a command ("send", "new chat", or the
- * Arabic equivalents), which acts on what is already there.
+ * A finished recording is sent as soon as it is transcribed, together with
+ * anything already typed in the composer (owner's decision, 2026-10-17:
+ * pressing Send after speaking was one step too many). Escape while
+ * recording cancels, so nothing is sent. If a reply is still streaming the
+ * transcript waits in the composer instead. A transcript that is exactly a
+ * command ("send", "new chat", or the Arabic equivalents) acts instead of
+ * being sent as text.
  *
  * The microphone is released the moment recording stops, so the browser's
  * recording indicator goes off then rather than after the upload.
@@ -119,9 +122,13 @@ export function initVoice(chat: ChatApi): void {
 			else showToast(t("nothingToSend"));
 			return;
 		}
-		// Dictation appends, so a long message can be spoken in several takes.
+		// Joined to anything already typed, then sent as one message.
 		input.value = input.value.trim() ? `${input.value.trimEnd()} ${text}` : text;
 		input.dispatchEvent(new Event("input"));
+		if (!chat.isProcessing()) {
+			void chat.sendMessage();
+			return;
+		}
 		input.focus();
 		input.setSelectionRange(input.value.length, input.value.length);
 	}
