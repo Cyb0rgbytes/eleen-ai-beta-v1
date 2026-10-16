@@ -1,11 +1,13 @@
 ﻿/**
- * Frontend build. An as-is port (M0.5): the page and its stylesheet go
- * through Vite and come out hashed and minified in dist/, which is what the
- * Worker's assets binding serves. chat.js and webmcp.js stay classic scripts
- * copied verbatim from web/public until M3.5 turns them into modules.
+ * Frontend build: web/ into dist/, which the Worker's assets binding serves.
+ *
+ * Entry is web/index.html. Its module script is web/src/main.ts, so every
+ * page script is bundled, hashed and same-origin, which is what lets the CSP
+ * drop 'unsafe-inline' and the CDN hosts. Fonts land under /fonts/ so the
+ * font-src directive and cache rules can name one path.
  *
  * `wrangler dev` and `wrangler deploy` both run `npm run build` first, via
- * build.command in wrangler.jsonc, so dist/ never has to be committed.
+ * build.command in wrangler.jsonc, so dist/ is never committed.
  */
 import { defineConfig } from "vite";
 
@@ -15,9 +17,18 @@ export default defineConfig({
 	build: {
 		outDir: "../dist",
 		emptyOutDir: true,
-		// The inline module script and the stylesheet are small; a single
-		// chunk each is the right shape for one page.
+		target: "es2022",
+		// Inline nothing: a data: URL would need img-src/font-src data:, and
+		// every asset being a hashed file keeps the CSP simple.
 		assetsInlineLimit: 0,
+		rollupOptions: {
+			output: {
+				assetFileNames: (asset) =>
+					/\.(woff2?|ttf|otf)$/.test(asset.names[0] ?? "")
+						? "fonts/[name]-[hash][extname]"
+						: "assets/[name]-[hash][extname]",
+			},
+		},
 	},
 	server: {
 		// The Worker is the dev server. Vite's own server is not used.

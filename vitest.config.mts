@@ -3,7 +3,7 @@ import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
 /**
- * Two projects:
+ * Three projects (the third, `web`, runs web/src tests in happy-dom):
  *
  * - `unit` runs pure functions (guard, validation, red-team corpus) in Node.
  *   They need no bindings, and the ReDoS checks need a real clock: inside
@@ -23,6 +23,15 @@ export default defineConfig({
 					include: ["test/**/*.test.ts"],
 					exclude: ["test/worker/**"],
 					environment: "node",
+				},
+			},
+			{
+				// The browser modules under web/src, in a DOM. happy-dom rather
+				// than jsdom: faster, and the renderer only needs the DOM core.
+				test: {
+					name: "web",
+					include: ["web/src/**/*.test.ts"],
+					environment: "happy-dom",
 				},
 			},
 			{
