@@ -163,6 +163,126 @@ header {
 	background: var(--scrollbar-hover);
 }
 
+/* ── Empty state (DESIGN.md section 7) ──────────────────────────────────── */
+
+.empty-state {
+	/* Vertically centred in the scroller, left-aligned in the column. */
+	margin-block: auto;
+	padding-block: var(--sp-4);
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-4);
+}
+
+.empty-greeting {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15em;
+	font-size: var(--fs-2xl);
+	font-weight: 600;
+	line-height: 1.15;
+	letter-spacing: -0.02em;
+	text-shadow: var(--shadow-text);
+}
+
+/* The one place the brand gradient is used as text. */
+.empty-hello {
+	inline-size: fit-content;
+	padding-block-end: 0.08em;
+	background: var(--grad);
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+	text-shadow: none;
+}
+
+/* --text, not --text-dim: this line sits over the scene's brightest band,
+   where the dim colour washed out. */
+.empty-ask {
+	color: var(--text);
+	font-weight: 500;
+}
+
+.prompt-cards {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: var(--sp-2);
+}
+
+.prompt-card {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--sp-1);
+	min-block-size: 8.5rem;
+	padding: var(--sp-3);
+	text-align: start;
+	color: var(--text);
+	background: var(--surface);
+	backdrop-filter: var(--blur-panel);
+	-webkit-backdrop-filter: var(--blur-panel);
+	border: 1px solid var(--line);
+	border-radius: var(--r-md);
+	box-shadow: var(--shadow-panel);
+}
+
+.prompt-card:hover,
+.prompt-card:focus-visible {
+	border-color: var(--accent-line);
+}
+
+.prompt-card .icon {
+	inline-size: 20px;
+	block-size: 20px;
+	color: var(--accent-text);
+}
+
+.prompt-card-title {
+	font-size: var(--fs-sm);
+	font-weight: 600;
+}
+
+.prompt-card-body {
+	font-size: 0.8rem;
+	line-height: 1.45;
+	color: var(--text-dim);
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+@media (max-width: 900px) {
+	.prompt-cards {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+/* Phones: one swipeable row (DESIGN.md section 7). */
+@media (max-width: 600px) {
+	.empty-greeting {
+		font-size: var(--fs-xl);
+	}
+
+	.prompt-cards {
+		display: flex;
+		overflow-x: auto;
+		scroll-snap-type: x mandatory;
+		scrollbar-width: none;
+		margin-inline: calc(-1 * var(--sp-2));
+		padding-inline: var(--sp-2);
+	}
+
+	.prompt-cards::-webkit-scrollbar {
+		display: none;
+	}
+
+	.prompt-card {
+		flex: 0 0 72%;
+		scroll-snap-align: start;
+	}
+}
+
 /* ── Messages ───────────────────────────────────────────────────────────── */
 
 .message {
@@ -502,46 +622,80 @@ header {
 	color: var(--text-faint);
 }
 
-/* ── Status and thinking indicators ─────────────────────────────────────── */
+/* ── Skeletons (DESIGN.md principle 7) ──────────────────────────────────── */
 
-/* Only shown for image generation; replies use the thinking dots. */
-.typing-indicator {
-	display: none;
-	flex-shrink: 0;
-	padding: 0 var(--sp-3) var(--sp-2);
-	font-size: 0.78rem;
-	color: var(--text-faint);
-}
-
-.typing-indicator.visible {
-	display: block;
-}
-
-/* Mirrors the assistant grid so the dots sit where the reply will appear. */
+/* The first-token wait: the assistant grid with a panel of three lines, so
+   the reply takes its place without the layout moving. */
 .thinking-indicator {
 	display: grid;
 	grid-template-columns: 26px minmax(0, 1fr);
 	column-gap: var(--sp-2);
-	align-items: center;
+	align-items: start;
+	max-inline-size: 92%;
+	inline-size: 32rem;
 	margin-block-end: 1.25rem;
 }
 
-.thinking-dots {
+.skeleton-panel {
 	display: flex;
-	align-items: center;
-	gap: 4px;
-	block-size: 26px;
+	flex-direction: column;
+	gap: 0.6rem;
+	padding: 0.95rem 1rem;
+	background: var(--assistant-bubble);
+	backdrop-filter: var(--blur-panel);
+	-webkit-backdrop-filter: var(--blur-panel);
+	border: 1px solid var(--line);
+	border-radius: var(--r-md);
+	box-shadow: var(--shadow-panel);
 }
 
-.thinking-dots div {
-	inline-size: 6px;
-	block-size: 6px;
-	border-radius: 50%;
+.skeleton-line,
+.skeleton-image {
+	position: relative;
+	overflow: hidden;
+	background: var(--field-hover);
+	border-radius: var(--r-xs);
+}
+
+.skeleton-line {
+	block-size: 0.7rem;
+}
+
+/* The image wait: a 4:3 frame where the picture will land. */
+.skeleton-image {
+	inline-size: min(100%, 360px);
+	aspect-ratio: 4 / 3;
+	border-radius: var(--r-md);
+}
+
+/* The sheen that sweeps across a skeleton, animated by transform. */
+.skeleton-line::after,
+.skeleton-image::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(90deg, transparent, var(--field-hover), transparent);
+	transform: translateX(-100%);
+}
+
+/* ── Streaming rule (DESIGN.md section 7) ───────────────────────────────── */
+
+/* A 1px accent line on the panel's inline-start edge, shown only while
+   tokens are arriving (.is-receiving, set by render.ts). */
+.assistant-message .message-body {
+	position: relative;
+}
+
+.assistant-message .message-body::before {
+	content: "";
+	position: absolute;
+	inset-block: 0.7rem;
+	inset-inline-start: -1px;
+	inline-size: 2px;
+	border-radius: var(--r-pill);
 	background: var(--accent);
-}
-
-.thinking-text {
-	display: none;
+	opacity: 0;
+	pointer-events: none;
 }
 
 /* ── Composer ───────────────────────────────────────────────────────────── */
@@ -746,18 +900,6 @@ header {
 	text-align: end;
 }
 
-.send-loading {
-	display: flex;
-	gap: 3px;
-}
-
-.send-loading div {
-	inline-size: 5px;
-	block-size: 5px;
-	border-radius: 50%;
-	background: var(--on-accent);
-}
-
 /* Icons are inline SVG sized by the font, so they follow button text. */
 .icon {
 	inline-size: 1.1em;
@@ -885,6 +1027,13 @@ footer {
 	.message-input {
 		margin-inline: var(--sp-2);
 		inline-size: auto;
+	}
+
+	/* The dock would sit on the composer here, and the header pair is
+	   already on screen. Declared here, after .auth-dock's display: flex
+	   above, so it actually wins. */
+	.auth-dock {
+		display: none;
 	}
 
 	.auth-container {

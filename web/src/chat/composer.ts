@@ -67,9 +67,12 @@ export function initComposer(chat: ChatApi): Composer {
 
 	// Mode pills: aria-pressed carries the state for assistive tech.
 	const pills = [...document.querySelectorAll<HTMLButtonElement>(".mode-btn")];
+	const MODE_LABEL = { balanced: "modeBalanced", creative: "modeCreative", logical: "modeLogical" } as const;
 	for (const pill of pills) {
 		pill.type = "button";
 		pressFeedback(pill);
+		const key = MODE_LABEL[pill.dataset.mode as ResponseMode];
+		if (key) pill.textContent = t(key);
 		pill.setAttribute("aria-pressed", String(pill.classList.contains("active")));
 		pill.addEventListener("click", () => {
 			const mode = pill.dataset.mode as ResponseMode | undefined;

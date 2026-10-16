@@ -35,6 +35,10 @@ const ICONS = {
 	x: { mirror: false }, // dismiss
 	"warning-circle": { mirror: false }, // error state
 	key: { mirror: false }, // keys form
+	lightbulb: { mirror: false }, // prompt card: explain
+	"shield-check": { mirror: false }, // prompt card: security
+	image: { mirror: false }, // prompt card: image
+	code: { mirror: false }, // prompt card: code
 };
 
 const SOURCE = "node_modules/@phosphor-icons/core/assets/regular";

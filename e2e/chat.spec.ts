@@ -134,6 +134,28 @@ test("a Login click before Clerk has loaded still opens the modal", async ({ pag
 	await expect(page.locator(".cl-modalContent")).toBeVisible({ timeout: 30_000 });
 });
 
+test("the empty state sends a card's prompt, and comes back on a new chat", async ({ page }) => {
+	let sent = "";
+	await page.route("**/api/chat/guest", async (route) => {
+		const body = JSON.parse(route.request().postData() ?? "{}") as { messages: { role: string; content: string }[] };
+		sent = body.messages.at(-1)?.content ?? "";
+		await route.fulfill({ headers: { "content-type": "text/event-stream" }, body: v2([["token", { text: "sure" }], ["done", {}]]) });
+	});
+	await page.goto("/");
+	await expect(page.locator(".empty-hello")).toHaveText("Hello");
+	const cards = page.locator(".prompt-card");
+	await expect(cards).toHaveCount(4);
+
+	await cards.first().click();
+	await expect(page.locator(".empty-state")).toHaveCount(0);
+	await expect(page.locator(".assistant-message .message-body p").last()).toHaveText("sure");
+	expect(sent).toContain("public-key cryptography");
+
+	page.on("dialog", (d) => void d.accept());
+	await page.evaluate(() => window.chat?.clearChat({ confirm: false }));
+	await expect(page.locator(".prompt-card")).toHaveCount(4);
+});
+
 test("a rate limit gets a designed notice, not a generic error", async ({ page }) => {
 	await page.route("**/api/chat/guest", (route) =>
 		route.fulfill({
