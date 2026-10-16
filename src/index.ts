@@ -318,32 +318,51 @@ async function route(
 		let userId = "guest";
 
 		if (!route.guest) {
-			const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY });
-			const authState = await clerk.authenticateRequest(request, {
-				secretKey: env.CLERK_SECRET_KEY,
-				publishableKey: env.CLERK_PUBLISHABLE_KEY,
-				// Rejects tokens minted for a different origin, which is what
-				// stops a token issued to another site being replayed here.
-				authorizedParties: AUTHORIZED_PARTIES,
-			});
-
-			if (!authState.isSignedIn) {
-				return new Response(
-					JSON.stringify({ error: "Unauthorized: Please sign in." }),
-					{
-						status: 401,
-						headers: {
-							"content-type": "application/json",
-							...Object.fromEntries(authState.headers),
-							// RFC 9728: point agents at the metadata document that
-							// tells them which authorization server can issue a
-							// token for us. Set after the spread so Clerk cannot
-							// clobber it.
-							"WWW-Authenticate": bearerChallenge(request),
-						},
+			const unauthorized = (extra: Record<string, string> = {}) =>
+				new Response(JSON.stringify({ error: "Unauthorized: Please sign in." }), {
+					status: 401,
+					headers: {
+						"content-type": "application/json",
+						...extra,
+						// RFC 9728: point agents at the metadata document that
+						// tells them which authorization server can issue a
+						// token for us. Set last so Clerk cannot clobber it.
+						"WWW-Authenticate": bearerChallenge(request),
 					},
-				);
+				});
+
+			// No bearer token and no Clerk session cookie: there is nothing to
+			// verify, so answer without a round trip to Clerk.
+			const hasBearer = /^Bearer\s+\S/i.test(request.headers.get("authorization") ?? "");
+			const hasSession = /(?:^|;\s*)__session=/.test(request.headers.get("cookie") ?? "");
+			if (!hasBearer && !hasSession) return unauthorized();
+
+			if (!env.CLERK_SECRET_KEY) {
+				console.error("CLERK_SECRET_KEY is not set; authenticated routes are unavailable.");
+				return new Response(JSON.stringify({ error: "Sign-in is not configured on this deployment." }), {
+					status: 503,
+					headers: { "content-type": "application/json" },
+				});
 			}
+
+			let authState: Awaited<ReturnType<ReturnType<typeof createClerkClient>["authenticateRequest"]>>;
+			try {
+				const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY });
+				authState = await clerk.authenticateRequest(request, {
+					secretKey: env.CLERK_SECRET_KEY,
+					publishableKey: env.CLERK_PUBLISHABLE_KEY,
+					// Rejects tokens minted for a different origin, which is what
+					// stops a token issued to another site being replayed here.
+					authorizedParties: AUTHORIZED_PARTIES,
+				});
+			} catch (error) {
+				// A token Clerk cannot parse, or Clerk unreachable: either way the
+				// caller is not signed in. Never a 500 with a stack trace.
+				console.error("Auth verification failed:", error instanceof Error ? error.message : "unknown");
+				return unauthorized();
+			}
+
+			if (!authState.isSignedIn) return unauthorized(Object.fromEntries(authState.headers));
 
 			userId = authState.toAuth().userId;
 		}
