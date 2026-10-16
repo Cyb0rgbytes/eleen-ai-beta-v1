@@ -44,6 +44,19 @@ describe("provider keys route", () => {
 		}
 	});
 
+	it("answers a request with no credentials without needing Clerk", async () => {
+		// Runs with no CLERK_SECRET_KEY in CI: the gate must not reach Clerk
+		// for a request that carries nothing to verify.
+		const response = await fetchWorker("/api/v1/keys");
+		expect(response.status).toBe(401);
+		expect(response.headers.get("www-authenticate")).toMatch(/^Bearer /);
+	});
+
+	it("treats an unverifiable token as signed out, never a 500", async () => {
+		const response = await fetchWorker("/api/v1/keys", { headers: { authorization: "Bearer not-a-real-token" } });
+		expect([401, 503]).toContain(response.status);
+	});
+
 	it("refuses methods it does not serve", async () => {
 		const response = await fetchWorker("/api/v1/keys", { method: "POST" });
 		expect(response.status).toBe(405);
