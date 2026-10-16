@@ -4,37 +4,45 @@
  * Applied to every response the Worker emits, including static assets served
  * through env.ASSETS.
  *
- * CSP ships Report-Only for now. The current frontend still has two inline
- * <script> blocks in public/index.html and interpolated onclick attributes in
- * public/chat.js, so an enforcing policy would break the site. Report-Only
- * collects the violations that the frontend rebuild has to fix before the
- * policy can be switched to enforcing.
+ * CSP ships Report-Only. Since the M3.5 rebuild the page has no inline
+ * script and no inline handler: every script of ours is a hashed same-origin
+ * module, so script-src no longer carries 'unsafe-inline' or 'unsafe-eval'.
+ * The policy goes enforcing after 48 hours of clean reports (M3.6).
  */
 
-/** Origins the page legitimately loads from today. */
+/** Every script origin the page loads. Pinned by e2e/chat.spec.ts. */
 const SCRIPT_SOURCES = [
 	"'self'",
-	"https://unpkg.com", // Spline viewer
-	"https://cdnjs.cloudflare.com", // Font Awesome
-	"https://cdn.jsdelivr.net", // Motion (index.html module script)
-	"https://clerk.eleenai.xyz", // Clerk production frontend API (SDK script)
-	"https://challenges.cloudflare.com", // Clerk bot protection
+	"https://unpkg.com", // Spline viewer 1.12.88: no licence to self-host it
+	"https://clerk.eleenai.xyz", // Clerk SDK, production frontend API
+	"https://cdn.protect.clerk.com", // Clerk Protect bot-detection bootstrap
+	"https://challenges.cloudflare.com", // Turnstile inside Clerk's sign-in
 ];
 
 const CONNECT_SOURCES = [
 	"'self'",
-	"https://assets.eleenai.xyz",
+	"https://assets.eleenai.xyz", // the scene
+	"https://unpkg.com", // the viewer's own sub-modules
 	"https://clerk.eleenai.xyz",
-	"https://unpkg.com",
+	// Clerk Protect probes per-instance hosts, some on non-standard ports.
+	"https://*.protect.clerk.com",
+	"https://*.client.protect.clerk.com:*",
 ];
 
 const CSP_DIRECTIVES = [
 	"default-src 'self'",
-	`script-src ${SCRIPT_SOURCES.join(" ")} 'unsafe-inline' 'unsafe-eval'`,
-	// <spline-viewer> injects styles into its shadow DOM, and hash-pinning
-	// those across viewer versions is not maintainable.
-	"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
-	"font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:",
+	// 'unsafe-eval' is the Spline viewer's requirement, not ours: its bundle
+	// evaluates a string at build/spline-viewer.js:3175 (measured with a
+	// securitypolicyviolation listener, 2026-10-17). Nothing in web/src uses
+	// eval. Removing it means isolating the viewer in its own document.
+	// 'unsafe-inline' is gone: the page has no inline script or handler.
+	`script-src ${SCRIPT_SOURCES.join(" ")} 'unsafe-eval'`,
+	// <spline-viewer> injects styles into its shadow DOM and Clerk injects
+	// its own <style> elements; hash-pinning either across versions is not
+	// maintainable.
+	"style-src 'self' 'unsafe-inline'",
+	// Self-hosted WOFF2 under /fonts/ only (M3.5).
+	"font-src 'self'",
 	// blob: and data: are required for generated images.
 	"img-src 'self' data: blob: https:",
 	`connect-src ${CONNECT_SOURCES.join(" ")}`,

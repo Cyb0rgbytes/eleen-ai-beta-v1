@@ -22,11 +22,17 @@ jobs:
       - run: npm ci
       - name: Skill digests match the served documents
         run: node scripts/gen-skill-digests.mjs --check
-      - name: Typecheck
+      - name: Icon data matches the generator
+        run: node scripts/gen-icons.mjs --check
+      - name: Typecheck Worker
         run: npx tsc --noEmit
+      - name: Typecheck frontend
+        run: npx tsc -p web/tsconfig.json
       # The assets binding serves dist/, so the worker tests need a build.
       - name: Build frontend
         run: npx vite build
+      - name: Initial JS within budget
+        run: node scripts/check-bundle-size.mjs
       # Unit tests in Node, worker tests in workerd. Remote bindings are off in
       # vitest.config.mts, so no Cloudflare credentials are needed.
       - name: Tests

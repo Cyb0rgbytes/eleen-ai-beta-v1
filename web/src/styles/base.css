@@ -1,0 +1,62 @@
+/* Reset and document defaults. */
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+html {
+	-webkit-text-size-adjust: 100%;
+}
+
+body {
+	font-family: var(--font-sans);
+	font-size: var(--fs-md);
+	line-height: 1.6;
+	color: var(--text);
+	/* Depth under the scene before it loads, and the whole backdrop when it
+	   is skipped. Painted on body itself rather than a ::before so nothing
+	   needs a z-index outside the DESIGN.md layer table. */
+	background:
+		radial-gradient(ellipse at 20% 20%, var(--bg-glow-1) 0%, transparent 50%),
+		radial-gradient(ellipse at 80% 80%, var(--bg-glow-2) 0%, transparent 50%),
+		linear-gradient(180deg, var(--bg), var(--bg-deep));
+	background-attachment: fixed;
+	background-color: var(--bg);
+	min-height: 100vh;
+	min-height: 100dvh;
+	padding: var(--sp-3);
+	position: relative;
+	overflow-x: hidden;
+	-webkit-font-smoothing: antialiased;
+	-webkit-tap-highlight-color: transparent;
+	touch-action: manipulation;
+}
+
+button {
+	font-family: inherit;
+	cursor: pointer;
+}
+
+/* `hidden` must win over component display rules (.auth-button is flex). */
+[hidden] {
+	display: none !important;
+}
+
+:focus-visible {
+	outline: 2px solid var(--focus-ring);
+	outline-offset: 2px;
+}
+
+/* Visually hidden, still announced. For icon-only buttons (DESIGN.md 9). */
+.sr-only {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}

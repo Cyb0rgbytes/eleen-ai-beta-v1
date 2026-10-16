@@ -2,10 +2,12 @@
 
 **Date:** 2026-10-16
 **Repo:** https://github.com/Cyb0rgbytes/eleen-ai-beta-v1 (public)
-**Branch:** `main` at `2285583`, six commits ahead of the last push
+**Branch:** `main` at `b71aa35`, in sync with `origin/main` (the GH007 push block is resolved)
 **Tests:** 197 passing (`npx vitest run`, unit + worker), 7 browser tests passing (`npm run e2e`)
 **Build:** `npm run check` clean
-**Deployed:** production runs `aee04b7` (M3.4 complete). `b771d68` and `2285583` are not deployed yet.
+**Deployed:** production runs `b71aa35`, confirmed by `npm run verify-deploy`. M0.5 is live.
+
+> Corrected 2026-10-17. The first version of this file said production was on `aee04b7` and `main` was six commits ahead of the push; both were out of date by the time it was committed.
 
 Continues from [Mid-August.md](Mid-August.md), which stays accurate for everything before 2026-10-14.
 
@@ -21,7 +23,7 @@ Phases 0 to 2 were done in July. The plan for Phases 3 to 5 was written on 2026-
 | M0.2 DESIGN.md, Playwright e2e | Done (`b771d68`). |
 | M0.3 Test runtime | Done. vitest 4 with the Cloudflare plugin, unit and worker projects. |
 | M0.4 D1 binding | Done. `eleen-db` bound, two migrations applied in production. |
-| M0.5 Vite port, build stamp | Done (`2285583`), not yet deployed. |
+| M0.5 Vite port, build stamp | Done (`2285583`) and deployed. |
 | M3.1 Security audit and red-team suite | Done. `docs/security/audit-2026-10.md`, 56 red-team tests. |
 | M3.2 Urgent fixes | Done and deployed. |
 | M3.3 Rate limiting on D1 | Done and deployed. |
@@ -89,8 +91,8 @@ Phases 0 to 2 were done in July. The plan for Phases 3 to 5 was written on 2026-
 
 ### Blocking nothing, do soon
 
-- [ ] **Deploy main** (`npm run deploy`, then `npm run verify-deploy`). Brings M0.5 live; production is otherwise current.
-- [ ] **Push main.** Six commits are local only. The October push failed on GitHub's email privacy setting (GH007).
+- [x] ~~Deploy main~~. Production runs `b71aa35`, verified.
+- [x] ~~Push main~~. `origin/main` is `b71aa35`.
 - [ ] Delete the unused Worker secret named `secret`.
 - [ ] Production D1 has a `conversations` table from the May prototype that nothing references. Phase 4 defines the real one; leave it until then.
 

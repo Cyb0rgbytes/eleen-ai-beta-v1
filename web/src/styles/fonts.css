@@ -1,0 +1,14 @@
+/*
+ * Self-hosted fonts (DESIGN.md section 4). Vite copies the WOFF2 files into
+ * dist/fonts/ with hashed names; every face uses font-display: swap.
+ *
+ * Each @font-face below carries a unicode-range, so the browser downloads a
+ * file only when text in that range renders. Noto Sans Arabic's Latin faces
+ * are never fetched in practice: Inter precedes it in --font-sans and covers
+ * Latin, so only its Arabic face is used, and only when Arabic appears.
+ */
+@import "@fontsource-variable/inter/wght.css";
+@import "@fontsource/noto-sans-arabic/400.css";
+@import "@fontsource/noto-sans-arabic/500.css";
+@import "@fontsource/noto-sans-arabic/600.css";
+@import "@fontsource/jetbrains-mono/latin-400.css";

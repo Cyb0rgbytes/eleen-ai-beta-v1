@@ -1,0 +1,198 @@
+/*
+ * Design tokens. The only place in the frontend that names a colour, a
+ * font, a radius or a duration. Every value comes from DESIGN.md section 3;
+ * a component that needs a value not listed here needs a DESIGN.md change
+ * first.
+ *
+ * Dark is the default. Light applies under [data-theme="light"] on <html>,
+ * set before first paint by the bootstrap in index.html's <head>.
+ */
+
+:root {
+	color-scheme: dark;
+
+	/* Brand */
+	--accent: #6c63ff;
+	--accent-2: #00e5ff;
+	--grad: linear-gradient(135deg, var(--accent), var(--accent-2));
+	--accent-text: #00e5ff;
+	--accent-soft: rgb(108 99 255 / 0.14);
+	--accent-line: rgb(108 99 255 / 0.45);
+	--accent-hover: #7d75ff;
+	--focus-ring: var(--accent-2);
+	--on-accent: #ffffff;
+
+	/* Surfaces */
+	--bg: #07071c;
+	--bg-deep: #030312;
+	--bg-glow-1: rgb(108 99 255 / 0.1);
+	--bg-glow-2: rgb(0 229 255 / 0.07);
+	--scene-glow-1: rgb(108 99 255 / 0.15);
+	--scene-glow-2: rgb(0 229 255 / 0.1);
+	--surface: rgb(11 11 30 / 0.72);
+	--surface-composer: rgb(11 11 30 / 0.55);
+	--surface-plate: rgb(3 3 18 / 0.55);
+	--surface-solid: #0f0f2a;
+	--surface-toast: rgb(11 11 30 / 0.94);
+	--surface-code: rgb(3 3 18 / 0.7);
+	--surface-sunken: rgb(0 0 0 / 0.2);
+	--line: rgb(255 255 255 / 0.08);
+	--line-strong: rgb(255 255 255 / 0.1);
+	--field: rgb(255 255 255 / 0.04);
+	--field-hover: rgb(255 255 255 / 0.12);
+	--field-raised: rgb(255 255 255 / 0.06);
+	--assistant-bubble: rgb(9 9 26 / 0.88);
+	--user-bubble: linear-gradient(135deg, rgb(78 70 200 / 0.92), rgb(58 52 165 / 0.92));
+	--user-bubble-line: rgb(140 132 255 / 0.5);
+	--code-fill: rgb(108 99 255 / 0.16);
+	--mode-active: linear-gradient(135deg, rgb(108 99 255 / 0.55), rgb(0 229 255 / 0.3));
+	--scrollbar: rgb(108 99 255 / 0.25);
+	--scrollbar-hover: rgb(108 99 255 / 0.5);
+	--link-line: rgb(0 229 255 / 0.3);
+	--press-overlay: rgb(255 255 255 / 0.15);
+
+	/* Text */
+	--text: #e8e8ff;
+	--text-strong: #ffffff;
+	--text-dim: #a8a8d8;
+	--text-faint: #6a6a9a;
+	--text-loader: rgb(168 168 216 / 0.5);
+	--on-user-bubble: #e8e8ff;
+
+	/* Status */
+	--ok: #4ade80;
+	--warn: #fbbf24;
+	--danger: #f87171;
+	--danger-strong: #ff6ec7;
+	--recording: #d6336c;
+	--recording-text: #ff8fb8;
+
+	/* Scrim (DESIGN.md "The scrim") */
+	--scrim-rgb: 3 3 18;
+	--scrim-top: 0.72;
+	--scrim-bottom: 0.78;
+	--scrim-body: 0.42;
+	--scrim-floor-a: 0.22;
+	--scrim-floor-b: 0.3;
+
+	/* Elevation */
+	--shadow-plate: 0 8px 24px rgb(0 0 0 / 0.35);
+	--shadow-bubble: 0 6px 18px rgb(0 0 0 / 0.35);
+	--shadow-panel: 0 6px 18px rgb(0 0 0 / 0.3);
+	--shadow-composer: 0 12px 32px rgb(0 0 0 / 0.32);
+	--shadow-toast: 0 12px 32px rgb(0 0 0 / 0.4);
+	--shadow-cta: 0 4px 16px rgb(108 99 255 / 0.45);
+	--shadow-text: 0 1px 4px rgb(0 0 0 / 0.9);
+	--logo-shadow: drop-shadow(0 2px 6px rgb(0 0 0 / 0.9)) drop-shadow(0 0 18px rgb(0 0 0 / 0.6));
+	--blur-panel: blur(14px) saturate(140%);
+	--blur-plate: blur(18px) saturate(150%);
+	--blur-composer: blur(20px) saturate(150%);
+
+	/* Type (DESIGN.md section 4) */
+	--font-sans: "Inter Variable", "Inter", "Noto Sans Arabic", "Segoe UI", system-ui, -apple-system, sans-serif;
+	--font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+	--text-scale: 1;
+	--fs-xs: calc(0.75rem * var(--text-scale));
+	--fs-sm: calc(0.875rem * var(--text-scale));
+	--fs-md: calc(1rem * var(--text-scale));
+	--fs-lg: calc(1.25rem * var(--text-scale));
+	--fs-xl: calc(1.75rem * var(--text-scale));
+	--fs-2xl: calc(2.5rem * var(--text-scale));
+
+	/* Radii */
+	--r-lg: 20px;
+	--r-md: 14px;
+	--r-sm: 10px;
+	--r-xs: 5px;
+	--r-pill: 999px;
+
+	/* Spacing */
+	--sp-1: 0.5rem;
+	--sp-2: 0.75rem;
+	--sp-3: 1rem;
+	--sp-4: 1.5rem;
+
+	/* Layout */
+	--column: 52rem;
+
+	/* Motion (DESIGN.md section 8) */
+	--ease: cubic-bezier(0.16, 1, 0.3, 1);
+	--dur-state: 160ms;
+	--dur-reveal: 240ms;
+	--dur-panel: 320ms;
+}
+
+:root[data-theme="light"] {
+	color-scheme: light;
+
+	--accent: #5a51f0;
+	--accent-2: #0e7490;
+	--accent-text: #4a42d6;
+	--accent-soft: rgb(90 81 240 / 0.1);
+	--accent-line: rgb(90 81 240 / 0.4);
+	--accent-hover: #4a42d6;
+	--focus-ring: var(--accent);
+
+	--bg: #f5f5fb;
+	--bg-deep: #e9e9f4;
+	--bg-glow-1: rgb(90 81 240 / 0.08);
+	--bg-glow-2: rgb(14 116 144 / 0.06);
+	--scene-glow-1: rgb(90 81 240 / 0.1);
+	--scene-glow-2: rgb(14 116 144 / 0.08);
+	--surface: rgb(255 255 255 / 0.78);
+	--surface-composer: rgb(255 255 255 / 0.8);
+	--surface-plate: rgb(255 255 255 / 0.72);
+	--surface-solid: #ffffff;
+	--surface-toast: rgb(255 255 255 / 0.96);
+	--surface-code: rgb(10 10 40 / 0.05);
+	--surface-sunken: rgb(10 10 40 / 0.06);
+	--line: rgb(10 10 40 / 0.08);
+	--line-strong: rgb(10 10 40 / 0.16);
+	--field: rgb(10 10 40 / 0.03);
+	--field-hover: rgb(10 10 40 / 0.08);
+	--field-raised: rgb(10 10 40 / 0.05);
+	--assistant-bubble: rgb(255 255 255 / 0.9);
+	--user-bubble: #5a51f0;
+	--user-bubble-line: transparent;
+	--code-fill: rgb(90 81 240 / 0.1);
+	--mode-active: linear-gradient(135deg, rgb(90 81 240 / 0.9), rgb(14 116 144 / 0.8));
+	--scrollbar: rgb(90 81 240 / 0.25);
+	--scrollbar-hover: rgb(90 81 240 / 0.5);
+	--link-line: rgb(74 66 214 / 0.35);
+	--press-overlay: rgb(255 255 255 / 0.18);
+
+	--text: #16163a;
+	--text-strong: #0b0b24;
+	--text-dim: #4a4a74;
+	--text-faint: #80809f;
+	--text-loader: rgb(74 74 116 / 0.6);
+	--on-user-bubble: #ffffff;
+
+	--ok: #15803d;
+	--warn: #b45309;
+	--danger: #b91c1c;
+	--danger-strong: #be185d;
+	--recording: #dc2626;
+	--recording-text: #b91c1c;
+
+	--scrim-rgb: 245 245 251;
+	--scrim-top: 0.6;
+	--scrim-bottom: 0.66;
+	--scrim-body: 0.34;
+	--scrim-floor-a: 0.16;
+	--scrim-floor-b: 0.22;
+
+	--shadow-plate: 0 8px 24px rgb(20 20 60 / 0.12);
+	--shadow-bubble: 0 6px 18px rgb(20 20 60 / 0.12);
+	--shadow-panel: 0 6px 18px rgb(20 20 60 / 0.1);
+	--shadow-composer: 0 12px 32px rgb(20 20 60 / 0.12);
+	--shadow-toast: 0 12px 32px rgb(20 20 60 / 0.16);
+	--shadow-cta: 0 4px 16px rgb(90 81 240 / 0.3);
+	--shadow-text: 0 1px 3px rgb(255 255 255 / 0.9);
+	--logo-shadow: drop-shadow(0 1px 3px rgb(255 255 255 / 0.9));
+}
+
+/* Arabic renders small at the same size as Latin (DESIGN.md section 4). */
+:root[lang="ar"] {
+	--text-scale: 1.06;
+}

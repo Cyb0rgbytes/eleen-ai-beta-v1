@@ -31,11 +31,15 @@ Defined on `:root`, redefined under `:root[data-theme="light"]`. The initial the
 | Token | Dark | Light | Notes |
 |---|---|---|---|
 | `--accent` | `#6c63ff` | `#5a51f0` | The one accent. Slightly deepened on light for 4.5:1 against white text. |
-| `--accent-2` | `#8e6cff` | `#7b5cf5` | Second stop of the brand gradient. Gradient use is limited to the greeting and the logo glow. |
-| `--accent-text` | `#a9a3ff` | `#4a42d6` | Accent used as text or icon on the base surface, for links and the active picker state. |
+| `--accent-2` | `#00e5ff` | `#0e7490` | The brand's cyan. Second stop of `--grad` (avatar, active mode pill, greeting), and the focus ring on dark. Deepened on light, where bright cyan fails contrast. |
+| `--grad` | `linear-gradient(135deg, var(--accent), var(--accent-2))` | same | The brand gradient. Not used on large surfaces. |
+| `--accent-text` | `#00e5ff` | `#4a42d6` | Accent used as text on the base surface: links, inline code, the active picker state. Cyan on dark, as production has always had it. |
 | `--accent-soft` | `rgb(108 99 255 / 0.14)` | `rgb(90 81 240 / 0.10)` | Tints: selected chips, hover fills. |
-| `--accent-line` | `rgb(108 99 255 / 0.45)` | `rgb(90 81 240 / 0.40)` | Focus rings and selected borders. |
+| `--accent-line` | `rgb(108 99 255 / 0.45)` | `rgb(90 81 240 / 0.40)` | Selected and focused borders. |
+| `--focus-ring` | `var(--accent-2)` | `var(--accent)` | The 2px keyboard focus outline. |
 | `--on-accent` | `#ffffff` | `#ffffff` | Text on a solid accent fill. |
+
+> Amended 2026-10-17: the dark values of `--accent-2`, `--accent-text`, `--assistant-bubble` and `--user-bubble` were transcribed wrong in the first version and now match production, which is what preserve mode intended.
 
 ### Surfaces
 
@@ -48,8 +52,9 @@ Defined on `:root`, redefined under `:root[data-theme="light"]`. The initial the
 | `--line` | `rgb(255 255 255 / 0.08)` | `rgb(10 10 40 / 0.08)` | Hairlines and panel borders. |
 | `--line-strong` | `rgb(255 255 255 / 0.16)` | `rgb(10 10 40 / 0.16)` | Input borders at rest. |
 | `--field` | `rgb(255 255 255 / 0.04)` | `rgb(10 10 40 / 0.03)` | Input fills. |
-| `--assistant-bubble` | `rgb(14 14 36 / 0.88)` | `rgb(255 255 255 / 0.90)` | Assistant reply surface. Opaque enough that contrast does not depend on what the robot is doing behind it. |
-| `--user-bubble` | `#5a51f0` | `#5a51f0` | User turn. Solid fill in both themes; a tint was invisible over the scene's bright band. |
+| `--assistant-bubble` | `rgb(9 9 26 / 0.88)` | `rgb(255 255 255 / 0.90)` | Assistant reply surface. Opaque enough that contrast does not depend on what the robot is doing behind it. |
+| `--user-bubble` | `linear-gradient(135deg, rgb(78 70 200 / 0.92), rgb(58 52 165 / 0.92))` | `#5a51f0` | User turn. Near-solid in both themes; a light tint was invisible over the scene's bright band. |
+| `--user-bubble-line` | `rgb(140 132 255 / 0.5)` | `transparent` | User bubble border. |
 
 ### Text
 
@@ -58,7 +63,7 @@ Defined on `:root`, redefined under `:root[data-theme="light"]`. The initial the
 | `--text` | `#e8e8ff` | `#16163a` |
 | `--text-dim` | `#a8a8d8` | `#4a4a74` |
 | `--text-faint` | `#6a6a9a` | `#80809f` |
-| `--on-user-bubble` | `#ffffff` | `#ffffff` |
+| `--on-user-bubble` | `#e8e8ff` | `#ffffff` |
 
 ### Status
 
@@ -75,12 +80,15 @@ Status colours exist only for real state. No decorative dots.
 
 `#chat-scrim` sits between the scene and the shell and darkens (dark theme) or lightens (light theme) only the regions the conversation occupies: stronger under the brand bar and the auth pair, stronger under the composer and footer, softer across the body, with a low even floor. It falls off before the page edges so the robot stays visible at full strength at the sides.
 
-| Token | Dark | Light |
-|---|---|---|
-| `--scrim` | `rgb(5 5 20 / var(--scrim-a))` | `rgb(245 245 251 / var(--scrim-a))` |
-| `--scrim-a-floor` | `0.35` | `0.30` |
-| `--scrim-a-body` | `0.55` | `0.50` |
-| `--scrim-a-edge` | `0.78` | `0.72` |
+The scrim is four layered gradients in one colour, `--scrim-rgb`, at different strengths. Dark values are production's, measured against the live scene in August.
+
+| Token | Dark | Light | Band |
+|---|---|---|---|
+| `--scrim-rgb` | `3 3 18` | `245 245 251` | The colour, as channels for `rgb(var(--scrim-rgb) / a)` |
+| `--scrim-top` | `0.72` | `0.60` | Under the brand bar and auth pair, fading by 26% of height |
+| `--scrim-bottom` | `0.78` | `0.66` | Under the composer and footer, fading by 30% |
+| `--scrim-body` | `0.42` | `0.34` | Ellipse behind the conversation, falling off before the edges |
+| `--scrim-floor-a`, `--scrim-floor-b` | `0.22`, `0.30` | `0.16`, `0.22` | Even floor, top to bottom |
 
 The scene's studio backdrop measures `223,223,223`. In light theme the scrim is nearly the same value, so light mode is the one where the scene needs the least help; in dark theme the scrim carries the whole contrast load. Check every change to the scrim against the live scene, never against local dev, where the scene does not load.
 
@@ -90,12 +98,12 @@ Body text 4.5:1 against its surface in both themes. The wordmark and the footer 
 
 ## 4. Typography
 
-Two families, loaded from `/fonts/` once the Vite port self-hosts them (M3.5). Until then they come from Google Fonts with `display=swap`.
+Three families, self-hosted from `/fonts/` as WOFF2 with `font-display: swap` (M3.5).
 
 | Role | Family | Why |
 |---|---|---|
 | Latin UI and body | **Inter** | Already the brand's face. Kept under preserve mode; its neutrality suits a reading surface. |
-| Arabic UI and body | **Noto Sans Arabic** | Metrics sit well beside Inter, full weight range, correct shaping for Gulf and Levantine text. Loaded only when `lang="ar"`. |
+| Arabic UI and body | **Noto Sans Arabic** | Metrics sit well beside Inter, full weight range, correct shaping for Gulf and Levantine text. Its `@font-face` is scoped by `unicode-range` to Arabic code points, so the browser fetches it only when Arabic text renders, in either UI language. An English-only session never downloads it. |
 | Code | **JetBrains Mono** | Already in use. Code blocks, inline code, token counts. |
 
 Font stacks:
@@ -169,7 +177,9 @@ Full-width transparent shell, 52rem reading column. The empty state shows a gree
 
 A pill, `--surface` with `blur(24px)`, `--r-pill`. From inline-start: attach, the text area, microphone, send. Send is a solid `--accent` circle; it is the one control on the page that must read as solid at a glance. The mode pills (Balanced, Creative, Logical) move from above the field into the picker popover. The enhance action stays as an icon inside the pill.
 
-Focus ring: 2px `--accent-line` outside the pill. Disabled: 50% opacity, no pointer. Recording: microphone fills `--recording`, a timer appears inline, Escape cancels.
+Focus ring: 2px `--accent-line` outside the pill. Disabled: 50% opacity, no pointer. Recording: microphone fills `--recording`, a timer and a live level waveform from the microphone stream appear inline, Escape cancels.
+
+While a reply streams, Send becomes **Stop**: the same `--accent` circle with a stop glyph and the label "Stop generating". Pressing it aborts the request; the text received so far stays in the panel, marked as stopped.
 
 ### Model picker (M3.6)
 
@@ -193,24 +203,37 @@ Only on the v2 stream, only when a `reasoning` event arrives. A collapsible row 
 
 Assistant: `--assistant-bubble`, `--r-lg`, a small "E" avatar at the inline-start, actions (copy, regenerate, feedback) revealed on hover or focus in a row under the text. User: `--user-bubble`, `--on-user-bubble`, `--r-lg` with the trailing corner at `--r-sm`, aligned to `inset-inline-end`, max 75% of the column.
 
-Streaming: the newest token is appended without a caret animation; a 1px `--accent-line` left rule on the panel pulses only while tokens arrive, and stops. Under reduced motion it is static.
+Streaming: the newest token is appended without a caret animation; a 1px `--accent-line` rule on the panel's inline-start edge pulses only while tokens arrive, and stops. Under reduced motion it is static.
+
+Usage: on the v2 stream, the actions row ends with the output token count in `--fs-xs` `--text-faint` ("212 tokens"). Not shown for v1.
+
+### Jump to latest
+
+A pill, `--surface-solid` with a `--line` border and `--r-pill`, centred above the composer. It appears when the user has scrolled more than 160px up from the bottom while a reply is streaming, reads "Jump to latest" with a down arrow, and scrolls to the end on click or Enter. It hides when the user is back within the stick threshold.
 
 ### Sidebar (M4.4)
 
 Off-canvas on viewports under 1024px, pinned at 280px above. `--bg-deep` fill, since it should not show the scene through it. Sections: New chat, Pinned, Folders, Recent, and a search field at the top. Items are single-line with `text-overflow: ellipsis`; the active item has `--accent-soft`. The toggle lives at the top inline-start corner and mirrors in RTL. The sidebar never covers the composer on desktop.
 
-### Keys form (M3.4 part two)
+### Keys form (M3.6)
+
+The UI for `/api/v1/keys`, which shipped in M3.4 part two.
 
 A `--surface-solid` dialog listing the four providers. Each row: provider name, a masked field showing the stored key's last four, a Replace action and a Remove action. Adding a key shows one field with a label above it, inline validation below it on 422, and a success state that shows the last four. No placeholder-as-label.
 
 ### Toasts
 
-Bottom inline-end, `--surface-solid`, one line, auto-dismiss at 4s with a visible dismiss control. Icons from the icon font, never emoji glyphs; the mojibake incident came from a `charset` header, but emoji in UI strings is not worth the risk in either case.
+Bottom inline-end, `--surface-solid`, one line, auto-dismiss at 4s with a visible dismiss control. Icons from the inline SVG set, never emoji glyphs; the mojibake incident came from a `charset` header, but emoji in UI strings is not worth the risk in either case.
 
 ## 8. Motion
 
 - `--ease: cubic-bezier(0.16, 1, 0.3, 1)`, durations 160 ms for state changes, 240 ms for reveals, 320 ms for the sidebar and popovers.
-- Animate `transform` and `opacity` only.
+- Animate `transform` and `opacity` only. No springs: every motion uses `--ease`, so the page has one feel.
+- Entrances, all 240 ms on `--ease`:
+  - User turn: opacity from 0 and `translateX(12px)` toward the inline-end side, so it arrives from the side it lives on.
+  - Assistant panel: opacity from 0 and `translateY(8px)`.
+  - Empty-state greeting and prompt cards: same rise, staggered 40 ms per element.
+- Prompt card hover: `translateY(-2px)` and the border moves to `--accent-line`. No box-shadow glow.
 - `@media (prefers-reduced-motion: reduce)` sets every transition to `0ms` and removes the streaming pulse.
 - The scene itself is the motion layer. On `prefers-reduced-motion`, `saveData`, under four cores, or on a coarse pointer, the scene is skipped and a static WebP poster of the robot takes its place at `z-index: 0` (M5.5).
 
@@ -222,6 +245,15 @@ Bottom inline-end, `--surface-solid`, one line, auto-dismiss at 4s with a visibl
 - Buttons have text labels, even when visually icon-only, via a visually hidden span.
 - Touch targets at least 44px on coarse pointers.
 - The scene is `aria-hidden`.
+
+### Rendering model output
+
+Model output is attacker-influenced: a prompt injection in a document or search result can make the model write anything. So:
+
+- Our code has **no HTML sinks**. Markdown is tokenised and turned into DOM nodes from an allowlist of elements and attributes. Raw HTML in a reply renders as text.
+- Links pass a scheme allowlist (`http`, `https`, `mailto`) and open with `rel="noopener noreferrer nofollow"` and `target="_blank"`.
+- Markdown images never render as `<img>`. A model-written image URL is the classic exfiltration channel; it is shown as a link instead.
+- Trusted Types runs in a Report-Only header. Our code would pass enforcement; Clerk and the Spline viewer may not, and enforcing on their behalf would mean a permissive default policy.
 
 ## 10. What we deliberately do not do
 

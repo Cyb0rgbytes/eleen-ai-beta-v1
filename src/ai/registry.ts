@@ -15,22 +15,11 @@
  *                locked and refused before any provider call.
  */
 
-export type Provider = "workers-ai" | "openai" | "anthropic" | "google" | "deepseek";
+import type { Billing, ModelTier, Provider, ReasoningFormat } from "../shared/models";
 
-/** Speed/quality tiers shown in the picker. */
-export type ModelTier = "fast" | "smart" | "reasoning";
-
-export type Billing = "owner" | "user-key";
-
-/**
- * How a model surfaces its chain of thought, if at all.
- *   - `none`       Plain text only.
- *   - `think-tags` Reasoning arrives inline as `<think>…</think>` and must be
- *                  split out of the text (DeepSeek R1 distills, QwQ).
- *   - `field`      Reasoning arrives in a separate `reasoning_content` delta
- *                  (OpenAI-compatible providers).
- */
-export type ReasoningFormat = "none" | "think-tags" | "field";
+// Defined in src/shared/ so the browser can use them; re-exported so Worker
+// code keeps importing from the registry.
+export type { Billing, ModelTier, Provider, ReasoningFormat } from "../shared/models";
 
 export interface ModelSpec {
 	/** Public identifier. Clients send this as `model`. Also the gateway's name. */

@@ -71,6 +71,35 @@ describe("provider keys route", () => {
 	});
 });
 
+describe("content security policy", () => {
+	function directive(csp: string, name: string): string[] {
+		const found = csp.split(";").map((d) => d.trim()).find((d) => d.startsWith(`${name} `));
+		return found ? found.split(/\s+/).slice(1) : [];
+	}
+
+	it("allows no inline script, and only the known script hosts", async () => {
+		const response = await fetchWorker("/api/v1/health");
+		const csp = response.headers.get("content-security-policy-report-only") ?? "";
+		const scripts = directive(csp, "script-src");
+		expect(scripts).not.toContain("'unsafe-inline'");
+		// 'unsafe-eval' is present only for the Spline viewer, which
+		// evaluates a string internally; see security-headers.ts.
+		expect(scripts.sort()).toEqual(
+			[
+				"'self'",
+				"'unsafe-eval'",
+				"https://cdn.protect.clerk.com",
+				"https://challenges.cloudflare.com",
+				"https://clerk.eleenai.xyz",
+				"https://unpkg.com",
+			].sort(),
+		);
+		expect(directive(csp, "font-src")).toEqual(["'self'"]);
+		expect(directive(csp, "object-src")).toEqual(["'none'"]);
+		expect(directive(csp, "frame-ancestors")).toEqual(["'none'"]);
+	});
+});
+
 describe("health", () => {
 	it("answers without auth", async () => {
 		const response = await fetchWorker("/api/v1/health");

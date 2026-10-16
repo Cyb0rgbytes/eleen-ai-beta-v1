@@ -1,0 +1,190 @@
+/*
+ * The layer contract (DESIGN.md section 5). These are the only z-index
+ * declarations in the frontend:
+ *
+ *   0     scene        #spline-bg
+ *   1     scrim        #chat-scrim
+ *   2     shell        .gateway-container
+ *   3     loader       #spline-loader
+ *   4     auth         .auth-container, .auth-dock
+ *   5     sidebar      (M4.4)
+ *   1000  toasts       .toast
+ *
+ * A transparent element still receives pointer events. Every full-bleed
+ * layer above the scene is pointer-events: none, and only the controls
+ * inside opt back in, or the robot stops tracking the cursor.
+ */
+
+/* 0. Scene. Never filtered, tinted or blended (DESIGN.md 2.1). */
+#spline-bg {
+	position: fixed;
+	inset: 0;
+	z-index: 0;
+}
+
+#spline-bg spline-viewer {
+	inline-size: 100%;
+	block-size: 100%;
+	display: block;
+	opacity: 0;
+	transition: opacity var(--dur-panel) var(--ease);
+}
+
+#spline-bg.loaded spline-viewer {
+	opacity: 1;
+}
+
+/* Placeholder glow while the scene downloads. Inside the scene layer, so it
+   needs no z-index of its own. */
+#spline-bg::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background:
+		radial-gradient(ellipse at 30% 50%, var(--scene-glow-1) 0%, transparent 60%),
+		radial-gradient(ellipse at 70% 40%, var(--scene-glow-2) 0%, transparent 55%);
+	transition: opacity var(--dur-panel) var(--ease);
+	pointer-events: none;
+}
+
+#spline-bg.loaded::before {
+	opacity: 0;
+}
+
+/* 1. Scrim. Darkens only where the conversation sits, so the scene keeps its
+   own light at the edges. The scrim bands follow the scene, so they are the
+   one place physical directions are correct. */
+#chat-scrim {
+	position: fixed;
+	inset: 0;
+	z-index: 1;
+	pointer-events: none;
+	background:
+		linear-gradient(
+			180deg,
+			rgb(var(--scrim-rgb) / var(--scrim-top)) 0%,
+			rgb(var(--scrim-rgb) / calc(var(--scrim-top) * 0.69)) 12%,
+			transparent 26%
+		),
+		linear-gradient(
+			0deg,
+			rgb(var(--scrim-rgb) / var(--scrim-bottom)) 0%,
+			rgb(var(--scrim-rgb) / calc(var(--scrim-bottom) * 0.64)) 14%,
+			transparent 30%
+		),
+		radial-gradient(ellipse 62% 52% at 50% 45%, rgb(var(--scrim-rgb) / var(--scrim-body)) 0%, transparent 78%),
+		linear-gradient(180deg, rgb(var(--scrim-rgb) / var(--scrim-floor-a)), rgb(var(--scrim-rgb) / var(--scrim-floor-b)));
+}
+
+/* 2. Shell. Full width, paints nothing, click-through. */
+.gateway-container {
+	position: relative;
+	z-index: 2;
+	inline-size: 100%;
+	/* The viewport minus body padding, so the composer and footer stay on
+	   screen however long the conversation gets. */
+	block-size: calc(100vh - 2 * var(--sp-3));
+	block-size: calc(100dvh - 2 * var(--sp-3));
+	margin-inline: auto;
+	display: flex;
+	flex-direction: column;
+	background: transparent;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+/* Interactive regions opt back in. The scroller stays click-through: it is
+   the centred column where the cursor spends its time, and claiming events
+   there blanks a band down the middle of the scene. Message bubbles take
+   events for text selection; wheel scrolling over the gaps is forwarded by
+   the scene module. */
+.gateway-container header,
+.gateway-container footer,
+.message-input,
+.typing-indicator,
+.message,
+.thinking-indicator,
+.guest-limit-prompt {
+	pointer-events: auto;
+}
+
+/* Touch scrolling is hit-test driven and the forwarder only covers wheel
+   events, so on a coarse pointer the scroller takes its events back. Keyed
+   on the pointer, not width: a narrow desktop window still has a cursor. */
+@media (hover: none), (pointer: coarse) {
+	#chat-messages,
+	.chat-messages {
+		pointer-events: auto;
+	}
+}
+
+/* The reading column: a fixed measure inside a full-width shell. */
+header,
+footer,
+#chat-messages,
+.chat-messages,
+.message-input,
+.typing-indicator {
+	inline-size: 100%;
+	max-inline-size: var(--column);
+	margin-inline: auto;
+}
+
+/* 3. Loader. Bottom inline-end: the auth dock owns the inline-start corner. */
+#spline-loader {
+	position: fixed;
+	inset-block-end: var(--sp-4);
+	inset-inline-end: var(--sp-4);
+	z-index: 3;
+	pointer-events: none;
+	display: flex;
+	align-items: center;
+	gap: var(--sp-1);
+	font-size: 0.7rem;
+	letter-spacing: 0.5px;
+	color: var(--text-loader);
+	transition: opacity var(--dur-panel) var(--ease);
+}
+
+#spline-loader.hidden {
+	opacity: 0;
+}
+
+/* 4. Auth anchors, fixed to the page corners. */
+.auth-container,
+.auth-dock {
+	position: fixed;
+	z-index: 4;
+}
+
+.auth-container {
+	inset-block-start: var(--sp-3);
+	inset-inline-end: var(--sp-3);
+}
+
+.auth-dock {
+	inset-block-end: var(--sp-3);
+	inset-inline-start: var(--sp-3);
+}
+
+/* 1000. Toasts. */
+.toast {
+	position: fixed;
+	inset-block-end: var(--sp-4);
+	inset-inline-end: var(--sp-4);
+	z-index: 1000;
+}
+
+
+
+@media (max-width: 768px) {
+	/* The header pair moves into the flow of its own row on small screens. */
+	.auth-container {
+		position: static;
+	}
+
+	.auth-dock,
+	#spline-loader {
+		display: none;
+	}
+}
