@@ -154,6 +154,55 @@
 	animation: toast-out var(--dur-reveal) var(--ease) forwards;
 }
 
+/* Popovers and dialogs: 320 ms, the panel duration (DESIGN.md 8). */
+@keyframes panel-in {
+	from {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+@keyframes fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+.model-popover:not([hidden]),
+.keys-dialog[open] {
+	animation: panel-in var(--dur-panel) var(--ease) both;
+}
+
+.keys-dialog[open]::backdrop {
+	animation: fade-in var(--dur-panel) var(--ease) both;
+}
+
+/* The trigger's chevron turns over while the popover is open. */
+.model-trigger .icon,
+.reasoning-summary .icon {
+	transition: transform var(--dur-state) var(--ease);
+}
+
+.model-trigger[aria-expanded="true"] .icon {
+	transform: rotate(180deg);
+}
+
+/* A closed reasoning panel points toward the inline-end. */
+.reasoning:not([open]) .reasoning-summary .icon {
+	transform: rotate(calc(-90deg * var(--dir-sign)));
+}
+
+.reasoning[open] .reasoning-text {
+	animation: rise-in var(--dur-reveal) var(--ease) both;
+}
+
 /* ── Live-state loops ───────────────────────────────────────────────────── */
 
 @keyframes dot-pulse {

@@ -118,8 +118,70 @@ function actionButton(kind: "copy" | "regenerate"): HTMLButtonElement {
 	return button;
 }
 
+/**
+ * The reasoning panel (DESIGN.md section 7): a disclosure at the top of the
+ * reply, open with a live timer while the model thinks, collapsed to
+ * "Thought for Ns" once the answer begins unless the reader opened it.
+ * Only a v2 `reasoning` event creates one. The thinking is plain text.
+ */
+interface ReasoningPanel {
+	readonly root: HTMLDetailsElement;
+	push(text: string): void;
+	/** The answer has begun, or the turn ended: stop the clock. */
+	settle(): void;
+}
+
+function createReasoning(): ReasoningPanel {
+	const root = el("details", "reasoning");
+	root.open = true;
+	const summary = el("summary", "reasoning-summary");
+	const label = el("span", "reasoning-label");
+	label.textContent = t("reasoningLive");
+	// The ticking clock is for the eye; the live region would announce
+	// every second otherwise. The settled label carries the duration.
+	const clock = el("span", "reasoning-clock");
+	clock.setAttribute("aria-hidden", "true");
+	clock.textContent = "0s";
+	summary.append(icon("caret-down"), label, clock);
+
+	const body = el("div", "reasoning-text");
+	body.dir = "auto";
+	const text = document.createTextNode("");
+	body.append(text);
+	root.append(summary, body);
+
+	const started = performance.now();
+	const seconds = () => Math.max(1, Math.round((performance.now() - started) / 1000));
+	const timer = setInterval(() => {
+		clock.textContent = `${Math.floor((performance.now() - started) / 1000)}s`;
+	}, 1000);
+	let settled = false;
+	let touched = false;
+	summary.addEventListener("click", () => {
+		touched = true;
+	});
+
+	return {
+		root,
+		push(chunk) {
+			text.appendData(chunk);
+		},
+		settle() {
+			if (settled) return;
+			settled = true;
+			clearInterval(timer);
+			clock.remove();
+			label.textContent = t("reasoningDone", { seconds: seconds() });
+			root.classList.add("is-done");
+			if (!touched) root.open = false;
+		},
+	};
+}
+
 export interface AssistantView {
 	readonly root: HTMLElement;
+	/** Append chain-of-thought text (v2 `reasoning` events). */
+	reason(text: string): void;
 	/** Re-render from the full text so far. Batched to one paint per frame. */
 	update(raw: string): void;
 	/** Final render with chips, actions and usage. Returns what was extracted. */
@@ -152,15 +214,34 @@ export function createAssistantMessage(): AssistantView {
 		root.classList.remove("is-receiving");
 	}
 
+	let reasoning: ReasoningPanel | null = null;
+
 	function paint(raw: string, streaming: boolean): Extracted {
 		const extracted = extractMarkers(raw, { streaming });
-		body.replaceChildren(renderMarkdown(extracted.text));
+		const blocks = renderMarkdown(extracted.text);
+		if (reasoning) {
+			// The panel stays put: re-inserting it would restart its
+			// animation and lose the reader's open or closed choice.
+			while (reasoning.root.nextSibling) reasoning.root.nextSibling.remove();
+			body.append(blocks);
+		} else {
+			body.replaceChildren(blocks);
+		}
 		return extracted;
 	}
 
 	return {
 		root,
+		reason(chunk) {
+			if (!reasoning) {
+				reasoning = createReasoning();
+				body.prepend(reasoning.root);
+			}
+			reasoning.push(chunk);
+			markReceiving();
+		},
 		update(raw) {
+			reasoning?.settle();
 			pending = raw;
 			markReceiving();
 			if (frame) return;
@@ -174,6 +255,7 @@ export function createAssistantMessage(): AssistantView {
 			if (frame) cancelAnimationFrame(frame);
 			frame = 0;
 			pending = null;
+			reasoning?.settle();
 
 			const extracted = paint(raw, false);
 			stopReceiving();
@@ -210,6 +292,8 @@ export function createAssistantMessage(): AssistantView {
 		fail(message) {
 			if (frame) cancelAnimationFrame(frame);
 			frame = 0;
+			reasoning?.settle();
+			reasoning = null;
 			stopReceiving();
 			root.classList.remove("is-streaming");
 			root.classList.add("is-error");

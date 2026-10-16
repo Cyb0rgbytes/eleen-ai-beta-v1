@@ -66,7 +66,10 @@ test("streams a v2 reply, shows usage, and restores Send", async ({ page }) => {
 	});
 
 	await page.goto("/");
+	// The modes moved into the model picker's popover (DESIGN.md 7).
+	await page.locator("#model-trigger").click();
 	await page.locator('.mode-btn[data-mode="logical"]').click();
+	await page.keyboard.press("Escape");
 	await send(page, "count");
 
 	const reply = page.locator(".assistant-message").last();

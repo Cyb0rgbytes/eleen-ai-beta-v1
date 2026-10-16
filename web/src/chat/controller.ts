@@ -48,6 +48,8 @@ export interface ChatApi {
 	history(): ChatMessage[];
 	isProcessing(): boolean;
 	setMode(mode: ResponseMode): void;
+	/** A tier name or model id from the picker, and its display label. */
+	setModel(model: string, label: string): void;
 }
 
 function greeting(): ChatMessage[] {
@@ -59,6 +61,8 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 	let history: ChatMessage[] = greeting();
 	let busy = false;
 	let mode: ResponseMode = "balanced";
+	let model = "fast";
+	let modelLabel = "";
 	let controller: AbortController | null = null;
 
 	function setBusy(next: boolean) {
@@ -109,8 +113,10 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 			if (error.kind === "network") return t("errorNetwork");
 			if (error.kind === "timeout") return t("errorTimeout");
 			if (error.kind === "forbidden") {
-				const model = t("thisModel");
-				return error.reason === "key-required" ? t("errorKeyRequired", { model }) : t("errorSignIn", { model });
+				const name = modelLabel || t("thisModel");
+				return error.reason === "key-required"
+					? t("errorKeyRequired", { model: name })
+					: t("errorSignIn", { model: name });
 			}
 		}
 		return t("errorGeneric");
@@ -211,10 +217,14 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 
 			try {
 				for await (const event of streamChat(
-					{ messages: history, mode },
+					{ messages: history, mode, model },
 					{ authenticated: isSignedIn(), signal: controller.signal },
 				)) {
-					if (event.type === "token") {
+					if (event.type === "reasoning") {
+						begin();
+						view.reason(event.data.text);
+						requestAnimationFrame(() => follow(messages));
+					} else if (event.type === "token") {
 						begin();
 						raw += event.data.text;
 						view.update(raw);
@@ -224,7 +234,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 					} else if (event.type === "error") {
 						failed = event.data.message;
 					}
-					// reasoning events are kept for the M3.6 panel; meta is not shown.
+					// meta is not shown.
 				}
 			} catch (error) {
 				if (!(error instanceof ApiError && error.kind === "aborted")) throw error;
@@ -349,6 +359,10 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 		isProcessing: () => busy,
 		setMode: (next) => {
 			mode = next;
+		},
+		setModel: (next, label) => {
+			model = next;
+			modelLabel = label;
 		},
 	};
 }

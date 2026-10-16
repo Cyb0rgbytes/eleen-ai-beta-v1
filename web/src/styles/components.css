@@ -830,8 +830,163 @@ header {
 	gap: var(--sp-1);
 }
 
-.mode-selector {
+/* ── Model picker (DESIGN.md 7) ─────────────────────────────────────────── */
+
+.model-picker {
+	position: relative;
+}
+
+.model-trigger {
 	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	padding: 4px 10px;
+	font-size: var(--fs-sm);
+	font-weight: 500;
+	line-height: 1;
+	color: var(--text);
+	background: var(--field);
+	border: 1px solid var(--line);
+	border-radius: var(--r-pill);
+}
+
+.model-trigger:hover,
+.model-trigger[aria-expanded="true"] {
+	border-color: var(--accent-line);
+}
+
+.model-trigger .icon {
+	inline-size: 0.9em;
+	block-size: 0.9em;
+	color: var(--text-dim);
+}
+
+/* Opens upward from the trigger, over the conversation. Solid, so the
+   scene never shows through a menu (DESIGN.md 3). */
+.model-popover {
+	position: absolute;
+	inset-block-end: calc(100% + var(--sp-2));
+	inset-inline-start: 0;
+	inline-size: min(22rem, calc(100vw - 2 * var(--sp-3)));
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-1);
+	padding: var(--sp-1);
+	background: var(--surface-solid);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--r-md);
+	box-shadow: var(--shadow-plate);
+}
+
+.model-popover[hidden] {
+	display: none;
+}
+
+.model-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	max-block-size: min(50vh, 24rem);
+	overflow-y: auto;
+	border-radius: var(--r-sm);
+}
+
+.model-list:focus-visible {
+	outline: none;
+}
+
+.model-group {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.model-group.is-premium {
+	margin-block-start: var(--sp-1);
+	padding-block-start: var(--sp-1);
+	border-block-start: 1px solid var(--line);
+}
+
+.model-group-head {
+	padding: 2px var(--sp-2);
+	font-size: var(--fs-xs);
+	font-weight: 500;
+	color: var(--text-faint);
+}
+
+.model-option {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--sp-2);
+	padding: var(--sp-1) var(--sp-2);
+	font-size: var(--fs-sm);
+	color: var(--text);
+	border-radius: var(--r-sm);
+	cursor: pointer;
+}
+
+.model-option.is-active {
+	background: var(--field-raised);
+}
+
+/* The keyboard position is visible, not only hover. */
+.model-list:focus-visible .model-option.is-active {
+	outline: 2px solid var(--focus-ring);
+	outline-offset: -2px;
+}
+
+.model-option[aria-selected="true"] {
+	background: var(--accent-soft);
+}
+
+.model-option[aria-selected="true"] .model-option-label {
+	color: var(--accent-text);
+}
+
+.model-option-text {
+	display: flex;
+	flex-direction: column;
+	min-inline-size: 0;
+}
+
+.model-option-label {
+	font-weight: 500;
+}
+
+.model-option-note {
+	font-size: var(--fs-xs);
+	color: var(--text-dim);
+}
+
+.model-option-side {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 0.35rem;
+	font-size: var(--fs-xs);
+	color: var(--text-faint);
+}
+
+.model-option-side .icon {
+	inline-size: 1em;
+	block-size: 1em;
+}
+
+.model-option[aria-selected="true"] .model-option-side .icon {
+	color: var(--accent-text);
+}
+
+.model-list-note {
+	margin: 0;
+	padding: 2px var(--sp-2);
+	font-size: var(--fs-xs);
+	color: var(--text-faint);
+}
+
+/* The response modes, a segmented control at the bottom of the popover. */
+.mode-segment {
+	display: flex;
 	gap: 2px;
 	padding: 2px;
 	background: var(--surface-sunken);
@@ -839,8 +994,9 @@ header {
 }
 
 .mode-btn {
+	flex: 1;
 	padding: 4px 12px;
-	font-size: 0.78rem;
+	font-size: var(--fs-xs);
 	color: var(--text-faint);
 	background: none;
 	border: none;
@@ -854,6 +1010,308 @@ header {
 .mode-btn.active {
 	color: var(--on-accent);
 	background: var(--mode-active);
+}
+
+.model-keys-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	align-self: flex-start;
+	padding: 4px var(--sp-1);
+	font-size: var(--fs-xs);
+	color: var(--accent-text);
+	background: none;
+	border: none;
+	border-radius: var(--r-xs);
+}
+
+.model-keys-link[hidden] {
+	display: none;
+}
+
+.model-keys-link .icon {
+	inline-size: 1em;
+	block-size: 1em;
+}
+
+/* ── Keys form (DESIGN.md 7) ────────────────────────────────────────────── */
+
+/* A native modal dialog: the browser's top layer, like Clerk's modals, so
+   it needs no z-index. The backdrop is a flat scrim, never a blur: the
+   scene is not filtered (DESIGN.md 2.1). */
+.keys-dialog {
+	/* The reset zeroes margins; a modal dialog centres itself with auto. */
+	margin: auto;
+	inline-size: min(32rem, calc(100vw - 2 * var(--sp-3)));
+	max-block-size: calc(100dvh - 2 * var(--sp-4));
+	padding: 0;
+	color: var(--text);
+	background: var(--surface-solid);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--r-md);
+	box-shadow: var(--shadow-toast);
+}
+
+.keys-dialog::backdrop {
+	background: rgb(var(--scrim-rgb) / var(--scrim-bottom));
+}
+
+.keys-panel {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-2);
+	padding: var(--sp-4);
+}
+
+.keys-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--sp-2);
+}
+
+.keys-title {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sp-1);
+	margin: 0;
+	font-size: var(--fs-lg);
+	font-weight: 600;
+}
+
+.keys-title .icon {
+	inline-size: 1em;
+	block-size: 1em;
+	color: var(--accent-text);
+}
+
+.keys-close {
+	display: inline-flex;
+	padding: 0.35rem;
+	color: var(--text-dim);
+	background: none;
+	border: 1px solid transparent;
+	border-radius: var(--r-pill);
+}
+
+.keys-close:hover {
+	border-color: var(--line-strong);
+}
+
+.keys-intro,
+.keys-list-status {
+	margin: 0;
+	font-size: var(--fs-sm);
+	color: var(--text-dim);
+}
+
+.keys-list-status:empty {
+	display: none;
+}
+
+.keys-list {
+	display: flex;
+	flex-direction: column;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.key-row {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-1);
+	padding-block: var(--sp-2);
+	border-block-start: 1px solid var(--line);
+}
+
+.key-row-main {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--sp-1) var(--sp-2);
+}
+
+.key-provider {
+	min-inline-size: 6rem;
+	font-weight: 500;
+}
+
+/* The stored key, masked: only its last four ever reach the page. */
+.key-masked {
+	flex: 1;
+	padding: 4px var(--sp-1);
+	font-size: var(--fs-sm);
+	color: var(--text-dim);
+	background: var(--field);
+	border: 1px solid var(--line);
+	border-radius: var(--r-xs);
+}
+
+.key-masked.is-empty {
+	color: var(--text-faint);
+}
+
+/* The four characters themselves read as key material. */
+.key-last4 {
+	font-family: var(--font-mono);
+	color: var(--text);
+}
+
+.key-actions,
+.key-form-actions {
+	display: inline-flex;
+	gap: var(--sp-1);
+}
+
+.key-action,
+.key-save {
+	padding: 4px var(--sp-2);
+	font-size: var(--fs-sm);
+	font-weight: 500;
+	color: var(--text);
+	background: var(--field);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--r-pill);
+}
+
+.key-action:hover {
+	border-color: var(--accent-line);
+}
+
+.key-action[hidden] {
+	display: none;
+}
+
+.key-action.is-danger {
+	color: var(--danger);
+}
+
+.key-action.is-confirming {
+	color: var(--on-accent);
+	background: var(--danger);
+	border-color: var(--danger);
+}
+
+.key-save {
+	color: var(--on-accent);
+	background: var(--accent);
+	border-color: var(--accent);
+}
+
+.key-save:hover {
+	background: var(--accent-hover);
+}
+
+.key-action:disabled,
+.key-save:disabled {
+	opacity: 0.5;
+	pointer-events: none;
+}
+
+.key-form {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+}
+
+.key-form[hidden] {
+	display: none;
+}
+
+.key-label {
+	font-size: var(--fs-sm);
+	color: var(--text-dim);
+}
+
+.key-input {
+	padding: var(--sp-1);
+	font-family: var(--font-mono);
+	font-size: var(--fs-sm);
+	color: var(--text);
+	background: var(--field);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--r-xs);
+}
+
+.key-input:focus-visible {
+	outline: 2px solid var(--focus-ring);
+	outline-offset: 1px;
+}
+
+.key-input[aria-invalid="true"] {
+	border-color: var(--danger);
+}
+
+.key-error {
+	margin: 0;
+	font-size: var(--fs-sm);
+	color: var(--danger);
+}
+
+.key-error[hidden] {
+	display: none;
+}
+
+.key-status {
+	margin: 0;
+	font-size: var(--fs-sm);
+	color: var(--text-dim);
+}
+
+.key-status:empty {
+	display: none;
+}
+
+.key-status[data-tone="ok"] {
+	color: var(--ok);
+}
+
+.key-status[data-tone="error"] {
+	color: var(--danger);
+}
+
+/* ── Reasoning panel (DESIGN.md 7) ──────────────────────────────────────── */
+
+.reasoning {
+	margin-block-end: var(--sp-2);
+}
+
+.reasoning-summary {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	font-size: var(--fs-sm);
+	color: var(--text-dim);
+	cursor: pointer;
+	list-style: none;
+	border-radius: var(--r-xs);
+}
+
+.reasoning-summary::-webkit-details-marker {
+	display: none;
+}
+
+.reasoning-summary .icon {
+	inline-size: 0.9em;
+	block-size: 0.9em;
+}
+
+.reasoning-clock {
+	font-size: var(--fs-xs);
+	font-variant-numeric: tabular-nums;
+	color: var(--text-faint);
+}
+
+.reasoning-text {
+	margin-block-start: var(--sp-1);
+	padding-inline-start: var(--sp-2);
+	max-block-size: 18rem;
+	overflow-y: auto;
+	font-size: var(--fs-sm);
+	color: var(--text-dim);
+	white-space: pre-wrap;
+	border-inline-start: 2px solid var(--line);
 }
 
 #enhance-btn {
@@ -1146,24 +1604,11 @@ footer {
 		inline-size: fit-content;
 	}
 
-	.mode-selector {
-		overflow-x: auto;
-		scrollbar-width: none;
-	}
-
-	.mode-selector::-webkit-scrollbar {
-		display: none;
-	}
 }
 
 @media (max-width: 400px) {
 	.logo-image {
 		block-size: 28px;
-	}
-
-	.mode-btn {
-		padding: 4px 9px;
-		font-size: 0.72rem;
 	}
 
 	#send-button,
