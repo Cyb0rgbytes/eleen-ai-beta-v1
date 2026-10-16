@@ -73,10 +73,14 @@ A sweep replaced production's policy with the candidate in enforce mode and ran 
 1. **Owner:** merge `feat/visual-pass`, then deploy with `npm run deploy` and `npm run verify-deploy`. This starts the 48-hour report window.
 2. Read `/api/csp-report` after 48 hours. Then ask the owner before flipping the main policy to enforcing.
 3. **Owner:** merge `feat/m3.6-picker-keys-reasoning` and deploy.
-4. With the owner's real OpenAI or Anthropic key, check on production that a premium model's request reaches the provider through `extraHeaders` and the gateway.
+4. The Worker's half of the premium path is now checked offline by `test/gateway-compat.test.ts`. The test confirms that the key goes only into the provider's auth header, through `eleenai-gateway`, uncached and never logged. It also confirms that a missing key stops before any call. The live half is still open: whether the gateway forwards the header and the provider accepts it. The owner is not adding a paid OpenAI or Anthropic key. A free Google AI Studio key would cover it once a Gemini model is listed as a user-key model.
 5. Add a production e2e check that allows exactly the two Cloudflare-injected scripts. The existing third-party script test describes our own page and passes locally only.
 
-## Proposed DESIGN.md amendments, not yet made
+## DESIGN.md amendments, approved 2026-10-17
 
-- **Layer table, Modals row:** "provided by Clerk, and the keys dialog (native `<dialog>`, browser top layer)". The table today names only Clerk.
-- **Model picker:** a "Manage API keys" link under the modes, shown only when signed in. Without it, the keys form is reachable only through a locked row.
+- **Layer table, Modals row:** the browser top layer holds Clerk's modals and the keys dialog. Neither sets a `z-index`, and the backdrop is a flat scrim.
+- **Model picker:** a "Manage API keys" link under the modes, shown only when signed in.
+
+## Who pays for premium models
+
+A stored key belongs to one user. The chat route looks it up by the caller's own user ID, and the ciphertext is bound to that user and provider. The owner's key, if one is ever added, runs only the owner's own chats. Other users get "Add your key" and must store their own. The gateway holds no provider keys and has "Require provider credentials" on, so a request without a key cannot fall through to the owner's account.
