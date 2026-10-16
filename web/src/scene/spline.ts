@@ -118,7 +118,7 @@ export function forwardWheel(scroller: HTMLElement): void {
 	window.addEventListener(
 		"wheel",
 		(event) => {
-			if (event.target instanceof Element && event.target.closest("textarea, pre, .md-table, .message-input")) return;
+			if (event.target instanceof Element && event.target.closest("textarea, pre, .md-table, .message-input, .reasoning-text")) return;
 			const box = scroller.getBoundingClientRect();
 			const over =
 				event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom;

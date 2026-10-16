@@ -96,6 +96,74 @@ describe("assistant message", () => {
 	});
 });
 
+describe("reasoning panel", () => {
+	it("is absent unless a reasoning event arrives", () => {
+		const view = createAssistantMessage();
+		view.update("plain answer");
+		view.finish("plain answer");
+		expect(view.root.querySelector(".reasoning")).toBeNull();
+	});
+
+	it("opens with a live clock while thinking, then collapses to the duration once the answer begins", () => {
+		vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout", "performance", "requestAnimationFrame", "cancelAnimationFrame"] });
+		const view = createAssistantMessage();
+		view.reason("Let me ");
+		view.reason("think.");
+		const panel = view.root.querySelector(".reasoning") as HTMLDetailsElement;
+		expect(panel.open).toBe(true);
+		expect(panel.querySelector(".reasoning-label")?.textContent).toBe("Thinking");
+		expect(panel.querySelector(".reasoning-text")?.textContent).toBe("Let me think.");
+		// The clock is hidden from the live region, so it is not read out every second.
+		expect(panel.querySelector(".reasoning-clock")?.getAttribute("aria-hidden")).toBe("true");
+
+		vi.advanceTimersByTime(3000);
+		expect(panel.querySelector(".reasoning-clock")?.textContent).toBe("3s");
+
+		view.update("The answer");
+		vi.advanceTimersToNextFrame();
+		expect(panel.open).toBe(false);
+		expect(panel.querySelector(".reasoning-label")?.textContent).toBe("Thought for 3s");
+		expect(panel.querySelector(".reasoning-clock")).toBeNull();
+		// The panel survives the answer's repaints; it is not rebuilt.
+		expect(view.root.querySelector(".reasoning")).toBe(panel);
+		expect(view.root.querySelector(".message-body")?.textContent).toContain("The answer");
+	});
+
+	it("stays open if the reader opened it themselves", () => {
+		const view = createAssistantMessage();
+		view.reason("thinking");
+		const panel = view.root.querySelector(".reasoning") as HTMLDetailsElement;
+		panel.querySelector("summary")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		panel.open = true;
+		view.finish("answer");
+		expect(panel.open).toBe(true);
+		expect(panel.querySelector(".reasoning-label")?.textContent).toMatch(/^Thought for \d+s$/);
+	});
+
+	it("keeps the thinking out of the copied reply", async () => {
+		const { replyText } = await import("./render");
+		const view = createAssistantMessage();
+		view.reason("secret chain of thought");
+		view.finish("final answer");
+		expect(replyText.get(view.root)).toBe("final answer");
+	});
+
+	it("renders hostile thinking as text", () => {
+		const view = createAssistantMessage();
+		view.reason('<img src=x onerror="window.__xss=1"><script>window.__xss=2</script>');
+		view.finish("ok");
+		expect(view.root.querySelector("img, script")).toBeNull();
+		expect(view.root.querySelector(".reasoning-text")?.textContent).toContain("<script>");
+	});
+
+	it("settles when a stopped reply ends mid-thought", () => {
+		const view = createAssistantMessage();
+		view.reason("half a thought");
+		view.finish("", { stopped: true });
+		expect(view.root.querySelector(".reasoning-label")?.textContent).toMatch(/^Thought for \d+s$/);
+	});
+});
+
 describe("skeletons", () => {
 	it("shapes the first-token wait like the reply it becomes", async () => {
 		const { createThinking } = await import("./render");
