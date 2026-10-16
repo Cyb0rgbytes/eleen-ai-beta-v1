@@ -62,20 +62,6 @@
 
 /* ── Live-state loops ───────────────────────────────────────────────────── */
 
-@keyframes glow-pulse {
-	0%,
-	100% {
-		opacity: 0.6;
-	}
-	50% {
-		opacity: 1;
-	}
-}
-
-#spline-bg:not(.loaded)::before {
-	animation: glow-pulse 3s var(--ease) infinite;
-}
-
 @keyframes dot-pulse {
 	0%,
 	100% {
@@ -176,11 +162,9 @@
 /* ── Reduced motion ─────────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
-	/* With the scene hidden there is nothing to scrim, and the flat --bg is
-	   dark enough to read against. M5.5 replaces this with a static poster. */
-	#spline-bg,
-	#spline-loader,
-	#chat-scrim {
+	/* The live scene is never loaded here (scene/spline.ts); the poster and
+	   its scrim stay, so the page keeps its look without moving. */
+	#spline-loader {
 		display: none;
 	}
 

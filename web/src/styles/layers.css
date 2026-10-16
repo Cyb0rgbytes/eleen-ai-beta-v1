@@ -22,7 +22,23 @@
 	z-index: 0;
 }
 
+/* The still poster: the backdrop on first paint, and the whole scene when
+   the live viewer is skipped (DESIGN.md section 8). It sits beneath the
+   viewer inside the same layer, so neither needs a z-index of its own. */
+#scene-poster {
+	position: absolute;
+	inset: 0;
+	inline-size: 100%;
+	block-size: 100%;
+	object-fit: cover;
+	pointer-events: none;
+	user-select: none;
+	transition: opacity var(--dur-panel) var(--ease);
+}
+
 #spline-bg spline-viewer {
+	position: absolute;
+	inset: 0;
 	inline-size: 100%;
 	block-size: 100%;
 	display: block;
@@ -30,24 +46,12 @@
 	transition: opacity var(--dur-panel) var(--ease);
 }
 
+/* The crossfade: the live scene in, the poster out. */
 #spline-bg.loaded spline-viewer {
 	opacity: 1;
 }
 
-/* Placeholder glow while the scene downloads. Inside the scene layer, so it
-   needs no z-index of its own. */
-#spline-bg::before {
-	content: "";
-	position: absolute;
-	inset: 0;
-	background:
-		radial-gradient(ellipse at 30% 50%, var(--scene-glow-1) 0%, transparent 60%),
-		radial-gradient(ellipse at 70% 40%, var(--scene-glow-2) 0%, transparent 55%);
-	transition: opacity var(--dur-panel) var(--ease);
-	pointer-events: none;
-}
-
-#spline-bg.loaded::before {
+#spline-bg.loaded #scene-poster {
 	opacity: 0;
 }
 

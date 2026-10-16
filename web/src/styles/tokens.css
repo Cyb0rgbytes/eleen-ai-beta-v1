@@ -27,8 +27,6 @@
 	--bg-deep: #030312;
 	--bg-glow-1: rgb(108 99 255 / 0.1);
 	--bg-glow-2: rgb(0 229 255 / 0.07);
-	--scene-glow-1: rgb(108 99 255 / 0.15);
-	--scene-glow-2: rgb(0 229 255 / 0.1);
 	--surface: rgb(11 11 30 / 0.72);
 	--surface-composer: rgb(11 11 30 / 0.55);
 	--surface-plate: rgb(3 3 18 / 0.55);
@@ -137,8 +135,6 @@
 	--bg-deep: #e9e9f4;
 	--bg-glow-1: rgb(90 81 240 / 0.08);
 	--bg-glow-2: rgb(14 116 144 / 0.06);
-	--scene-glow-1: rgb(90 81 240 / 0.1);
-	--scene-glow-2: rgb(14 116 144 / 0.08);
 	--surface: rgb(255 255 255 / 0.78);
 	--surface-composer: rgb(255 255 255 / 0.8);
 	--surface-plate: rgb(255 255 255 / 0.72);

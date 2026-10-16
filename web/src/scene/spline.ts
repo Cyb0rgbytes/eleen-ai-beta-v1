@@ -1,20 +1,72 @@
 /**
- * The Spline scene: fade-in, the one error it is allowed to throw, and wheel
- * forwarding.
+ * The 3D scene: a still poster first, the live Spline viewer when the
+ * device can afford it (DESIGN.md section 8).
  *
- * The viewer itself is @splinetool/viewer 1.12.88 from unpkg, loaded by a
- * <script type="module"> in index.html. It is the only third-party script
- * left besides Clerk: the package declares no licence, so self-hosting it
- * is not clearly permitted. It is never filtered, tinted or blended
- * (DESIGN.md section 2.1).
+ * The poster (/scene-poster.webp, 7 KB, made by scripts/capture-poster.mjs)
+ * is in the HTML, so the page has its backdrop on first paint. The viewer
+ * runtime is 2.3 MB of JavaScript; it is only fetched when none of the skip
+ * conditions hold, and the poster crossfades to the live scene once it has
+ * rendered.
+ *
+ * The viewer is @splinetool/viewer 1.12.88 from unpkg: the package declares
+ * no licence, so it is not self-hosted. It is never filtered, tinted or
+ * blended (DESIGN.md section 2.1).
  */
 
+const VIEWER_SRC = "https://unpkg.com/@splinetool/viewer@1.12.88/build/spline-viewer.js";
+const SCENE_URL = "https://assets.eleenai.xyz/r_4_x_bot.splinecode";
 const FADE_FALLBACK_MS = 3000;
 
-export function initScene(): void {
+export type SceneMode = "live" | "poster";
+
+interface NetworkInformationLike {
+	saveData?: boolean;
+	effectiveType?: string;
+}
+
+/** Why the live scene should be skipped, or null to load it. */
+export function skipReason(): string | null {
+	if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return "reduced-motion";
+	const connection = (navigator as Navigator & { connection?: NetworkInformationLike }).connection;
+	if (connection?.saveData) return "save-data";
+	if (connection?.effectiveType && /(^|-)2g$/.test(connection.effectiveType)) return "slow-network";
+	if (typeof navigator.hardwareConcurrency === "number" && navigator.hardwareConcurrency < 4) return "low-cores";
+	if (window.matchMedia("(pointer: coarse)").matches) return "coarse-pointer";
+	return null;
+}
+
+function loadViewer(): void {
+	const prefetch = document.createElement("link");
+	prefetch.rel = "prefetch";
+	prefetch.as = "fetch";
+	prefetch.crossOrigin = "anonymous";
+	prefetch.href = SCENE_URL;
+	document.head.append(prefetch);
+
+	const script = document.createElement("script");
+	script.type = "module";
+	script.async = true;
+	script.src = VIEWER_SRC;
+	document.head.append(script);
+}
+
+export function initScene(): SceneMode {
 	const bg = document.getElementById("spline-bg");
 	const loader = document.getElementById("spline-loader");
 	const viewer = bg?.querySelector("spline-viewer");
+
+	const reason = skipReason();
+	if (reason || !bg || !viewer) {
+		if (bg) {
+			bg.dataset.mode = "poster";
+			if (reason) bg.dataset.skip = reason;
+		}
+		loader?.classList.add("hidden");
+		viewer?.remove();
+		return "poster";
+	}
+
+	bg.dataset.mode = "live";
 
 	// The viewer's render loop throws "Cannot read properties of undefined
 	// (reading 'position')" about 240 times a second, an internal fault in
@@ -26,14 +78,16 @@ export function initScene(): void {
 		if (fromViewer && isFrameFault) event.preventDefault();
 	});
 
-	if (bg && viewer) {
-		const loaded = () => {
-			bg.classList.add("loaded");
-			loader?.classList.add("hidden");
-		};
-		viewer.addEventListener("load", loaded, { once: true });
-		setTimeout(loaded, FADE_FALLBACK_MS);
-	}
+	const loaded = () => {
+		bg.classList.add("loaded");
+		loader?.classList.add("hidden");
+	};
+	viewer.addEventListener("load", loaded, { once: true });
+	loadViewer();
+	// The viewer's load event is not reliable across versions; the poster
+	// stays underneath, so an early crossfade only reveals the same scene.
+	setTimeout(loaded, FADE_FALLBACK_MS);
+	return "live";
 }
 
 /**
