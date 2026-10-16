@@ -1,0 +1,241 @@
+# EleenAI design system
+
+**Status:** M0.2, written 2026-10-16. This is the contract the frontend rebuild (M3.5, M3.6, M4.5) builds against. Until the rebuild lands, `public/style.css` is the implementation of the dark theme described here, and anything in that file that disagrees with this document is a bug in the file.
+
+## 1. Design read
+
+EleenAI is a chat product, not a landing page. The interface is a reading column over a live 3D scene, used in two languages, by people who arrive as guests and may sign in. The job of the design is to keep text readable over a moving backdrop, make the few controls that matter findable, and stay out of the conversation's way.
+
+Reading this as: a redesign in **preserve** mode. The brand exists and stays: the indigo accent, the lockup, the Spline robot, the dark-first mood. What changes is rigor, not identity. Every token below is semantic so that a light theme and an RTL layout are configuration, not a second stylesheet.
+
+Reference shape: the Gemini concept in `Concept for UI and interface.png`. Left rail with new-chat and history, gradient greeting, a small set of prompt cards on the empty state, a pill composer with attach and microphone, a one-line disclaimer under it. EleenAI keeps that skeleton and replaces Gemini's flat white with its own scene and surfaces.
+
+Dials, inferred from the read: variance 5, motion 4, density 4. A chat UI is read for minutes at a time, so it earns calm, not spectacle. The scene supplies all the motion the page needs.
+
+## 2. Principles
+
+1. **The scene is never filtered.** No `filter`, no `mix-blend-mode`, no tint on the Spline viewer. Legibility comes from the scrim and the surfaces, never from altering the model. This was tried in August and reverted within the hour.
+2. **Transparent means click-through.** Any full-bleed layer above the scene has `pointer-events: none`, and re-enables pointer events only on the elements that need them. Twice in August a transparent element silently swallowed the cursor and the robot stopped tracking.
+3. **One reading column.** Conversation text lives in a column no wider than 52rem, centred. Line length stays comfortable at 1920px; the controls stay in the corners.
+4. **Semantic tokens only.** Components never name a colour. They name a role: `--surface`, `--text`, `--accent`. Themes and directions change the values, never the components.
+5. **Both themes, both directions, from the start.** Every component is checked in dark and light and in LTR and RTL before it ships. Playwright screenshots cover the four combinations (M4.5).
+6. **Calm motion.** Transitions use `--ease` at 160 to 320 ms, animate only `transform` and `opacity`, and collapse to instant under `prefers-reduced-motion`. Nothing loops except a live state indicator.
+7. **Real states.** Every surface that loads, can be empty, or can fail has a designed loading, empty and error state. A skeleton shaped like the final layout, never a spinner.
+
+## 3. Colour tokens
+
+Defined on `:root`, redefined under `:root[data-theme="light"]`. The initial theme comes from `prefers-color-scheme` and a user's saved choice overrides it, applied by a synchronous script in `<head>` so the page never flashes.
+
+### Brand
+
+| Token | Dark | Light | Notes |
+|---|---|---|---|
+| `--accent` | `#6c63ff` | `#5a51f0` | The one accent. Slightly deepened on light for 4.5:1 against white text. |
+| `--accent-2` | `#8e6cff` | `#7b5cf5` | Second stop of the brand gradient. Gradient use is limited to the greeting and the logo glow. |
+| `--accent-text` | `#a9a3ff` | `#4a42d6` | Accent used as text or icon on the base surface, for links and the active picker state. |
+| `--accent-soft` | `rgb(108 99 255 / 0.14)` | `rgb(90 81 240 / 0.10)` | Tints: selected chips, hover fills. |
+| `--accent-line` | `rgb(108 99 255 / 0.45)` | `rgb(90 81 240 / 0.40)` | Focus rings and selected borders. |
+| `--on-accent` | `#ffffff` | `#ffffff` | Text on a solid accent fill. |
+
+### Surfaces
+
+| Token | Dark | Light | Role |
+|---|---|---|---|
+| `--bg` | `#07071c` | `#f5f5fb` | Page background behind the scene, shown while the scene loads and when it is skipped. |
+| `--bg-deep` | `#030312` | `#e9e9f4` | Sidebar and off-canvas panels. |
+| `--surface` | `rgb(11 11 30 / 0.72)` | `rgb(255 255 255 / 0.78)` | Frosted panels over the scene: composer, picker, sidebar cards. Always paired with `backdrop-filter: blur(24px)`. |
+| `--surface-solid` | `#0f0f2a` | `#ffffff` | Panels that must not show the scene through them: menus, dialogs, the keys form. |
+| `--line` | `rgb(255 255 255 / 0.08)` | `rgb(10 10 40 / 0.08)` | Hairlines and panel borders. |
+| `--line-strong` | `rgb(255 255 255 / 0.16)` | `rgb(10 10 40 / 0.16)` | Input borders at rest. |
+| `--field` | `rgb(255 255 255 / 0.04)` | `rgb(10 10 40 / 0.03)` | Input fills. |
+| `--assistant-bubble` | `rgb(14 14 36 / 0.88)` | `rgb(255 255 255 / 0.90)` | Assistant reply surface. Opaque enough that contrast does not depend on what the robot is doing behind it. |
+| `--user-bubble` | `#5a51f0` | `#5a51f0` | User turn. Solid fill in both themes; a tint was invisible over the scene's bright band. |
+
+### Text
+
+| Token | Dark | Light |
+|---|---|---|
+| `--text` | `#e8e8ff` | `#16163a` |
+| `--text-dim` | `#a8a8d8` | `#4a4a74` |
+| `--text-faint` | `#6a6a9a` | `#80809f` |
+| `--on-user-bubble` | `#ffffff` | `#ffffff` |
+
+### Status
+
+Status colours exist only for real state. No decorative dots.
+
+| Token | Dark | Light |
+|---|---|---|
+| `--ok` | `#4ade80` | `#15803d` |
+| `--warn` | `#fbbf24` | `#b45309` |
+| `--danger` | `#f87171` | `#b91c1c` |
+| `--recording` | `#f87171` | `#dc2626` |
+
+### The scrim
+
+`#chat-scrim` sits between the scene and the shell and darkens (dark theme) or lightens (light theme) only the regions the conversation occupies: stronger under the brand bar and the auth pair, stronger under the composer and footer, softer across the body, with a low even floor. It falls off before the page edges so the robot stays visible at full strength at the sides.
+
+| Token | Dark | Light |
+|---|---|---|
+| `--scrim` | `rgb(5 5 20 / var(--scrim-a))` | `rgb(245 245 251 / var(--scrim-a))` |
+| `--scrim-a-floor` | `0.35` | `0.30` |
+| `--scrim-a-body` | `0.55` | `0.50` |
+| `--scrim-a-edge` | `0.78` | `0.72` |
+
+The scene's studio backdrop measures `223,223,223`. In light theme the scrim is nearly the same value, so light mode is the one where the scene needs the least help; in dark theme the scrim carries the whole contrast load. Check every change to the scrim against the live scene, never against local dev, where the scene does not load.
+
+### Contrast floor
+
+Body text 4.5:1 against its surface in both themes. The wordmark and the footer carry their own shadows because they sit near the page edge where the scrim has fallen off.
+
+## 4. Typography
+
+Two families, loaded from `/fonts/` once the Vite port self-hosts them (M3.5). Until then they come from Google Fonts with `display=swap`.
+
+| Role | Family | Why |
+|---|---|---|
+| Latin UI and body | **Inter** | Already the brand's face. Kept under preserve mode; its neutrality suits a reading surface. |
+| Arabic UI and body | **Noto Sans Arabic** | Metrics sit well beside Inter, full weight range, correct shaping for Gulf and Levantine text. Loaded only when `lang="ar"`. |
+| Code | **JetBrains Mono** | Already in use. Code blocks, inline code, token counts. |
+
+Font stacks:
+
+```css
+--font-sans: "Inter", "Noto Sans Arabic", "Segoe UI", system-ui, -apple-system, sans-serif;
+--font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+```
+
+Arabic is listed in the sans stack so mixed-script lines fall through correctly without per-span rules.
+
+### Scale
+
+A 1.2 ratio from a 16px base, in rem. Arabic renders slightly small at the same size, so `html[lang="ar"]` sets `--text-scale: 1.06` and every size below multiplies by it.
+
+| Token | Size | Line height | Use |
+|---|---|---|---|
+| `--fs-xs` | 0.75rem | 1.4 | Timestamps, usage counts, footer |
+| `--fs-sm` | 0.875rem | 1.5 | Secondary labels, chips, picker entries |
+| `--fs-md` | 1rem | 1.65 | Conversation body |
+| `--fs-lg` | 1.25rem | 1.4 | Section titles in the sidebar and settings |
+| `--fs-xl` | 1.75rem | 1.25 | Empty-state greeting on small screens |
+| `--fs-2xl` | 2.5rem | 1.15 | Empty-state greeting on desktop |
+
+Weights: 400 body, 500 labels and buttons, 600 titles. Nothing heavier. Hierarchy comes from colour and weight, not size. The greeting is the only place the brand gradient is used as text, and it is a single short line.
+
+Conversation body: `--fs-md`, `--text`, max 72ch inside the 52rem column. Paragraph spacing 0.75em. Assistant replies render as one continuous panel; paragraph margins become internal padding so a transparent gap never cuts the fill.
+
+## 5. Layer contract
+
+Fixed z-indexes. Nothing else on the page sets `z-index`.
+
+| Layer | `z-index` | Element | Pointer events |
+|---|---|---|---|
+| Scene | 0 | `#spline-bg` | receives everything that falls through |
+| Scrim | 1 | `#chat-scrim` | none |
+| Shell | 2 | `.gateway-container` | none on the shell; re-enabled on `.message`, the composer, the brand bar, the picker |
+| Loader | 3 | `#spline-loader` | none |
+| Auth | 4 | `.auth-container`, `.auth-dock` | auto |
+| Sidebar | 5 | `#sidebar` and its off-canvas scrim | auto |
+| Toasts | 1000 | `#auth-notification`, toasts | none, except a dismiss button |
+| Modals | provided by Clerk | | |
+
+### The pointer-events rule
+
+A transparent element still receives pointer events. Every layer above the scene that spans the viewport is `pointer-events: none`, and only the controls inside it opt back in. The conversation scroller does not opt in; its `.message` children do, so text can be selected while the gaps between messages hand the cursor to the scene. Wheel events over the column are forwarded to the scroller by `chat.js`. Touch is exempt: on `(hover: none), (pointer: coarse)` the scroller takes pointer events itself, because touch scrolling is hit-test driven.
+
+Measured in August: before this rule the robot missed 24 of 57 cursor updates with an 850px dead band across the middle of the screen; after it, 51 of 57 with a 175px band.
+
+## 6. Right-to-left
+
+Arabic is a first-class direction, not a flipped afterthought.
+
+- The language toggle sets `lang` and `dir` on `<html>`. Nothing else is needed for layout to mirror, because:
+- **Logical properties only.** `margin-inline-start`, `padding-inline`, `inset-inline-end`, `border-start-start-radius`, `text-align: start`. No `left`, `right`, `margin-left`, `text-align: left` anywhere in component CSS. Physical properties are allowed only for things that are genuinely physical: the scrim bands, which follow the scene, and the Spline canvas.
+- **Bubbles use `dir="auto"`.** A user writing Arabic in an English session gets a correctly aligned bubble, and vice versa. Code blocks are always `dir="ltr"`.
+- **Icons that imply direction mirror.** Send arrow, back, chevrons on the branch navigator, the sidebar collapse control. Icons that do not imply direction do not mirror: microphone, attach, search, settings, the model-tier marks.
+- **Numbers stay Western Arabic digits** by default; `html[lang="ar"]` may opt into `font-variant-numeric` and Eastern digits through a user setting later. Not in scope now.
+- **The user bubble sits at `inset-inline-end`** and the assistant panel at `inset-inline-start`, so the conversation mirrors as a whole.
+- **Punctuation in Arabic UI strings** comes from the i18n file, never concatenated in code.
+
+Checked by screenshot in all four combinations: dark LTR, dark RTL, light LTR, light RTL.
+
+## 7. Components
+
+### Shell and empty state
+
+Full-width transparent shell, 52rem reading column. The empty state shows a greeting in `--fs-2xl` with the brand gradient on the first line, a one-line subtitle in `--text-dim`, and exactly as many prompt cards as there are prompts, never a blank cell. Cards are `--surface` with `--line` borders at `--r-md`. Three or four cards on desktop, a horizontal scroll-snap row on mobile.
+
+### Composer
+
+A pill, `--surface` with `blur(24px)`, `--r-pill`. From inline-start: attach, the text area, microphone, send. Send is a solid `--accent` circle; it is the one control on the page that must read as solid at a glance. The mode pills (Balanced, Creative, Logical) move from above the field into the picker popover. The enhance action stays as an icon inside the pill.
+
+Focus ring: 2px `--accent-line` outside the pill. Disabled: 50% opacity, no pointer. Recording: microphone fills `--recording`, a timer appears inline, Escape cancels.
+
+### Model picker (M3.6)
+
+A trigger in the composer's leading edge shows the current tier name with a small chevron. Opening it reveals a popover anchored to the trigger, `--surface-solid`, `--r-md`, listing the three tiers from `/api/v1/models`:
+
+| Row | Content |
+|---|---|
+| Fast | Label, one-line description, the owner-billed model's short name |
+| Smart | Same |
+| Reasoning | Same, with a note that it thinks before answering |
+
+Then a divider and the premium models, each with a lock mark and its `access` reason in `--text-faint`: "Sign in", or "Add your key". A guest tapping a locked row gets the sign-in modal; a signed-in user gets the keys form. Selected row has `--accent-soft` fill and `--accent-text` label. The mode pills sit at the bottom of the same popover as a segmented control.
+
+Keyboard: arrow keys move, Enter selects, Escape closes, focus returns to the trigger. The popover is `role="listbox"`.
+
+### Reasoning panel (M3.6)
+
+Only on the v2 stream, only when a `reasoning` event arrives. A collapsible row at the top of the assistant panel: a small disclosure chevron, the label "Thinking", and a live duration in `--fs-xs` while reasoning streams. Collapsed by default once the answer begins; expands to show the thinking in `--text-dim` at `--fs-sm` with `--line` to its inline-start. The label changes to "Thought for 12s" when done. Never shown for the v1 stream.
+
+### Assistant and user turns
+
+Assistant: `--assistant-bubble`, `--r-lg`, a small "E" avatar at the inline-start, actions (copy, regenerate, feedback) revealed on hover or focus in a row under the text. User: `--user-bubble`, `--on-user-bubble`, `--r-lg` with the trailing corner at `--r-sm`, aligned to `inset-inline-end`, max 75% of the column.
+
+Streaming: the newest token is appended without a caret animation; a 1px `--accent-line` left rule on the panel pulses only while tokens arrive, and stops. Under reduced motion it is static.
+
+### Sidebar (M4.4)
+
+Off-canvas on viewports under 1024px, pinned at 280px above. `--bg-deep` fill, since it should not show the scene through it. Sections: New chat, Pinned, Folders, Recent, and a search field at the top. Items are single-line with `text-overflow: ellipsis`; the active item has `--accent-soft`. The toggle lives at the top inline-start corner and mirrors in RTL. The sidebar never covers the composer on desktop.
+
+### Keys form (M3.4 part two)
+
+A `--surface-solid` dialog listing the four providers. Each row: provider name, a masked field showing the stored key's last four, a Replace action and a Remove action. Adding a key shows one field with a label above it, inline validation below it on 422, and a success state that shows the last four. No placeholder-as-label.
+
+### Toasts
+
+Bottom inline-end, `--surface-solid`, one line, auto-dismiss at 4s with a visible dismiss control. Icons from the icon font, never emoji glyphs; the mojibake incident came from a `charset` header, but emoji in UI strings is not worth the risk in either case.
+
+## 8. Motion
+
+- `--ease: cubic-bezier(0.16, 1, 0.3, 1)`, durations 160 ms for state changes, 240 ms for reveals, 320 ms for the sidebar and popovers.
+- Animate `transform` and `opacity` only.
+- `@media (prefers-reduced-motion: reduce)` sets every transition to `0ms` and removes the streaming pulse.
+- The scene itself is the motion layer. On `prefers-reduced-motion`, `saveData`, under four cores, or on a coarse pointer, the scene is skipped and a static WebP poster of the robot takes its place at `z-index: 0` (M5.5).
+
+## 9. Accessibility floor
+
+- All text 4.5:1 against its surface in both themes; large text 3:1.
+- Every interactive element reachable by keyboard, with a visible 2px `--accent-line` focus ring. Never `outline: none` without a replacement.
+- Live regions: the conversation scroller is `aria-live="polite"` for new assistant text; toasts are `role="status"`.
+- Buttons have text labels, even when visually icon-only, via a visually hidden span.
+- Touch targets at least 44px on coarse pointers.
+- The scene is `aria-hidden`.
+
+## 10. What we deliberately do not do
+
+- No filters or tints on the scene.
+- No `z-index` outside the layer table.
+- No physical direction properties in component CSS.
+- No colour named directly in a component.
+- No decorative dots, no infinite animations except the live recording and streaming indicators.
+- No emoji in UI strings.
+- No new accent colour. One accent, both themes.
+- No `h-screen`. Full-height layouts use `100dvh`.
+
+## 11. Tooling
+
+- Tokens live in `public/style.css` today and move to `web/src/styles/tokens.css` with the Vite port. The light theme is the first consumer of the token file and is the acceptance test that no component names a colour.
+- Playwright end-to-end tests live in `e2e/`. The smoke suite runs against a local `wrangler dev`; the screenshot suite (M4.5) runs against production with local CSS routed in, so the real scene renders behind the change under review.
+- Lighthouse before and after the Spline deferral (M5.5), with LCP as the headline number.
