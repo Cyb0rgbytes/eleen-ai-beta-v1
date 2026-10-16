@@ -331,6 +331,106 @@ header {
 	line-height: 1.6;
 }
 
+/* Blocks the old regex renderer never produced. */
+.message h3,
+.message h4,
+.message h5 {
+	margin-block: 0.9rem 0.4rem;
+	font-weight: 600;
+	line-height: 1.35;
+	color: var(--text-strong);
+}
+
+.message h3 {
+	font-size: 1.05rem;
+}
+
+.message h4 {
+	font-size: 1rem;
+}
+
+.message h5 {
+	font-size: 0.95rem;
+	color: var(--text-dim);
+}
+
+.message-body > :first-child {
+	margin-block-start: 0;
+}
+
+.message del {
+	color: var(--text-faint);
+}
+
+.message blockquote {
+	margin-block: 0.6rem;
+	padding-inline-start: var(--sp-2);
+	border-inline-start: 2px solid var(--accent-line);
+	color: var(--text-dim);
+}
+
+.message hr {
+	margin-block: var(--sp-2);
+	border: none;
+	border-block-start: 1px solid var(--line);
+}
+
+.message .md-table {
+	margin-block: 0.6rem;
+	overflow-x: auto;
+}
+
+.message table {
+	border-collapse: collapse;
+	font-size: 0.88rem;
+}
+
+.message th,
+.message td {
+	padding: 0.35rem 0.6rem;
+	border: 1px solid var(--line);
+	text-align: start;
+}
+
+.message th {
+	font-weight: 600;
+	background: var(--field);
+}
+
+.message-note {
+	font-size: var(--fs-xs);
+	color: var(--text-faint);
+}
+
+.message-error {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--sp-1);
+	color: var(--danger);
+}
+
+.message-error .icon {
+	margin-block-start: 0.3em;
+}
+
+.message-actions {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--sp-2);
+	margin-block-start: var(--sp-1);
+}
+
+.message-actions .message-feedback {
+	margin-block-start: 0;
+}
+
+.message-usage {
+	font-size: var(--fs-xs);
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+}
+
 .suggestion-chips {
 	display: flex;
 	flex-wrap: wrap;

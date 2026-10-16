@@ -1,0 +1,50 @@
+/**
+ * Arabic UI strings. Same keys as en.ts; a missing key falls back to
+ * English. Punctuation lives here, never concatenated in code (DESIGN.md
+ * section 6).
+ */
+import type { MessageKey } from "./en";
+
+export const ar: Partial<Record<MessageKey, string>> = {
+	welcome: "مرحبًا بك في EleenAI. اسألني أي شيء، أو صف صورة وسأنشئها لك.",
+	welcomeGuest: "سجّل الدخول للوصول غير المحدود.",
+	placeholderGuest: "اسألني أي شيء... (سجّل الدخول للوصول غير المحدود)",
+	placeholder: "اسألني أي شيء...",
+	send: "إرسال",
+	stop: "إيقاف التوليد",
+	recordVoice: "تسجيل صوتي",
+	stopRecording: "إيقاف التسجيل",
+	transcribing: "جارٍ التفريغ",
+	enhance: "تحسين الطلب",
+	thinking: "EleenAI يفكر",
+	generatingImage: "جارٍ إنشاء الصورة...",
+	feedbackGood: "رد جيد",
+	feedbackBad: "رد سيئ",
+	feedbackThanks: "شكرًا على ملاحظتك",
+	tokens: "{count} رمز",
+	stopped: "تم الإيقاف.",
+	emptyReply: "لم يصل أي رد. حاول مرة أخرى.",
+	errorGeneric: "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
+	errorNetwork: "تعذّر الوصول إلى EleenAI. تحقق من اتصالك وحاول مجددًا.",
+	errorTimeout: "استغرق EleenAI وقتًا طويلًا قبل الرد. حاول مجددًا.",
+	errorRateLimit: "وصلت إلى حد الرسائل حاليًا. يُعاد ضبطه خلال {minutes} دقيقة.",
+	errorRateLimitSoon: "وصلت إلى حد الرسائل حاليًا. حاول بعد قليل.",
+	errorSignIn: "{model} متاح بعد تسجيل الدخول.",
+	errorKeyRequired: "{model} يعمل بمفتاح API الخاص بك. أضف مفتاحًا لاستخدامه.",
+	errorImage: "تعذّر إنشاء تلك الصورة.",
+	signIn: "تسجيل الدخول",
+	signUp: "أنشئ حسابًا مجانًا",
+	login: "دخول",
+	logout: "خروج",
+	signInPrompt: "سجّل الدخول للحصول على حدود أعلى وسجلّ خاص بك.",
+	enhanceFailed: "تعذّر تحسين هذا الطلب.",
+	enhanceEmpty: "اكتب طلبًا أولًا لتحسينه.",
+	voiceBlocked: "الوصول إلى الميكروفون محظور لهذا الموقع.",
+	voiceUnsupported: "هذا المتصفح لا يستطيع تسجيل الصوت.",
+	voiceFailed: "تعذّر تفريغ ذلك. حاول مجددًا.",
+	voiceEmpty: "لم ألتقط شيئًا. حاول مجددًا.",
+	voiceRateLimit: "تم بلوغ حد الصوت. حاول لاحقًا.",
+	clearConfirm: "مسح هذه المحادثة؟",
+	signedIn: "تم تسجيل الدخول",
+	signedOut: "تم تسجيل الخروج",
+};
