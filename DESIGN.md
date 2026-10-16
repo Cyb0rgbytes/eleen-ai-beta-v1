@@ -145,7 +145,7 @@ Fixed z-indexes. Nothing else on the page sets `z-index`.
 | Auth | 4 | `.auth-container`, `.auth-dock` | auto |
 | Sidebar | 5 | `#sidebar` and its off-canvas scrim | auto |
 | Toasts | 1000 | `#auth-notification`, toasts | none, except a dismiss button |
-| Modals | provided by Clerk | | |
+| Modals | browser top layer, no `z-index` | Clerk's modals, and the keys dialog (a native `<dialog>` opened with `showModal()`) | auto; the backdrop is a flat scrim, never a blur |
 
 ### The pointer-events rule
 
@@ -191,7 +191,7 @@ A trigger in the composer's leading edge shows the current tier name with a smal
 | Smart | Same |
 | Reasoning | Same, with a note that it thinks before answering |
 
-Then a divider and the premium models, each with a lock mark and its `access` reason in `--text-faint`: "Sign in", or "Add your key". A guest tapping a locked row gets the sign-in modal; a signed-in user gets the keys form. Selected row has `--accent-soft` fill and `--accent-text` label. The mode pills sit at the bottom of the same popover as a segmented control.
+Then a divider and the premium models, each with a lock mark and its `access` reason in `--text-faint`: "Sign in", or "Add your key". A guest tapping a locked row gets the sign-in modal; a signed-in user gets the keys form. Selected row has `--accent-soft` fill and `--accent-text` label. The mode pills sit at the bottom of the same popover as a segmented control. Under them, for signed-in users only, a "Manage API keys" link in `--accent-text` opens the keys form, so it is reachable without a locked row.
 
 Keyboard: arrow keys move, Enter selects, Escape closes, focus returns to the trigger. The popover is `role="listbox"`.
 
