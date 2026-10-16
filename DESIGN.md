@@ -31,11 +31,15 @@ Defined on `:root`, redefined under `:root[data-theme="light"]`. The initial the
 | Token | Dark | Light | Notes |
 |---|---|---|---|
 | `--accent` | `#6c63ff` | `#5a51f0` | The one accent. Slightly deepened on light for 4.5:1 against white text. |
-| `--accent-2` | `#8e6cff` | `#7b5cf5` | Second stop of the brand gradient. Gradient use is limited to the greeting and the logo glow. |
-| `--accent-text` | `#a9a3ff` | `#4a42d6` | Accent used as text or icon on the base surface, for links and the active picker state. |
+| `--accent-2` | `#00e5ff` | `#0e7490` | The brand's cyan. Second stop of `--grad` (avatar, active mode pill, greeting), and the focus ring on dark. Deepened on light, where bright cyan fails contrast. |
+| `--grad` | `linear-gradient(135deg, var(--accent), var(--accent-2))` | same | The brand gradient. Not used on large surfaces. |
+| `--accent-text` | `#00e5ff` | `#4a42d6` | Accent used as text on the base surface: links, inline code, the active picker state. Cyan on dark, as production has always had it. |
 | `--accent-soft` | `rgb(108 99 255 / 0.14)` | `rgb(90 81 240 / 0.10)` | Tints: selected chips, hover fills. |
-| `--accent-line` | `rgb(108 99 255 / 0.45)` | `rgb(90 81 240 / 0.40)` | Focus rings and selected borders. |
+| `--accent-line` | `rgb(108 99 255 / 0.45)` | `rgb(90 81 240 / 0.40)` | Selected and focused borders. |
+| `--focus-ring` | `var(--accent-2)` | `var(--accent)` | The 2px keyboard focus outline. |
 | `--on-accent` | `#ffffff` | `#ffffff` | Text on a solid accent fill. |
+
+> Amended 2026-10-17: the dark values of `--accent-2`, `--accent-text`, `--assistant-bubble` and `--user-bubble` were transcribed wrong in the first version and now match production, which is what preserve mode intended.
 
 ### Surfaces
 
@@ -48,8 +52,9 @@ Defined on `:root`, redefined under `:root[data-theme="light"]`. The initial the
 | `--line` | `rgb(255 255 255 / 0.08)` | `rgb(10 10 40 / 0.08)` | Hairlines and panel borders. |
 | `--line-strong` | `rgb(255 255 255 / 0.16)` | `rgb(10 10 40 / 0.16)` | Input borders at rest. |
 | `--field` | `rgb(255 255 255 / 0.04)` | `rgb(10 10 40 / 0.03)` | Input fills. |
-| `--assistant-bubble` | `rgb(14 14 36 / 0.88)` | `rgb(255 255 255 / 0.90)` | Assistant reply surface. Opaque enough that contrast does not depend on what the robot is doing behind it. |
-| `--user-bubble` | `#5a51f0` | `#5a51f0` | User turn. Solid fill in both themes; a tint was invisible over the scene's bright band. |
+| `--assistant-bubble` | `rgb(9 9 26 / 0.88)` | `rgb(255 255 255 / 0.90)` | Assistant reply surface. Opaque enough that contrast does not depend on what the robot is doing behind it. |
+| `--user-bubble` | `linear-gradient(135deg, rgb(78 70 200 / 0.92), rgb(58 52 165 / 0.92))` | `#5a51f0` | User turn. Near-solid in both themes; a light tint was invisible over the scene's bright band. |
+| `--user-bubble-line` | `rgb(140 132 255 / 0.5)` | `transparent` | User bubble border. |
 
 ### Text
 
@@ -58,7 +63,7 @@ Defined on `:root`, redefined under `:root[data-theme="light"]`. The initial the
 | `--text` | `#e8e8ff` | `#16163a` |
 | `--text-dim` | `#a8a8d8` | `#4a4a74` |
 | `--text-faint` | `#6a6a9a` | `#80809f` |
-| `--on-user-bubble` | `#ffffff` | `#ffffff` |
+| `--on-user-bubble` | `#e8e8ff` | `#ffffff` |
 
 ### Status
 
@@ -75,12 +80,15 @@ Status colours exist only for real state. No decorative dots.
 
 `#chat-scrim` sits between the scene and the shell and darkens (dark theme) or lightens (light theme) only the regions the conversation occupies: stronger under the brand bar and the auth pair, stronger under the composer and footer, softer across the body, with a low even floor. It falls off before the page edges so the robot stays visible at full strength at the sides.
 
-| Token | Dark | Light |
-|---|---|---|
-| `--scrim` | `rgb(5 5 20 / var(--scrim-a))` | `rgb(245 245 251 / var(--scrim-a))` |
-| `--scrim-a-floor` | `0.35` | `0.30` |
-| `--scrim-a-body` | `0.55` | `0.50` |
-| `--scrim-a-edge` | `0.78` | `0.72` |
+The scrim is four layered gradients in one colour, `--scrim-rgb`, at different strengths. Dark values are production's, measured against the live scene in August.
+
+| Token | Dark | Light | Band |
+|---|---|---|---|
+| `--scrim-rgb` | `3 3 18` | `245 245 251` | The colour, as channels for `rgb(var(--scrim-rgb) / a)` |
+| `--scrim-top` | `0.72` | `0.60` | Under the brand bar and auth pair, fading by 26% of height |
+| `--scrim-bottom` | `0.78` | `0.66` | Under the composer and footer, fading by 30% |
+| `--scrim-body` | `0.42` | `0.34` | Ellipse behind the conversation, falling off before the edges |
+| `--scrim-floor-a`, `--scrim-floor-b` | `0.22`, `0.30` | `0.16`, `0.22` | Even floor, top to bottom |
 
 The scene's studio backdrop measures `223,223,223`. In light theme the scrim is nearly the same value, so light mode is the one where the scene needs the least help; in dark theme the scrim carries the whole contrast load. Check every change to the scrim against the live scene, never against local dev, where the scene does not load.
 
