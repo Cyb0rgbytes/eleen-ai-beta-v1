@@ -13,9 +13,10 @@
 	],
 	"assets": {
 		"binding": "ASSETS",
-		"directory": "./public",
+		// Built by `npm run build` (vite.config.ts) from web/. Never commit dist/.
+		"directory": "./dist",
 		// The Asset Worker normally runs BEFORE the User Worker, so "/" would be
-		// served straight from public/index.html and our fetch handler would never
+		// served straight from dist/index.html and our fetch handler would never
 		// see it. We need it to, in order to attach RFC 8288 Link headers and do
 		// Accept: text/markdown negotiation. env.ASSETS.fetch() bypasses this
 		// setting, so delegating back to it (see src/index.ts) does not loop.
@@ -39,12 +40,13 @@
 			"fallthrough": true
 		}
 	],
-	// Regenerate the skill digest manifest on dev, deploy and dry-run. The
-	// package.json predeploy hook alone would miss a `wrangler deploy` typed
-	// directly, or a CI provider running its own build command — either of
-	// which would ship digests that no longer match the skill documents.
+	// Build the frontend and regenerate the skill digest manifest on dev,
+	// deploy and dry-run. Doing it here rather than only in a package.json
+	// hook means a `wrangler deploy` typed directly, or a CI provider running
+	// its own command, still ships current digests and a current dist/.
 	"build": {
-		"command": "node scripts/gen-skill-digests.mjs"
+		"command": "npm run build",
+		"watch_dir": ["./src", "./web"]
 	},
 	"observability": {
 		"enabled": true

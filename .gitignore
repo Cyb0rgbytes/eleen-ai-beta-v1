@@ -209,3 +209,6 @@ docs/security/audit-*.md
 # Playwright runs
 test-results/
 playwright-report/
+
+# Vite build output, produced by npm run build
+dist/

@@ -50,6 +50,13 @@ export interface Env {
 	KEY_ENCRYPTION_KEY?: string;
 
 	/**
+	 * Commit the running Worker was built from. Set per deploy by
+	 * scripts/deploy.mjs (`--var BUILD_SHA:<sha>`) and reported by
+	 * /api/v1/health so scripts/verify-deploy.mjs can check production.
+	 */
+	BUILD_SHA?: string;
+
+	/**
 	 * KV Namespace for long-term memory
 	 */
 	ELEEN_MEMORY: KVNamespace;

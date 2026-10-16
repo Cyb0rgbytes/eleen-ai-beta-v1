@@ -24,6 +24,9 @@ jobs:
         run: node scripts/gen-skill-digests.mjs --check
       - name: Typecheck
         run: npx tsc --noEmit
+      # The assets binding serves dist/, so the worker tests need a build.
+      - name: Build frontend
+        run: npx vite build
       # Unit tests in Node, worker tests in workerd. Remote bindings are off in
       # vitest.config.mts, so no Cloudflare credentials are needed.
       - name: Tests

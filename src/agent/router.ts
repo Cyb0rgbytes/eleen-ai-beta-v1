@@ -26,7 +26,7 @@ import { SITEMAP_XML } from "./sitemap";
 import { LINK_HEADER_DOCS, LINK_HEADER_HOME } from "./links";
 import { prefersMarkdown } from "./negotiate";
 import { DOCS_HTML } from "./docs";
-import { HEALTH_DOCUMENT, OPENAPI_JSON } from "./openapi";
+import { OPENAPI_JSON, buildHealth } from "./openapi";
 import { buildModelsDocument } from "./models";
 import { MCP_SERVER_CARD, handleMcp } from "./mcp";
 import { buildSkillsIndex, findSkill } from "./skills";
@@ -164,7 +164,7 @@ export async function handleAgentRoutes(
 
 	if (path === "/api/v1/health") {
 		if (!isRead(request)) return methodNotAllowed(READ_ONLY);
-		return json(request, HEALTH_DOCUMENT, "application/json; charset=utf-8", {
+		return json(request, buildHealth(env), "application/json; charset=utf-8", {
 			"cache-control": "no-store",
 		});
 	}

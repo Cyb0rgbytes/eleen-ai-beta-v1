@@ -324,6 +324,10 @@ export const OPENAPI_DOCUMENT = {
 					status: { type: "string", enum: ["ok"] },
 					version: { type: "string" },
 					service: { type: "string" },
+					build: {
+						type: ["string", "null"],
+						description: "Commit the running Worker was deployed from, or null.",
+					},
 					capabilities: { type: "array", items: { type: "string" } },
 				},
 				required: ["status", "version", "service"],
@@ -662,9 +666,17 @@ export const OPENAPI_DOCUMENT = {
 
 export const OPENAPI_JSON = JSON.stringify(OPENAPI_DOCUMENT, null, 2) + "\n";
 
-export const HEALTH_DOCUMENT = {
-	status: "ok",
-	version: API_VERSION,
-	service: "eleenai",
-	capabilities: ["chat", "image-generation", "vision", "web-search", "mcp"],
-} as const;
+/**
+ * The health document. `build` is the commit the Worker was deployed from,
+ * stamped by scripts/deploy.mjs; null on a dev server or a deploy made
+ * without it. scripts/verify-deploy.mjs compares it to the local HEAD.
+ */
+export function buildHealth(env: { BUILD_SHA?: string }) {
+	return {
+		status: "ok",
+		version: API_VERSION,
+		service: "eleenai",
+		build: env.BUILD_SHA ?? null,
+		capabilities: ["chat", "image-generation", "vision", "web-search", "mcp"],
+	} as const;
+}

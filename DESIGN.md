@@ -1,6 +1,6 @@
 # EleenAI design system
 
-**Status:** M0.2, written 2026-10-16. This is the contract the frontend rebuild (M3.5, M3.6, M4.5) builds against. Until the rebuild lands, `public/style.css` is the implementation of the dark theme described here, and anything in that file that disagrees with this document is a bug in the file.
+**Status:** M0.2, written 2026-10-16. This is the contract the frontend rebuild (M3.5, M3.6, M4.5) builds against. Until the rebuild lands, `web/style.css` is the implementation of the dark theme described here, and anything in that file that disagrees with this document is a bug in the file.
 
 ## 1. Design read
 
@@ -236,6 +236,7 @@ Bottom inline-end, `--surface-solid`, one line, auto-dismiss at 4s with a visibl
 
 ## 11. Tooling
 
-- Tokens live in `public/style.css` today and move to `web/src/styles/tokens.css` with the Vite port. The light theme is the first consumer of the token file and is the acceptance test that no component names a colour.
+- Tokens live in `web/style.css` today and move to `web/src/styles/tokens.css` with the TypeScript frontend (M3.5). The light theme is the first consumer of the token file and is the acceptance test that no component names a colour.
+- The frontend builds with Vite from `web/` into `dist/`, which the Worker serves. `web/public/` holds files copied verbatim: the classic `chat.js` and `webmcp.js` scripts, the logo, `robots.txt`.
 - Playwright end-to-end tests live in `e2e/`. The smoke suite runs against a local `wrangler dev`; the screenshot suite (M4.5) runs against production with local CSS routed in, so the real scene renders behind the change under review.
 - Lighthouse before and after the Spline deferral (M5.5), with LCP as the headline number.
