@@ -57,7 +57,9 @@ A sweep replaced production's policy with the candidate in enforce mode and ran 
 - **Trusted Types is its own Report-Only policy.** Our one sink goes through a policy that accepts only the pinned viewer URL. Clerk's bundle and the Spline viewer still write raw strings, so Trusted Types cannot be enforced.
 - `'unsafe-eval'` stays for the Spline viewer, which evaluates a string internally.
 
-**Open question:** Cloudflare documents reading the nonce from the enforcing header. Whether it also reads Report-Only shows in the 48-hour report window.
+**Answered 2026-10-17:** Cloudflare reads the nonce from the Report-Only header too. On production, both injected scripts carry each response's fresh nonce. A browser run on production with the real headers raised no report against the main policy, on desktop or mobile. The live scene or poster, the picker, the sign-in modal, a chat turn with reasoning, and recording all worked. The only reports were Trusted Types ones from Clerk and the Spline viewer.
+
+**Cost to watch:** even with a fast GPU, the Spline viewer blocks the main thread for about 4 seconds while the scene starts on desktop. In software WebGL it was about 20 seconds.
 
 ### M3.6, picker, keys form and reasoning panel (on `feat/m3.6-picker-keys-reasoning`)
 

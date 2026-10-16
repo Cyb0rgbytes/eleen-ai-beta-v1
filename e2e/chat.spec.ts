@@ -307,3 +307,25 @@ test("loads no third-party script beyond Clerk and the Spline viewer", async ({ 
 	}
 	expect(await page.locator("script:not([src])").count()).toBe(0);
 });
+
+test("on production, the zone's two injected scripts carry this document's nonce, and nothing else is injected", async ({ page }) => {
+	test.skip(!/eleenai\.xyz/.test(process.env.E2E_BASE_URL ?? ""), "Cloudflare injects these only on the production zone");
+	const response = await page.goto("/");
+	const header = response?.headers()["content-security-policy-report-only"] ?? response?.headers()["content-security-policy"] ?? "";
+	const nonce = /'nonce-([^']+)'/.exec(header)?.[1];
+	expect(nonce, "the document's policy carries a nonce").toBeTruthy();
+
+	// The HTML as served, before Clerk or the viewer add scripts of their own.
+	const html = (await response?.text()) ?? "";
+	const tags = [...html.matchAll(/<script\b([^>]*)>/g)].map((m) => m[1] ?? "");
+	const attr = (tag: string, name: string) => new RegExp(`\\b${name}="([^"]*)"`).exec(tag)?.[1] ?? null;
+	const ours = (src: string | null) => src !== null && /^(https:\/\/clerk\.eleenai\.xyz\/|\/assets\/)/.test(src);
+	const injected = tags.filter((tag) => !ours(attr(tag, "src")));
+	// JavaScript Detections (inline) and the Web Analytics beacon. Nothing more.
+	expect(injected.map((tag) => (attr(tag, "src") ? new URL(attr(tag, "src") as string).host : "inline")).sort()).toEqual([
+		"inline",
+		"static.cloudflareinsights.com",
+	]);
+	for (const tag of injected) expect(attr(tag, "nonce"), tag.slice(0, 80)).toBe(nonce);
+	expect(tags.length - injected.length, "our own two scripts").toBe(2);
+});
