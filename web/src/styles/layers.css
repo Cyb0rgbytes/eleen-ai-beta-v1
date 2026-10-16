@@ -8,7 +8,7 @@
  *   3     loader       #spline-loader
  *   4     auth         .auth-container, .auth-dock
  *   5     sidebar      (M4.4)
- *   1000  toasts       .toast, .auth-notification
+ *   1000  toasts       .toast
  *
  * A transparent element still receives pointer events. Every full-bleed
  * layer above the scene is pointer-events: none, and only the controls
@@ -167,7 +167,7 @@ footer,
 	inset-inline-start: var(--sp-3);
 }
 
-/* 1000. Toasts and the legacy banner. */
+/* 1000. Toasts. */
 .toast {
 	position: fixed;
 	inset-block-end: var(--sp-4);
@@ -175,14 +175,7 @@ footer,
 	z-index: 1000;
 }
 
-.auth-notification {
-	position: fixed;
-	inset-block-start: 20px;
-	inset-inline: 0;
-	margin-inline: auto;
-	inline-size: fit-content;
-	z-index: 1000;
-}
+
 
 @media (max-width: 768px) {
 	/* The header pair moves into the flow of its own row on small screens. */

@@ -52,7 +52,7 @@ header {
 }
 
 #user-info {
-	display: none; /* flex when signed in */
+	display: flex; /* hidden attribute while signed out */
 	align-items: center;
 	gap: var(--sp-1);
 	padding-block: 4px;
@@ -831,23 +831,30 @@ footer {
 	cursor: pointer;
 }
 
+.toast-text {
+	flex: 1;
+}
+
+.toast-close {
+	display: inline-flex;
+	padding: 2px;
+	margin-inline-start: var(--sp-1);
+	color: var(--text-faint);
+	background: none;
+	border: none;
+	border-radius: var(--r-xs);
+}
+
+.toast-close:hover {
+	color: var(--text);
+}
+
 .toast.success {
 	border-inline-start-color: var(--accent-2);
 }
 
 .toast.error {
 	border-inline-start-color: var(--danger-strong);
-}
-
-.auth-notification {
-	display: none;
-	align-items: center;
-	gap: var(--sp-2);
-	padding: 0.7rem 1.2rem;
-	font-size: 0.85rem;
-	color: var(--on-accent);
-	background: var(--grad);
-	border-radius: var(--r-sm);
 }
 
 /* ── Small screens ──────────────────────────────────────────────────────── */

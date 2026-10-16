@@ -44,6 +44,20 @@ export const en = {
 	clearConfirm: "Clear this conversation?",
 	signedIn: "Signed in",
 	signedOut: "Signed out",
+	dismiss: "Dismiss",
+	thisModel: "This model",
+	welcomeBack: "Welcome, {name}!",
+	welcomeBackAnon: "Welcome back!",
+	authUnavailable: "Sign-in is unavailable right now. You can still chat as a guest.",
+	placeholderGuestMode: "Ask me anything... (guest mode)",
+	listening: "Listening... press the button again to finish",
+	nothingToSend: "Nothing to send yet.",
+	newChatStarted: "Started a new chat.",
+	chatCleared: "Chat cleared. How can I help you today?",
+	promptEnhanced: "Prompt enhanced.",
+	rateLimitTitle: "You've hit the hourly limit",
+	imageAlt: "Generated image: {prompt}",
+	historyGreeting: "Welcome to the ELEENAI Gateway! I'm your conduit to the realm of artificial intelligence.\nHow may I assist you on this journey?",
 } as const;
 
 export type MessageKey = keyof typeof en;
