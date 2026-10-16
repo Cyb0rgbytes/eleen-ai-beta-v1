@@ -16,7 +16,8 @@
     <!-- The two scripts we do not build. Spline's viewer declares no licence, so
          it is not self-hosted; it is pinned to an exact version. Clerk stays on
          clerk-js v5 (the v6 browser bundle has no sign-in UI). -->
-    <script type="module" src="https://unpkg.com/@splinetool/viewer@1.12.88/build/spline-viewer.js" fetchpriority="high"></script>
+    <!-- async: modules otherwise run in document order, and the app would wait for this 2.3 MB viewer before wiring the composer. -->
+    <script type="module" async src="https://unpkg.com/@splinetool/viewer@1.12.88/build/spline-viewer.js"></script>
     <script
         async
         crossorigin="anonymous"

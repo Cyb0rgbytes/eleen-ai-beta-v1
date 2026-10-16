@@ -104,6 +104,36 @@ test("Stop aborts a reply in flight and says so", async ({ page }) => {
 	release();
 });
 
+test("the chat works while the 3D viewer is still downloading", async ({ page }) => {
+	// The viewer is 2.3 MB. Module scripts run in document order, so a
+	// non-async viewer tag would hold the whole app back until it arrived.
+	let releaseViewer: () => void = () => {};
+	const viewerHeld = new Promise<void>((resolve) => (releaseViewer = resolve));
+	await page.route("https://unpkg.com/@splinetool/**", async (route) => {
+		await viewerHeld;
+		await route.continue().catch(() => {});
+	});
+	await page.route("**/api/chat/guest", (route) =>
+		route.fulfill({ headers: { "content-type": "text/event-stream" }, body: v2([["token", { text: "ready" }], ["done", {}]]) }),
+	);
+	await page.goto("/", { waitUntil: "domcontentloaded" });
+	await send(page, "hi");
+	await expect(page.locator(".assistant-message .message-body p").last()).toHaveText("ready", { timeout: 5000 });
+	releaseViewer();
+});
+
+test("a Login click before Clerk has loaded still opens the modal", async ({ page }) => {
+	test.skip(!/eleenai\.xyz/.test(process.env.E2E_BASE_URL ?? ""), "Clerk's production instance only serves the production origin");
+	// Hold the SDK back so the click lands before it exists.
+	await page.route("https://clerk.eleenai.xyz/npm/**", async (route) => {
+		await new Promise((resolve) => setTimeout(resolve, 3000));
+		await route.continue();
+	});
+	await page.goto("/", { waitUntil: "domcontentloaded" });
+	await page.locator("#login-button").click({ timeout: 2000 });
+	await expect(page.locator(".cl-modalContent")).toBeVisible({ timeout: 30_000 });
+});
+
 test("a rate limit gets a designed notice, not a generic error", async ({ page }) => {
 	await page.route("**/api/chat/guest", (route) =>
 		route.fulfill({

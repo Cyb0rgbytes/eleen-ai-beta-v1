@@ -38,6 +38,7 @@ export function initAuthControls(): void {
 /** Reflect an auth state in every control. Safe to call before Clerk loads. */
 export function renderAuth(state: AuthState): void {
 	const signedIn = state.status === "signed-in";
+	// "loading" shows the entry controls like a guest: a click waits for Clerk.
 	const unavailable = state.status === "unavailable";
 	// With no auth there is nothing these could open, so they are hidden
 	// rather than left as dead controls.

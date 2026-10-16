@@ -45,17 +45,22 @@ export const CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsuZWxlZW5haS54eXok";
 const SDK_WAIT_MS = 5000;
 
 export type AuthState =
+	| { status: "loading" }
 	| { status: "unavailable" }
 	| { status: "guest" }
 	| { status: "signed-in"; name: string; imageUrl: string | null };
 
 let clerk: ClerkGlobal | null = null;
+let settled = false;
 
 /** Settles once initAuth has finished, either way. */
 let markReady: () => void = () => {};
 const ready = new Promise<void>((resolve) => (markReady = resolve));
 
 function stateOf(user: ClerkUser | null | undefined): AuthState {
+	// Before Clerk has had its chance the entry controls stay visible: a
+	// click then waits for Clerk (see openSignIn) instead of finding no button.
+	if (!settled) return { status: "loading" };
 	if (!clerk) return { status: "unavailable" };
 	if (!user) return { status: "guest" };
 	return {
@@ -92,6 +97,7 @@ export async function initAuth(onChange: (state: AuthState, previous: AuthState)
 		if (!sdk) throw new Error("Clerk SDK did not load within 5s.");
 		if (!sdk.loaded) await sdk.load({ publishableKey: CLERK_PUBLISHABLE_KEY });
 		clerk = sdk;
+		settled = true;
 
 		setTokenProvider(async () => {
 			try {
@@ -113,6 +119,7 @@ export async function initAuth(onChange: (state: AuthState, previous: AuthState)
 		clerk = null;
 		return { status: "unavailable" };
 	} finally {
+		settled = true;
 		markReady();
 	}
 }
