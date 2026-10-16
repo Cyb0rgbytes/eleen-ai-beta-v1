@@ -19,6 +19,8 @@ const SCRIPT_SOURCES = [
 	"https://clerk.eleenai.xyz", // Clerk SDK, production frontend API
 	"https://cdn.protect.clerk.com", // Clerk Protect bot-detection bootstrap
 	"https://challenges.cloudflare.com", // Turnstile inside Clerk's sign-in
+	// Web Analytics: the zone injects an external beacon tag into the page.
+	"https://static.cloudflareinsights.com",
 ];
 
 const CONNECT_SOURCES = [
@@ -33,40 +35,61 @@ const CONNECT_SOURCES = [
 	// Clerk Protect probes per-instance hosts, some on non-standard ports.
 	"https://*.protect.clerk.com",
 	"https://*.client.protect.clerk.com:*",
+	// Where the Web Analytics beacon posts page-view timings.
+	"https://cloudflareinsights.com",
 ];
 
-const CSP_DIRECTIVES = [
-	"default-src 'self'",
-	// 'unsafe-eval' is the Spline viewer's requirement, not ours: its bundle
-	// evaluates a string at build/spline-viewer.js:3175 (measured with a
-	// securitypolicyviolation listener, 2026-10-17). Nothing in web/src uses
-	// eval. Removing it means isolating the viewer in its own document.
-	// 'unsafe-inline' is gone: the page has no inline script or handler.
-	`script-src ${SCRIPT_SOURCES.join(" ")} 'unsafe-eval'`,
-	// <spline-viewer> injects styles into its shadow DOM and Clerk injects
-	// its own <style> elements; hash-pinning either across versions is not
-	// maintainable.
-	"style-src 'self' 'unsafe-inline'",
-	// Self-hosted WOFF2 under /fonts/ only (M3.5).
-	"font-src 'self'",
-	// blob: and data: carry generated images. No longer "https:": an open
-	// image source lets injected markup exfiltrate by URL. The only remote
-	// images are Clerk avatars and the Spline viewer's badge.
-	"img-src 'self' data: blob: https://img.clerk.com https://app.spline.design",
-	`connect-src ${CONNECT_SOURCES.join(" ")}`,
-	// WebGL workers for the Spline scene.
-	"worker-src 'self' blob:",
-	"child-src 'self' blob:",
-	"frame-src 'self' https://challenges.cloudflare.com",
-	"object-src 'none'",
-	"base-uri 'self'",
-	"form-action 'self'",
-	"frame-ancestors 'none'",
-	"upgrade-insecure-requests",
-	"report-uri /api/csp-report",
-];
+/**
+ * The policy, with an optional per-response nonce in script-src.
+ *
+ * The nonce exists for one script: the zone's JavaScript Detections
+ * (Bot Fight Mode, which cannot turn it off) injects an inline script into
+ * every HTML page. Cloudflare reads the nonce from this header and stamps
+ * it on that script, so it runs while every other inline script stays
+ * blocked. Our own scripts are same-origin files and never need it.
+ */
+function cspDirectives(nonce?: string): string[] {
+	const scripts = nonce ? [...SCRIPT_SOURCES, `'nonce-${nonce}'`] : SCRIPT_SOURCES;
+	return [
+		"default-src 'self'",
+		// 'unsafe-eval' is the Spline viewer's requirement, not ours: its bundle
+		// evaluates a string at build/spline-viewer.js:3175 (measured with a
+		// securitypolicyviolation listener, 2026-10-17). Nothing in web/src uses
+		// eval. Removing it means isolating the viewer in its own document.
+		// 'unsafe-inline' is gone: the page has no inline script or handler.
+		`script-src ${scripts.join(" ")} 'unsafe-eval'`,
+		// <spline-viewer> injects styles into its shadow DOM and Clerk injects
+		// its own <style> elements; hash-pinning either across versions is not
+		// maintainable.
+		"style-src 'self' 'unsafe-inline'",
+		// Self-hosted WOFF2 under /fonts/ only (M3.5).
+		"font-src 'self'",
+		// blob: and data: carry generated images. No longer "https:": an open
+		// image source lets injected markup exfiltrate by URL. The only remote
+		// images are Clerk avatars and the Spline viewer's badge.
+		"img-src 'self' data: blob: https://img.clerk.com https://app.spline.design",
+		`connect-src ${CONNECT_SOURCES.join(" ")}`,
+		// WebGL workers for the Spline scene.
+		"worker-src 'self' blob:",
+		"child-src 'self' blob:",
+		"frame-src 'self' https://challenges.cloudflare.com",
+		"object-src 'none'",
+		"base-uri 'self'",
+		"form-action 'self'",
+		"frame-ancestors 'none'",
+		"upgrade-insecure-requests",
+		"report-uri /api/csp-report",
+	];
+}
 
-const CSP = CSP_DIRECTIVES.join("; ");
+/** The policy for HTML documents: a fresh, unguessable nonce every time. */
+function htmlCsp(): string {
+	const bytes = crypto.getRandomValues(new Uint8Array(16));
+	const nonce = btoa(String.fromCharCode(...bytes));
+	return cspDirectives(nonce).join("; ");
+}
+
+const CSP = cspDirectives().join("; ");
 
 /**
  * Trusted Types, as its own policy so it can stay Report-Only after the main
@@ -109,6 +132,11 @@ export function withSecurityHeaders(response: Response, url: URL): Response {
 	const result = new Response(response.body, response);
 
 	const ownReportOnly = !result.headers.has("Content-Security-Policy-Report-Only");
+	// Only documents get a nonce; scripts, styles and API answers keep the
+	// fixed policy (a nonce means nothing there).
+	if (ownReportOnly && (result.headers.get("Content-Type") ?? "").startsWith("text/html")) {
+		result.headers.set("Content-Security-Policy-Report-Only", htmlCsp());
+	}
 	for (const [name, value] of Object.entries(BASE_HEADERS)) {
 		if (!result.headers.has(name)) result.headers.set(name, value);
 	}
