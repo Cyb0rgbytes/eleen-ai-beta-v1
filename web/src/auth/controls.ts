@@ -28,10 +28,10 @@ export function initAuthControls(): void {
 	label(byId("dock-signin"), t("signIn"));
 	label(byId("dock-signup"), t("signUp"));
 
-	login?.addEventListener("click", openSignIn);
-	byId("dock-signin")?.addEventListener("click", openSignIn);
-	signup?.addEventListener("click", openSignUp);
-	byId("dock-signup")?.addEventListener("click", openSignUp);
+	login?.addEventListener("click", () => void openSignIn());
+	byId("dock-signin")?.addEventListener("click", () => void openSignIn());
+	signup?.addEventListener("click", () => void openSignUp());
+	byId("dock-signup")?.addEventListener("click", () => void openSignUp());
 	logout?.addEventListener("click", () => void signOut());
 }
 

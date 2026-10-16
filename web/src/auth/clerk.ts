@@ -51,6 +51,10 @@ export type AuthState =
 
 let clerk: ClerkGlobal | null = null;
 
+/** Settles once initAuth has finished, either way. */
+let markReady: () => void = () => {};
+const ready = new Promise<void>((resolve) => (markReady = resolve));
+
 function stateOf(user: ClerkUser | null | undefined): AuthState {
 	if (!clerk) return { status: "unavailable" };
 	if (!user) return { status: "guest" };
@@ -108,14 +112,23 @@ export async function initAuth(onChange: (state: AuthState, previous: AuthState)
 		console.error("Auth unavailable, continuing as guest:", error instanceof Error ? error.message : error);
 		clerk = null;
 		return { status: "unavailable" };
+	} finally {
+		markReady();
 	}
 }
 
-export function openSignIn(): void {
+/**
+ * Clerk can take several seconds to load. A click on Login before then used
+ * to do nothing at all; now it waits for Clerk and opens the modal. If Clerk
+ * never comes up the controls are hidden, so the wait cannot strand anyone.
+ */
+export async function openSignIn(): Promise<void> {
+	await ready;
 	clerk?.openSignIn();
 }
 
-export function openSignUp(): void {
+export async function openSignUp(): Promise<void> {
+	await ready;
 	clerk?.openSignUp();
 }
 

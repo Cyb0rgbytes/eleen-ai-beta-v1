@@ -92,7 +92,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 				const label = document.createElement("span");
 				label.textContent = t("signIn");
 				button.append(label);
-				button.addEventListener("click", openSignIn);
+				button.addEventListener("click", () => void openSignIn());
 				body?.append(button);
 			}
 			return node;
