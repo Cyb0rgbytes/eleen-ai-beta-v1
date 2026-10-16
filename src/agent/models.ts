@@ -5,30 +5,10 @@
  * never disagree about which ids exist. Costs no inference, so it sits beside
  * /api/v1/health above the auth gate.
  */
-import { DEFAULT_MODEL, MODELS, ModelSpec, ModelTier, TIERS, isTier } from "../ai/registry";
+import { DEFAULT_MODEL, MODELS, ModelSpec, TIERS, isTier } from "../ai/registry";
+import type { ModelAccess, ModelsDocument } from "../shared/models";
 
-export type ModelAccess = "guest" | "sign-in" | "key-required";
-
-export interface PublicModel {
-	id: string;
-	label: string;
-	provider: string;
-	tier: ModelTier;
-	billing: string;
-	vision: boolean;
-	/** True when the model emits a chain of thought the v2 stream can carry. */
-	reasoning: boolean;
-	maxTokens: { guest: number; user: number };
-	contextWindow: number;
-	/** What a caller needs before this model will answer. */
-	access: ModelAccess;
-}
-
-export interface ModelsDocument {
-	default: string;
-	tiers: readonly ModelTier[];
-	models: PublicModel[];
-}
+export type { ModelAccess, ModelsDocument, PublicModel } from "../shared/models";
 
 function accessFor(spec: ModelSpec): ModelAccess {
 	if (spec.billing === "user-key") return "key-required";

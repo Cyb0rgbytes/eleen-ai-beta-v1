@@ -1,0 +1,45 @@
+/**
+ * Chat request types shared by the Worker and the browser.
+ *
+ * Everything under src/shared/ must stay free of Worker types (no Env, Ai,
+ * D1Database, ExecutionContext) so web/ can import it with a DOM-only
+ * tsconfig. The Worker re-exports these from src/types.ts.
+ */
+import type { ModelTier } from "./models";
+import type { Protocol } from "./stream";
+
+export interface ChatMessage {
+	role: "system" | "user" | "assistant";
+	content: string;
+}
+
+/** A file attached to a chat message. */
+export interface Attachment {
+	/** Base64-encoded file data. */
+	data: string;
+	/** MIME type, e.g. "image/png". validate.ts holds the allowlist. */
+	mimeType: string;
+	/** Original filename, sanitised server-side. */
+	name: string;
+}
+
+export type ResponseMode = "balanced" | "creative" | "logical";
+
+/** POST body for /api/chat and /api/chat/guest. */
+export interface ChatRequestBody {
+	messages: ChatMessage[];
+	attachments?: Attachment[];
+	/** Response mode selected in the UI. Unknown values fall back to balanced. */
+	mode?: ResponseMode | string;
+	/** A registry model id or a tier name. Absent means the default model. */
+	model?: ModelTier | string;
+	/** Stream encoding. Absent means v1. */
+	protocol?: Protocol;
+}
+
+/** 403 body when the requested model is not available to this caller. */
+export interface ModelForbiddenBody {
+	error: string;
+	model: string;
+	reason: "sign-in" | "key-required";
+}

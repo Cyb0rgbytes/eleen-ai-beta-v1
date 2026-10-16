@@ -74,32 +74,5 @@ export interface Env {
 	BURST?: RateLimit;
 }
 
-/**
- * Represents a chat message.
- */
-export interface ChatMessage {
-	role: "system" | "user" | "assistant";
-	content: string;
-}
-
-/**
- * File attachment sent alongside a chat message.
- */
-export interface Attachment {
-	/** Base64-encoded file data */
-	data: string;
-	/** MIME type, e.g. "image/png", "application/pdf" */
-	mimeType: string;
-	/** Original filename */
-	name: string;
-}
-
-/**
- * Shape of the POST body for /api/chat and /api/chat/guest.
- */
-export interface ChatRequestBody {
-	messages: ChatMessage[];
-	attachments?: Attachment[];
-	/** Response mode selected in the UI: "balanced" | "creative" | "logical". */
-	mode?: string;
-}
+// Request types live in src/shared/ so the browser can import them too.
+export type { Attachment, ChatMessage, ChatRequestBody, ModelForbiddenBody, ResponseMode } from "./shared/chat";

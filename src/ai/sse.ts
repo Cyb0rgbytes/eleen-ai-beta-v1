@@ -18,14 +18,17 @@
  *   event: done       data: {}
  */
 
-export type Protocol = 1 | 2;
+import type { MetaPayload, Protocol, UsagePayload } from "../shared/stream";
+
+// The event payloads are shared with the browser's decoder in web/src/api.
+export type { Protocol } from "../shared/stream";
 
 export interface SseEncoder {
 	readonly protocol: Protocol;
-	meta(fields: Record<string, unknown>): string;
+	meta(fields: Omit<MetaPayload, "protocol">): string;
 	token(text: string): string;
 	reasoning(text: string): string;
-	usage(fields: Record<string, unknown>): string;
+	usage(fields: UsagePayload): string;
 	/** A refusal or failure. In v1 it is rendered as reply text. */
 	error(message: string): string;
 	done(): string;
