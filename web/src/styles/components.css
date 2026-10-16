@@ -163,6 +163,126 @@ header {
 	background: var(--scrollbar-hover);
 }
 
+/* ── Empty state (DESIGN.md section 7) ──────────────────────────────────── */
+
+.empty-state {
+	/* Vertically centred in the scroller, left-aligned in the column. */
+	margin-block: auto;
+	padding-block: var(--sp-4);
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-4);
+}
+
+.empty-greeting {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15em;
+	font-size: var(--fs-2xl);
+	font-weight: 600;
+	line-height: 1.15;
+	letter-spacing: -0.02em;
+	text-shadow: var(--shadow-text);
+}
+
+/* The one place the brand gradient is used as text. */
+.empty-hello {
+	inline-size: fit-content;
+	padding-block-end: 0.08em;
+	background: var(--grad);
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+	text-shadow: none;
+}
+
+/* --text, not --text-dim: this line sits over the scene's brightest band,
+   where the dim colour washed out. */
+.empty-ask {
+	color: var(--text);
+	font-weight: 500;
+}
+
+.prompt-cards {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: var(--sp-2);
+}
+
+.prompt-card {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--sp-1);
+	min-block-size: 8.5rem;
+	padding: var(--sp-3);
+	text-align: start;
+	color: var(--text);
+	background: var(--surface);
+	backdrop-filter: var(--blur-panel);
+	-webkit-backdrop-filter: var(--blur-panel);
+	border: 1px solid var(--line);
+	border-radius: var(--r-md);
+	box-shadow: var(--shadow-panel);
+}
+
+.prompt-card:hover,
+.prompt-card:focus-visible {
+	border-color: var(--accent-line);
+}
+
+.prompt-card .icon {
+	inline-size: 20px;
+	block-size: 20px;
+	color: var(--accent-text);
+}
+
+.prompt-card-title {
+	font-size: var(--fs-sm);
+	font-weight: 600;
+}
+
+.prompt-card-body {
+	font-size: 0.8rem;
+	line-height: 1.45;
+	color: var(--text-dim);
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+@media (max-width: 900px) {
+	.prompt-cards {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+/* Phones: one swipeable row (DESIGN.md section 7). */
+@media (max-width: 600px) {
+	.empty-greeting {
+		font-size: var(--fs-xl);
+	}
+
+	.prompt-cards {
+		display: flex;
+		overflow-x: auto;
+		scroll-snap-type: x mandatory;
+		scrollbar-width: none;
+		margin-inline: calc(-1 * var(--sp-2));
+		padding-inline: var(--sp-2);
+	}
+
+	.prompt-cards::-webkit-scrollbar {
+		display: none;
+	}
+
+	.prompt-card {
+		flex: 0 0 72%;
+		scroll-snap-align: start;
+	}
+}
+
 /* ── Messages ───────────────────────────────────────────────────────────── */
 
 .message {
@@ -885,6 +1005,13 @@ footer {
 	.message-input {
 		margin-inline: var(--sp-2);
 		inline-size: auto;
+	}
+
+	/* The dock would sit on the composer here, and the header pair is
+	   already on screen. Declared here, after .auth-dock's display: flex
+	   above, so it actually wins. */
+	.auth-dock {
+		display: none;
 	}
 
 	.auth-container {

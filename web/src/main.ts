@@ -15,6 +15,7 @@ import { authState, initAuth, type AuthState } from "./auth/clerk";
 import { initAuthControls, renderAuth } from "./auth/controls";
 import { initComposer, type Composer } from "./chat/composer";
 import { createChat, type ChatApi } from "./chat/controller";
+import { createEmptyState, setGreetingName } from "./chat/empty";
 import { initVoice } from "./chat/voice";
 import { t } from "./i18n";
 import { forwardWheel, initScene } from "./scene/spline";
@@ -38,6 +39,7 @@ function enableComposerFallback(): void {
 
 function onAuthChange(state: AuthState, previous: AuthState): void {
 	renderAuth(state);
+	setGreetingName(document, state.status === "signed-in" ? state.name : null);
 	if (state.status === "signed-in" && previous.status !== "signed-in") {
 		showToast(t("welcomeBack", { name: state.name }), "success");
 	} else if (state.status === "guest" && previous.status === "signed-in") {
@@ -53,11 +55,18 @@ async function boot(): Promise<void> {
 	forwardWheel(messages);
 
 	let composer: Composer | null = null;
+	const emptyState = () => {
+		const state = authState();
+		return createEmptyState(state.status === "signed-in" ? state.name : null);
+	};
 	const chat = createChat({
 		messages,
 		status: document.getElementById("typing-indicator"),
 		onBusyChange: (busy) => composer?.setBusy(busy),
+		emptyState,
 	});
+	// The static welcome in the HTML is the no-JavaScript fallback.
+	messages.replaceChildren(emptyState());
 	composer = initComposer(chat);
 	initVoice(chat);
 	window.chat = chat;
@@ -71,6 +80,7 @@ async function boot(): Promise<void> {
 	try {
 		const state = await initAuth(onAuthChange);
 		renderAuth(state);
+		setGreetingName(document, state.status === "signed-in" ? state.name : null);
 		if (state.status === "unavailable") showToast(t("authUnavailable"), "error", 5000);
 	} finally {
 		composer.enable();

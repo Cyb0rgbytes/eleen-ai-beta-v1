@@ -34,6 +34,38 @@
 	animation: rise-in var(--dur-reveal) var(--ease) both;
 }
 
+/* Empty state: greeting lines and cards rise in, 40 ms apart (DESIGN.md 8). */
+.empty-hello,
+.empty-ask,
+.prompt-card {
+	animation: rise-in var(--dur-reveal) var(--ease) both;
+}
+
+.empty-ask {
+	animation-delay: 40ms;
+}
+
+.prompt-card {
+	animation-delay: calc(var(--i, 0) * 40ms);
+	/* backwards, not both: a filled-forwards transform would override the
+	   hover lift below for as long as the card exists. */
+	animation-fill-mode: backwards;
+}
+
+/* Hover lift: transform only, so it stays on the compositor. */
+.prompt-card {
+	transition: transform var(--dur-state) var(--ease);
+}
+
+.prompt-card:hover,
+.prompt-card:focus-visible {
+	transform: translateY(-2px);
+}
+
+.prompt-card:active {
+	transform: translateY(0) scale(0.98);
+}
+
 @keyframes toast-in {
 	from {
 		opacity: 0;

@@ -29,6 +29,8 @@ export interface ChatControllerOptions {
 	/** The status line above the composer, used for image generation. */
 	status: HTMLElement | null;
 	onBusyChange(busy: boolean): void;
+	/** Builds the empty state shown before the first message and on a new chat. */
+	emptyState(): HTMLElement;
 }
 
 export interface ChatApi {
@@ -145,6 +147,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 		if (!message || busy) return;
 
 		setBusy(true);
+		messages.querySelector(".empty-state")?.remove();
 		const thinking = createThinking();
 		append(createUserMessage(message), { force: true });
 		append(thinking, { force: true });
@@ -232,8 +235,8 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 	function clearChat({ confirm: ask = true } = {}): boolean {
 		if (ask && !window.confirm(t("clearConfirm"))) return false;
 		stop();
-		history = [{ role: "assistant", content: t("chatCleared") }];
-		messages.replaceChildren(createNotice([{ text: t("chatCleared") }]));
+		history = greeting();
+		messages.replaceChildren(options.emptyState());
 		return true;
 	}
 
@@ -252,9 +255,9 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 	messages.addEventListener("click", (event) => {
 		if (!(event.target instanceof Element)) return;
 
-		const chip = event.target.closest<HTMLElement>(".suggestion-chip");
+		const chip = event.target.closest<HTMLElement>(".suggestion-chip, .prompt-card");
 		if (chip) {
-			void sendMessage(chip.dataset.suggestion ?? "");
+			void sendMessage(chip.dataset.suggestion ?? chip.dataset.prompt ?? "");
 			return;
 		}
 

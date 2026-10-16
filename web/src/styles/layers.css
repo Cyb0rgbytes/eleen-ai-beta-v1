@@ -108,8 +108,17 @@
 .typing-indicator,
 .message,
 .thinking-indicator,
-.guest-limit-prompt {
+.guest-limit-prompt,
+.empty-greeting,
+.prompt-card {
 	pointer-events: auto;
+}
+
+/* The phone row scrolls sideways, so it needs its own events there. */
+@media (max-width: 600px) {
+	.prompt-cards {
+		pointer-events: auto;
+	}
 }
 
 /* Touch scrolling is hit-test driven and the forwarder only covers wheel
@@ -169,6 +178,14 @@ footer,
 .auth-dock {
 	inset-block-end: var(--sp-3);
 	inset-inline-start: var(--sp-3);
+}
+
+/* The live viewer draws its own "Built with Spline" badge in the physical
+   bottom-right corner, which is where the dock lands in RTL. Lift the dock
+   clear of it rather than hide a badge the viewer's terms may require. The
+   poster has no badge, so poster mode keeps the corner. */
+:root[dir="rtl"] #spline-bg[data-mode="live"] ~ .auth-dock {
+	inset-block-end: calc(var(--sp-3) + 52px);
 }
 
 /* 1000. Toasts. */
