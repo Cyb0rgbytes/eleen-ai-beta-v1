@@ -136,6 +136,28 @@ test("with Clerk unreachable the composer still works and dead auth controls hid
 	await expect(page.locator(".toast.error")).toContainText("Sign-in is unavailable");
 });
 
+test("our own resources raise no CSP report", async ({ page }) => {
+	const reports: string[] = [];
+	page.on("console", (message) => {
+		const text = message.text();
+		if (/Report Only|Content Security Policy/i.test(text) && !/upgrade-insecure-requests/.test(text)) reports.push(text);
+	});
+	await page.route("**/api/chat/guest", (route) =>
+		route.fulfill({
+			headers: { "content-type": "text/event-stream" },
+			body: v2([["token", { text: "**ok** `code`" }], ["done", {}]]),
+		}),
+	);
+	await page.goto("/");
+	await send(page, "hi");
+	await expect(page.locator(".assistant-message .message-body strong").last()).toHaveText("ok");
+	await page.waitForTimeout(500);
+	// Local dev cannot load the scene (R2 CORS) or production Clerk (origin
+	// check), so only reports about this origin's own resources count here.
+	const origin = new URL(page.url()).origin;
+	expect(reports.filter((r) => r.includes(origin) || /inline|eval/i.test(r))).toEqual([]);
+});
+
 test("loads no third-party script beyond Clerk and the Spline viewer", async ({ page }) => {
 	const scripts = new Set<string>();
 	page.on("request", (r) => {
