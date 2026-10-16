@@ -11,14 +11,16 @@
  * Any uncaught failure during boot still ends with an enabled composer.
  */
 import "./styles/index.css";
-import { authState, initAuth, type AuthState } from "./auth/clerk";
+import { authState, initAuth, openSignIn, type AuthState } from "./auth/clerk";
 import { initAuthControls, renderAuth } from "./auth/controls";
 import { initComposer, type Composer } from "./chat/composer";
 import { createChat, type ChatApi } from "./chat/controller";
 import { createEmptyState, setGreetingName } from "./chat/empty";
 import { initJumpPill } from "./chat/jump";
+import { initPicker, type Picker } from "./chat/picker";
 import { initVoice } from "./chat/voice";
 import { t } from "./i18n";
+import { createKeysDialog, type KeysDialog } from "./keys/dialog";
 import { forwardWheel, initScene } from "./scene/spline";
 import { revealIn } from "./ui/motion";
 import { showToast } from "./ui/toast";
@@ -38,8 +40,23 @@ function enableComposerFallback(): void {
 	if (send) send.disabled = false;
 }
 
+let picker: Picker | null = null;
+let keys: KeysDialog | null = null;
+
+/** The picker's locks and the keys form follow the auth state. */
+let applied: AuthState["status"] | null = null;
+function applyAuth(state: AuthState): void {
+	if (state.status === "loading" || state.status === applied) return;
+	applied = state.status;
+	const signedIn = state.status === "signed-in";
+	picker?.setSignedIn(signedIn);
+	if (signedIn) void keys?.refresh();
+	else keys?.reset();
+}
+
 function onAuthChange(state: AuthState, previous: AuthState): void {
 	renderAuth(state);
+	applyAuth(state);
 	setGreetingName(document, state.status === "signed-in" ? state.name : null);
 	if (state.status === "signed-in" && previous.status !== "signed-in") {
 		showToast(t("welcomeBack", { name: state.name }), "success");
@@ -72,6 +89,19 @@ async function boot(): Promise<void> {
 	// The static welcome in the HTML is the no-JavaScript fallback.
 	messages.replaceChildren(emptyState());
 	composer = initComposer(chat);
+	keys = createKeysDialog({
+		onChange: (providers) => picker?.setKeys(providers),
+		onClose: () => picker?.focusTrigger(),
+	});
+	const pickerRoot = document.getElementById("model-picker");
+	if (pickerRoot) {
+		picker = initPicker(pickerRoot, {
+			onModelChange: (model, label) => chat.setModel(model, label),
+			onModeChange: (mode) => chat.setMode(mode),
+			openSignIn: () => void openSignIn(),
+			openKeys: (provider) => keys?.open(provider),
+		});
+	}
 	initVoice(chat);
 	window.chat = chat;
 	registerWebMcp(chat);
@@ -84,6 +114,7 @@ async function boot(): Promise<void> {
 	try {
 		const state = await initAuth(onAuthChange);
 		renderAuth(state);
+		applyAuth(state);
 		setGreetingName(document, state.status === "signed-in" ? state.name : null);
 		if (state.status === "unavailable") showToast(t("authUnavailable"), "error", 5000);
 	} finally {

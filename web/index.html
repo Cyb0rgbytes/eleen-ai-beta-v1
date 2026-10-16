@@ -87,10 +87,19 @@
 
             <div class="message-input">
                 <div class="controls-row">
-                    <div class="mode-selector" role="group" aria-label="Response mode">
-                        <button class="mode-btn active" data-mode="balanced" type="button">Balanced</button>
-                        <button class="mode-btn" data-mode="creative" type="button">Creative</button>
-                        <button class="mode-btn" data-mode="logical" type="button">Logical</button>
+                    <!-- The model picker (DESIGN.md 7). web/src/chat/picker.ts fills the
+                         listbox from /api/v1/models; the modes are its segmented control. -->
+                    <div class="model-picker" id="model-picker">
+                        <button class="model-trigger" id="model-trigger" type="button" aria-controls="model-popover">Fast</button>
+                        <div class="model-popover" id="model-popover" hidden>
+                            <div class="model-list" id="model-list" role="listbox"></div>
+                            <div class="mode-segment" role="radiogroup" aria-label="Response mode">
+                                <button class="mode-btn active" data-mode="balanced" type="button">Balanced</button>
+                                <button class="mode-btn" data-mode="creative" type="button">Creative</button>
+                                <button class="mode-btn" data-mode="logical" type="button">Logical</button>
+                            </div>
+                            <button class="model-keys-link" type="button" hidden></button>
+                        </div>
                     </div>
                     <button id="enhance-btn" type="button" title="Enhance prompt"><span class="sr-only">Enhance prompt</span></button>
                 </div>
