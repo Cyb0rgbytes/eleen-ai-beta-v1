@@ -73,7 +73,7 @@ A sweep replaced production's policy with the candidate in enforce mode and ran 
 1. **Owner:** merge `feat/visual-pass`, then deploy with `npm run deploy` and `npm run verify-deploy`. This starts the 48-hour report window.
 2. Read `/api/csp-report` after 48 hours. Then ask the owner before flipping the main policy to enforcing.
 3. **Owner:** merge `feat/m3.6-picker-keys-reasoning` and deploy.
-4. The Worker's half of the premium path is now checked offline by `test/gateway-compat.test.ts`. The test confirms that the key goes only into the provider's auth header, through `eleenai-gateway`, uncached and never logged. It also confirms that a missing key stops before any call. The live half is still open: whether the gateway forwards the header and the provider accepts it. The owner is not adding a paid OpenAI or Anthropic key. A free Google AI Studio key would cover it once a Gemini model is listed as a user-key model.
+4. The Worker's half of the premium path is now checked offline by `test/gateway-compat.test.ts`. The test confirms that the key goes only into the provider's auth header, through `eleenai-gateway`, uncached and never logged. It also confirms that a missing key stops before any call. The live half is still open: whether the gateway forwards the header and the provider accepts it. **Decided 2026-10-17:** the owner adds no provider key of any kind. Premium models stay listed and locked until users add their own keys. The live half is first proven by the first user who stores a key.
 5. Add a production e2e check that allows exactly the two Cloudflare-injected scripts. The existing third-party script test describes our own page and passes locally only.
 
 ## DESIGN.md amendments, approved 2026-10-17
