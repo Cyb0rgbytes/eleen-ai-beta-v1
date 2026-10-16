@@ -65,6 +65,13 @@ test("a guest cannot pick a locked model", async ({ page }) => {
 	await page.locator("#model-trigger").click();
 	await page.getByRole("option", { name: /Reasoning/ }).click();
 	await expect(page.locator("#model-trigger")).toHaveText("Fast");
+	// On production, where Clerk serves this origin, the locked row opened
+	// the sign-in modal instead. Close it before chatting on.
+	if (/eleenai\.xyz/.test(process.env.E2E_BASE_URL ?? "")) {
+		await expect(page.locator(".cl-modalContent")).toBeVisible({ timeout: 30_000 });
+		await page.keyboard.press("Escape");
+		await expect(page.locator(".cl-modalContent")).toBeHidden();
+	}
 	await send(page, "hello");
 	await expect(page.locator(".assistant-message .message-body p").last()).toHaveText("ok");
 	expect(bodies[0]?.model).toBe("fast");

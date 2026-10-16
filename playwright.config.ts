@@ -25,7 +25,20 @@ export default defineConfig({
 		trace: "retain-on-failure",
 		screenshot: "only-on-failure",
 	},
-	projects: [{ name: "chromium", use: { browserName: "chromium" } }],
+	projects: [
+		{
+			name: "chromium",
+			use: {
+				browserName: "chromium",
+				// Hardware WebGL where the machine has a GPU, as visitors do. In
+				// software WebGL the live scene froze the main thread for about
+				// 20 s on production (measured 2026-10-17), which timed out tests
+				// that have nothing to do with the scene. Without a GPU, Chromium
+				// falls back to software as before.
+				launchOptions: { args: ["--use-angle=d3d11", "--enable-gpu", "--ignore-gpu-blocklist"] },
+			},
+		},
+	],
 	webServer: isLocal
 		? {
 				command: "npx wrangler dev --port 8787",
