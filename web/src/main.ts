@@ -19,6 +19,7 @@ import { createEmptyState, setGreetingName } from "./chat/empty";
 import { initJumpPill } from "./chat/jump";
 import { initPicker, type Picker } from "./chat/picker";
 import { watchReader } from "./chat/scroll";
+import { initVoiceOutToggle } from "./chat/speak";
 import { initVoice } from "./chat/voice";
 import { t } from "./i18n";
 import { createKeysDialog, type KeysDialog } from "./keys/dialog";
@@ -104,6 +105,7 @@ async function boot(): Promise<void> {
 		});
 	}
 	initVoice(chat);
+	initVoiceOutToggle(chat.speaker);
 	window.chat = chat;
 	registerWebMcp(chat);
 

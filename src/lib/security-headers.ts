@@ -72,6 +72,8 @@ function cspDirectives(nonce?: string): string[] {
 		// images are Clerk avatars and the Spline viewer's badge.
 		"img-src 'self' data: blob: https://img.clerk.com https://app.spline.design",
 		`connect-src ${CONNECT_SOURCES.join(" ")}`,
+		// Spoken replies play from a blob: URL made from /api/voice/speak.
+		"media-src 'self' blob:",
 		// WebGL workers for the Spline scene.
 		"worker-src 'self' blob:",
 		"child-src 'self' blob:",

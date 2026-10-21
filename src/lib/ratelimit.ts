@@ -78,6 +78,13 @@ export const RULES = {
 		user: { limit: 60, windowSeconds: HOUR },
 		failClosedForGuests: true,
 	},
+	// Spoken replies. Aura bills per character on the owner's account, so
+	// guests refuse rather than run unmetered when the counter is down.
+	speak: {
+		guest: { limit: 10, windowSeconds: HOUR },
+		user: { limit: 60, windowSeconds: HOUR },
+		failClosedForGuests: true,
+	},
 	// File uploads and multi-model compare are for signed-in users only.
 	upload: {
 		guest: { limit: 0, windowSeconds: HOUR },

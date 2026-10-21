@@ -21,6 +21,13 @@ describe("validateChatBody", () => {
 		expect(result.messages[0].content).toBe("hello");
 	});
 
+	it("passes the voice flag through only when it is true, and refuses a non-boolean", () => {
+		expect(validateChatBody({ ...valid, voice: true }).voice).toBe(true);
+		expect(validateChatBody({ ...valid, voice: false }).voice).toBeUndefined();
+		expect(validateChatBody(valid).voice).toBeUndefined();
+		expect(() => validateChatBody({ ...valid, voice: "yes" })).toThrow(ValidationError);
+	});
+
 	it("rejects a missing or non-array messages field", () => {
 		for (const body of [{}, { messages: "hello" }, { messages: 5 }, null]) {
 			expect(() => validateChatBody(body)).toThrow(ValidationError);

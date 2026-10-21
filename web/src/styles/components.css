@@ -1314,6 +1314,7 @@ header {
 	border-inline-start: 2px solid var(--line);
 }
 
+#voice-out-btn,
 #enhance-btn {
 	display: inline-flex;
 	align-items: center;
@@ -1327,9 +1328,36 @@ header {
 	border-radius: var(--r-pill);
 }
 
+#voice-out-btn:hover,
 #enhance-btn:hover {
 	background: var(--field);
 	border-color: var(--line-strong);
+}
+
+/* Spoken replies on: the toggle carries the accent so it reads as active. */
+#voice-out-btn[data-mode="always"],
+#voice-out-btn[data-mode="auto"] {
+	color: var(--accent-text);
+}
+
+#voice-out-btn {
+	margin-inline-start: auto;
+}
+
+@media (max-width: 400px) {
+	.voice-out-label {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+}
+
+/* A reply that is being read aloud: its speak button shows the live state. */
+.assistant-message.is-speaking .speak-button {
+	color: var(--accent-text);
 }
 
 .input-row {
