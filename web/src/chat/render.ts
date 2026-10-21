@@ -18,8 +18,69 @@
  */
 import { icon } from "../ui/icons";
 import { t } from "../i18n";
+import { prefersReducedMotion } from "../ui/motion";
+import { enhanceCode } from "./code";
 import { extractMarkers, type Extracted } from "./markers";
 import { renderMarkdown } from "./markdown";
+
+/**
+ * How long newly arrived text takes to fade in while a reply streams. The
+ * body is rebuilt every frame, so each run of text remembers when it
+ * arrived and its fade resumes where it was (a negative animation delay)
+ * instead of restarting.
+ */
+export const FRESH_MS = 350;
+
+interface Arrival {
+	at: number;
+	/** Rendered text length once this arrival was painted. */
+	length: number;
+}
+
+function textNodes(root: Node): Text[] {
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+	const nodes: Text[] = [];
+	for (let node = walker.nextNode(); node; node = walker.nextNode()) nodes.push(node as Text);
+	return nodes;
+}
+
+/** Wrap text that arrived in the last FRESH_MS in spans that fade in. */
+function markFresh(root: Node, arrivals: Arrival[], now: number): void {
+	const nodes = textNodes(root);
+	const total = nodes.reduce((sum, node) => sum + node.data.length, 0);
+	arrivals.push({ at: now, length: total });
+	// Keep the newest arrival older than the window as the baseline.
+	while (arrivals.length > 1 && now - arrivals[1]!.at > FRESH_MS) arrivals.shift();
+
+	const segments: { from: number; to: number; age: number }[] = [];
+	for (let i = 0; i < arrivals.length; i++) {
+		const arrival = arrivals[i]!;
+		const from = i === 0 ? (now - arrival.at > FRESH_MS ? arrival.length : 0) : arrivals[i - 1]!.length;
+		const to = Math.min(arrival.length, total);
+		if (to > from && now - arrival.at <= FRESH_MS) segments.push({ from, to, age: now - arrival.at });
+	}
+	if (!segments.length) return;
+
+	let offset = 0;
+	for (const node of nodes) {
+		const start = offset;
+		const end = start + node.data.length;
+		offset = end;
+		const pieces = segments.filter((s) => s.to > start && s.from < end);
+		// Right to left, so earlier split points stay valid.
+		for (const piece of pieces.reverse()) {
+			const a = Math.max(piece.from, start) - start;
+			const b = Math.min(piece.to, end) - start;
+			const target = node.splitText(a);
+			target.splitText(b - a);
+			const span = document.createElement("span");
+			span.className = "fresh";
+			span.style.setProperty("--age", `${Math.round(piece.age)}ms`);
+			target.replaceWith(span);
+			span.append(target);
+		}
+	}
+}
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
 	const node = document.createElement(tag);
@@ -96,7 +157,10 @@ function chips(suggestions: string[]): HTMLElement | null {
 	for (const s of suggestions) {
 		const chip = el("button", "suggestion-chip");
 		chip.type = "button";
-		chip.textContent = s;
+		const label = el("span");
+		label.dir = "auto";
+		label.textContent = s;
+		chip.append(label, icon("arrow-right"));
 		chip.dataset.suggestion = s;
 		row.append(chip);
 	}
@@ -106,13 +170,19 @@ function chips(suggestions: string[]): HTMLElement | null {
 /** The clean text of each finished reply, for Copy. Markers already stripped. */
 export const replyText = new WeakMap<Element, string>();
 
-function actionButton(kind: "copy" | "regenerate"): HTMLButtonElement {
+const ACTIONS = {
+	copy: { icon: "copy", label: "copy" },
+	regenerate: { icon: "arrow-clockwise", label: "regenerate" },
+	speak: { icon: "speaker-high", label: "speak" },
+} as const;
+
+function actionButton(kind: keyof typeof ACTIONS): HTMLButtonElement {
 	const button = el("button", `message-action ${kind}-button`);
 	button.type = "button";
 	button.dataset.action = kind;
-	button.append(icon(kind === "copy" ? "copy" : "arrow-clockwise"));
+	button.append(icon(ACTIONS[kind].icon));
 	const label = el("span", "sr-only");
-	label.textContent = t(kind === "copy" ? "copy" : "regenerate");
+	label.textContent = t(ACTIONS[kind].label);
 	button.append(label);
 	button.title = label.textContent;
 	return button;
@@ -215,10 +285,13 @@ export function createAssistantMessage(): AssistantView {
 	}
 
 	let reasoning: ReasoningPanel | null = null;
+	const arrivals: Arrival[] = [];
+	const fade = !prefersReducedMotion();
 
 	function paint(raw: string, streaming: boolean): Extracted {
 		const extracted = extractMarkers(raw, { streaming });
 		const blocks = renderMarkdown(extracted.text);
+		if (streaming && fade) markFresh(blocks, arrivals, performance.now());
 		if (reasoning) {
 			// The panel stays put: re-inserting it would restart its
 			// animation and lose the reader's open or closed choice.
@@ -270,6 +343,7 @@ export function createAssistantMessage(): AssistantView {
 				note.textContent = t("stopped");
 				body.append(note);
 			}
+			enhanceCode(body);
 			const row = chips(extracted.suggestions);
 			if (row) body.append(row);
 
@@ -277,7 +351,7 @@ export function createAssistantMessage(): AssistantView {
 			const actions = el("div", "message-actions");
 			const feedback = el("div", "message-feedback");
 			const tools = el("div", "message-tools");
-			if (extracted.text) tools.append(actionButton("copy"));
+			if (extracted.text) tools.append(actionButton("copy"), actionButton("speak"));
 			tools.append(actionButton("regenerate"));
 			feedback.append(tools, feedbackButton("up"), feedbackButton("down"));
 			actions.append(feedback);

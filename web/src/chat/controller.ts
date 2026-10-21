@@ -30,6 +30,8 @@ import {
 	replyText,
 } from "./render";
 import { follow } from "./scroll";
+import { createSpeaker, shouldAutoSpeak, type Speaker } from "./speak";
+import { codeText } from "./code";
 
 const MAX_HISTORY = 20;
 
@@ -40,8 +42,13 @@ export interface ChatControllerOptions {
 	emptyState(): HTMLElement;
 }
 
+export interface SendOptions {
+	/** Asked by voice: the reply is kept speakable and, by default, read aloud. */
+	voice?: boolean;
+}
+
 export interface ChatApi {
-	sendMessage(text?: string): Promise<void>;
+	sendMessage(text?: string, options?: SendOptions): Promise<void>;
 	stop(): void;
 	clearChat(options?: { confirm?: boolean }): boolean;
 	regenerate(): Promise<void>;
@@ -50,6 +57,8 @@ export interface ChatApi {
 	setMode(mode: ResponseMode): void;
 	/** A tier name or model id from the picker, and its display label. */
 	setModel(model: string, label: string): void;
+	/** Reads replies aloud; shared with the composer's voice-out toggle. */
+	readonly speaker: Speaker;
 }
 
 function greeting(): ChatMessage[] {
@@ -64,6 +73,28 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 	let model = "fast";
 	let modelLabel = "";
 	let controller: AbortController | null = null;
+	const speaker = createSpeaker();
+
+	/** Read one finished reply aloud, showing it on its Speak button. */
+	function speakReply(reply: Element) {
+		const text = replyText.get(reply);
+		const button = reply.querySelector<HTMLButtonElement>(".speak-button");
+		if (!text) return;
+		const show = (speaking: boolean) => {
+			reply.classList.toggle("is-speaking", speaking);
+			if (!button) return;
+			button.setAttribute("aria-pressed", String(speaking));
+			setIcon(button, speaking ? "stop" : "speaker-high");
+			const label = button.querySelector(".sr-only");
+			if (label) label.textContent = t(speaking ? "stopSpeaking" : "speak");
+			button.title = t(speaking ? "stopSpeaking" : "speak");
+		};
+		void speaker.speak(text, { onStart: () => show(true), onEnd: () => show(false) });
+	}
+
+	document.addEventListener("keydown", (event) => {
+		if (event.key === "Escape") speaker.stop();
+	});
 
 	function setBusy(next: boolean) {
 		busy = next;
@@ -151,11 +182,12 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 		}
 	}
 
-	async function sendMessage(text?: string): Promise<void> {
+	async function sendMessage(text?: string, { voice = false }: SendOptions = {}): Promise<void> {
 		const input = document.getElementById("user-input") as HTMLTextAreaElement | null;
 		const message = (text ?? input?.value ?? "").trim();
 		if (!message || busy) return;
 
+		speaker.stop();
 		setBusy(true);
 		messages.querySelector(".empty-state")?.remove();
 		append(createUserMessage(message), { force: true });
@@ -176,7 +208,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 			}
 			return;
 		}
-		await runTurn();
+		await runTurn({ voice });
 	}
 
 	/**
@@ -190,12 +222,13 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 		history.pop();
 		const replies = messages.querySelectorAll(".assistant-message");
 		replies[replies.length - 1]?.remove();
+		speaker.stop();
 		setBusy(true);
 		await runTurn();
 	}
 
 	/** Stream one assistant turn from the current history. Owns busy and the turn-complete event. */
-	async function runTurn(): Promise<void> {
+	async function runTurn({ voice = false }: SendOptions = {}): Promise<void> {
 		const thinking = createThinking();
 		append(thinking, { force: true });
 		// Only the newest reply offers Regenerate.
@@ -217,7 +250,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 
 			try {
 				for await (const event of streamChat(
-					{ messages: history, mode, model },
+					{ messages: history, mode, model, ...(voice ? { voice: true } : {}) },
 					{ authenticated: isSignedIn(), signal: controller.signal },
 				)) {
 					if (event.type === "reasoning") {
@@ -247,6 +280,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 			} else {
 				const extracted = view.finish(raw, { completionTokens, stopped });
 				if (raw.trim()) history.push({ role: "assistant", content: raw });
+				if (!stopped && extracted.text && shouldAutoSpeak(voice)) speakReply(view.root);
 				if (extracted.imagePrompt && !stopped) await generateImage(extracted.imagePrompt);
 			}
 			requestAnimationFrame(() => follow(messages));
@@ -271,6 +305,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 
 	function stop() {
 		controller?.abort();
+		speaker.stop();
 	}
 
 	function clearChat({ confirm: ask = true } = {}): boolean {
@@ -323,6 +358,11 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 				void regenerate();
 			} else if (action.dataset.action === "copy" && reply) {
 				void copyReply(action, replyText.get(reply) ?? "");
+			} else if (action.dataset.action === "copy-code") {
+				void copyReply(action, codeText(action), "copyCode");
+			} else if (action.dataset.action === "speak" && reply) {
+				if (reply.classList.contains("is-speaking")) speaker.stop();
+				else speakReply(reply);
 			}
 			return;
 		}
@@ -331,8 +371,8 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 		if (image) window.open(image.src, "_blank", "noopener");
 	});
 
-	/** Copy a reply's text; the icon morphs to a check and back (DESIGN.md 7). */
-	async function copyReply(button: HTMLButtonElement, text: string): Promise<void> {
+	/** Copy a reply's (or a code block's) text; the icon morphs to a check and back (DESIGN.md 7). */
+	async function copyReply(button: HTMLButtonElement, text: string, labelKey: "copy" | "copyCode" = "copy"): Promise<void> {
 		try {
 			await navigator.clipboard.writeText(text);
 		} catch {
@@ -346,7 +386,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 		setTimeout(() => {
 			button.classList.remove("is-done");
 			setIcon(button, "copy");
-			if (label) label.textContent = t("copy");
+			if (label) label.textContent = t(labelKey);
 		}, 1500);
 	}
 
@@ -364,5 +404,6 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 			model = next;
 			modelLabel = label;
 		},
+		speaker,
 	};
 }

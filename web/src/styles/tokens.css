@@ -86,6 +86,26 @@
 	--blur-plate: blur(18px) saturate(150%);
 	--blur-composer: blur(20px) saturate(150%);
 
+	/* Glow (DESIGN.md "Light and glow"): coloured light from the brand pair.
+	   Static shadows only; anything that fades does so on its own layer's
+	   opacity. */
+	--glow-composer: 0 0 0 1px rgb(108 99 255 / 0.16), 0 0 36px rgb(108 99 255 / 0.16), 0 0 80px rgb(0 229 255 / 0.05);
+	--glow-composer-focus: 0 0 40px rgb(108 99 255 / 0.34), 0 0 96px rgb(0 229 255 / 0.12);
+	--glow-avatar: 0 0 12px rgb(108 99 255 / 0.55), 0 0 26px rgb(0 229 255 / 0.22);
+	--glow-card-hover: 0 0 30px rgb(108 99 255 / 0.26), 0 0 60px rgb(0 229 255 / 0.08);
+	--sweep: linear-gradient(90deg, transparent, rgb(0 229 255 / 0.95), rgb(108 99 255 / 0.95), transparent);
+	--sweep-glow: 0 0 12px rgb(0 229 255 / 0.6);
+
+	/* Syntax colours for code blocks */
+	--tok-comment: #6f7399;
+	--tok-keyword: #b39dff;
+	--tok-string: #7ee2b8;
+	--tok-number: #ffb86b;
+	--tok-function: #6fd8ff;
+	--tok-type: #ff8fc8;
+	--tok-property: #c8ccff;
+	--tok-punct: #9a9cc4;
+
 	/* Type (DESIGN.md section 4) */
 	--font-sans: "Inter Variable", "Inter", "Noto Sans Arabic", "Segoe UI", system-ui, -apple-system, sans-serif;
 	--font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
@@ -111,7 +131,7 @@
 	--sp-4: 1.5rem;
 
 	/* Layout */
-	--column: 52rem;
+	--column: 64rem;
 
 	/* Motion (DESIGN.md section 8) */
 	--ease: cubic-bezier(0.16, 1, 0.3, 1);
@@ -186,6 +206,22 @@
 	--shadow-cta: 0 4px 16px rgb(90 81 240 / 0.3);
 	--shadow-text: 0 1px 3px rgb(255 255 255 / 0.9);
 	--logo-shadow: drop-shadow(0 1px 3px rgb(255 255 255 / 0.9));
+
+	--glow-composer: 0 0 0 1px rgb(90 81 240 / 0.12), 0 0 32px rgb(90 81 240 / 0.12);
+	--glow-composer-focus: 0 0 36px rgb(90 81 240 / 0.22), 0 0 80px rgb(14 116 144 / 0.08);
+	--glow-avatar: 0 0 10px rgb(90 81 240 / 0.4);
+	--glow-card-hover: 0 0 26px rgb(90 81 240 / 0.18);
+	--sweep: linear-gradient(90deg, transparent, rgb(14 116 144 / 0.85), rgb(90 81 240 / 0.85), transparent);
+	--sweep-glow: 0 0 10px rgb(90 81 240 / 0.4);
+
+	--tok-comment: #6a6e8c;
+	--tok-keyword: #5b3fd6;
+	--tok-string: #0f7a52;
+	--tok-number: #b45309;
+	--tok-function: #0e6e8f;
+	--tok-type: #b0246f;
+	--tok-property: #3b3f8f;
+	--tok-punct: #5a5d80;
 }
 
 /* Arabic renders small at the same size as Latin (DESIGN.md section 4). */

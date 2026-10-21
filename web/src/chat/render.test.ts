@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createAssistantMessage, createImageMessage, createNotice, createUserMessage } from "./render";
+import { FRESH_MS, createAssistantMessage, createImageMessage, createNotice, createUserMessage } from "./render";
 
 afterEach(() => {
 	document.documentElement.lang = "en";
@@ -64,6 +64,41 @@ describe("assistant message", () => {
 		expect(view.root.querySelector(".message-body")?.textContent).toBe("");
 		vi.advanceTimersToNextFrame();
 		expect(view.root.querySelector(".message-body")?.textContent).toBe("abc");
+	});
+
+	it("fades in text as it streams, and leaves the finished reply plain", () => {
+		vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance"] });
+		const view = createAssistantMessage();
+		const body = () => view.root.querySelector(".message-body")!;
+
+		view.update("Hello");
+		vi.advanceTimersToNextFrame();
+		expect([...body().querySelectorAll(".fresh")].map((s) => s.textContent).join("")).toBe("Hello");
+
+		// Long after, only the new words are still fading.
+		vi.advanceTimersByTime(FRESH_MS + 100);
+		view.update("Hello there");
+		vi.advanceTimersToNextFrame();
+		expect([...body().querySelectorAll(".fresh")].map((s) => s.textContent).join("")).toBe(" there");
+		expect(body().textContent).toBe("Hello there");
+
+		view.finish("Hello there");
+		expect(body().querySelector(".fresh")).toBeNull();
+	});
+
+	it("gives a finished code block a header with its language and a Copy button", () => {
+		const view = createAssistantMessage();
+		view.finish("Try:\n```python\nprint('hi')\n```");
+		const block = view.root.querySelector(".code-block")!;
+		expect(block.querySelector(".code-lang")?.textContent).toBe("python");
+		expect(block.querySelector<HTMLButtonElement>(".code-copy")?.dataset.action).toBe("copy-code");
+		expect(block.querySelector("pre code")?.textContent).toBe("print('hi')");
+	});
+
+	it("puts an onward arrow on each follow-up chip", () => {
+		const view = createAssistantMessage();
+		view.finish("ok[SUGGEST]Why?[/SUGGEST]");
+		expect(view.root.querySelector(".suggestion-chip svg.icon")?.getAttribute("data-icon")).toBe("arrow-right");
 	});
 
 	it("marks itself receiving while tokens arrive, and settles after", () => {

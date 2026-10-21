@@ -14,6 +14,7 @@
  * - Code blocks are dir="ltr" in every UI direction.
  */
 import { Lexer, type Token, type Tokens } from "marked";
+import { t as translate, type MessageKey } from "../i18n";
 
 const SAFE_SCHEMES = new Set(["http:", "https:", "mailto:"]);
 
@@ -115,8 +116,12 @@ function block(token: Token): Node[] {
 			pre.dir = "ltr";
 			return [pre];
 		}
-		case "blockquote":
-			return [el("blockquote", blocks((token as Tokens.Blockquote).tokens))];
+		case "blockquote": {
+			const t = token as Tokens.Blockquote;
+			const match = CALLOUT.exec(t.text);
+			if (match) return [callout(match[1]!.toLowerCase(), t.text.slice(match[0].length))];
+			return [el("blockquote", blocks(t.tokens))];
+		}
 		case "list": {
 			const t = token as Tokens.List;
 			const list = el(t.ordered ? "ol" : "ul", t.items.map((item) => el("li", listItem(item))));
@@ -151,6 +156,31 @@ function block(token: Token): Node[] {
 	}
 }
 
+/**
+ * GitHub-style alerts: a blockquote whose first line is [!TIP], [!NOTE],
+ * [!IMPORTANT] or [!WARNING] ([!CAUTION] reads as a warning) becomes a
+ * labelled callout. The kind comes from this fixed list, never from the text.
+ */
+const CALLOUT = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*(?:\n|$)/i;
+
+const CALLOUT_KINDS: Record<string, { kind: string; label: MessageKey }> = {
+	note: { kind: "note", label: "calloutNote" },
+	tip: { kind: "tip", label: "calloutTip" },
+	important: { kind: "important", label: "calloutImportant" },
+	warning: { kind: "warning", label: "calloutWarning" },
+	caution: { kind: "warning", label: "calloutWarning" },
+};
+
+function callout(name: string, body: string): HTMLElement {
+	const { kind, label } = CALLOUT_KINDS[name] ?? CALLOUT_KINDS.note!;
+	const title = el("div", [text(translate(label))]);
+	title.className = "callout-title";
+	const aside = el("aside", [title, ...blocks(Lexer.lex(body, { gfm: true, breaks: true }))]);
+	aside.className = "callout";
+	aside.dataset.kind = kind;
+	return aside;
+}
+
 function listItem(item: Tokens.ListItem): Node[] {
 	const out: Node[] = [];
 	for (const token of item.tokens) {
@@ -179,7 +209,7 @@ export function renderMarkdown(source: string): DocumentFragment {
 /** Elements the renderer may produce. Exported so tests can enforce it. */
 export const ALLOWED_ELEMENTS = new Set([
 	"P", "BR", "STRONG", "EM", "DEL", "CODE", "PRE", "UL", "OL", "LI", "BLOCKQUOTE",
-	"A", "H3", "H4", "H5", "HR", "TABLE", "THEAD", "TBODY", "TR", "TH", "TD", "DIV",
+	"A", "H3", "H4", "H5", "HR", "TABLE", "THEAD", "TBODY", "TR", "TH", "TD", "DIV", "ASIDE",
 ]);
 
 /** Attributes the renderer may set, per element. */
@@ -189,4 +219,5 @@ export const ALLOWED_ATTRIBUTES: Record<string, ReadonlySet<string>> = {
 	PRE: new Set(["dir"]),
 	CODE: new Set(["data-lang"]),
 	DIV: new Set(["class"]),
+	ASIDE: new Set(["class", "data-kind"]),
 };

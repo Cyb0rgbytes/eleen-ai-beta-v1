@@ -18,7 +18,7 @@ header {
 /* The lockup is one light-on-transparent image, so it carries its own
    separation from the bright scene near the top edge. */
 .logo-image {
-	block-size: 34px;
+	block-size: 50px;
 	inline-size: auto;
 	max-inline-size: 55%;
 	object-fit: contain;
@@ -231,6 +231,26 @@ header {
 	border-color: var(--accent-line);
 }
 
+/* Hover glow on its own layer, so it fades with opacity. */
+.prompt-card {
+	position: relative;
+}
+
+.prompt-card::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	box-shadow: var(--glow-card-hover);
+	opacity: 0;
+	pointer-events: none;
+}
+
+.prompt-card:hover::after,
+.prompt-card:focus-visible::after {
+	opacity: 1;
+}
+
 .prompt-card .icon {
 	inline-size: 20px;
 	block-size: 20px;
@@ -384,6 +404,20 @@ header {
 	font-weight: 700;
 	color: var(--on-accent);
 	user-select: none;
+	position: relative;
+	box-shadow: var(--glow-avatar);
+}
+
+/* A brighter halo that breathes while the reply is thinking, arriving or
+   being read aloud (motion.css). */
+.ai-avatar::after {
+	content: "";
+	position: absolute;
+	inset: -3px;
+	border-radius: 50%;
+	box-shadow: var(--glow-avatar), var(--glow-avatar);
+	opacity: 0;
+	pointer-events: none;
 }
 
 /* ── Message content ────────────────────────────────────────────────────── */
@@ -489,6 +523,149 @@ header {
 	color: var(--text-dim);
 }
 
+/* Callouts: [!TIP], [!NOTE], [!IMPORTANT], [!WARNING] (markdown.ts). Each
+   kind takes one status or brand token for its rule, title and wash. */
+.message .callout {
+	--callout: var(--accent-text);
+	margin-block: 0.7rem;
+	padding: 0.6rem 0.9rem;
+	border-inline-start: 3px solid var(--callout);
+	border-radius: var(--r-sm);
+	background: color-mix(in srgb, var(--callout) 9%, transparent);
+}
+
+.message .callout[data-kind="tip"] {
+	--callout: var(--ok);
+}
+
+.message .callout[data-kind="important"] {
+	--callout: var(--accent);
+}
+
+.message .callout[data-kind="warning"] {
+	--callout: var(--warn);
+}
+
+.message .callout-title {
+	margin-block-end: 0.2rem;
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--callout);
+}
+
+.message .callout > :last-child {
+	margin-block-end: 0;
+}
+
+/* Code blocks get a header with the language and Copy (code.ts). */
+.message .code-block {
+	margin-block: 0.7rem;
+	border: 1px solid var(--line);
+	border-radius: var(--r-sm);
+	overflow: hidden;
+	background: var(--surface-code);
+}
+
+.message .code-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0.2rem 0.4rem 0.2rem 1rem;
+	border-block-end: 1px solid var(--line);
+	direction: ltr;
+}
+
+.message .code-lang {
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	color: var(--text-faint);
+	text-transform: lowercase;
+}
+
+.message .code-copy {
+	padding: 0.25rem 0.4rem;
+	font-size: 0.8rem;
+	color: var(--text-faint);
+	background: none;
+	border: none;
+	border-radius: 6px;
+}
+
+.message .code-copy:hover {
+	color: var(--text);
+	background: var(--field);
+}
+
+.message .code-copy.is-done {
+	color: var(--ok);
+}
+
+.message .code-block pre {
+	margin: 0;
+	border: none;
+	border-radius: 0;
+	background: none;
+}
+
+/* Syntax colours (highlight.ts). */
+.message .tok-comment,
+.message .tok-prolog,
+.message .tok-doctype,
+.message .tok-cdata {
+	color: var(--tok-comment);
+	font-style: italic;
+}
+
+.message .tok-keyword,
+.message .tok-atrule,
+.message .tok-important,
+.message .tok-rule {
+	color: var(--tok-keyword);
+}
+
+.message .tok-string,
+.message .tok-char,
+.message .tok-attr-value,
+.message .tok-template-string,
+.message .tok-regex {
+	color: var(--tok-string);
+}
+
+.message .tok-number,
+.message .tok-boolean,
+.message .tok-constant,
+.message .tok-symbol {
+	color: var(--tok-number);
+}
+
+.message .tok-function,
+.message .tok-function-definition,
+.message .tok-method {
+	color: var(--tok-function);
+}
+
+.message .tok-class-name,
+.message .tok-builtin,
+.message .tok-tag,
+.message .tok-selector,
+.message .tok-namespace {
+	color: var(--tok-type);
+}
+
+.message .tok-property,
+.message .tok-attr-name,
+.message .tok-variable,
+.message .tok-parameter {
+	color: var(--tok-property);
+}
+
+.message .tok-punctuation,
+.message .tok-operator {
+	color: var(--tok-punct);
+}
+
 .message hr {
 	margin-block: var(--sp-2);
 	border: none;
@@ -558,18 +735,47 @@ header {
 	margin-block-start: var(--sp-2);
 }
 
+/* Follow-up questions: glowing pills that point onward. The glow sits on
+   the chip's own layer and fades in on hover. */
 .suggestion-chip {
-	padding: 0.35rem 0.75rem;
-	font-size: 0.8rem;
-	color: var(--text-dim);
-	background: var(--field);
-	border: 1px solid var(--line-strong);
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	padding: 0.45rem 0.6rem 0.45rem 0.9rem;
+	font-size: 0.82rem;
+	text-align: start;
+	color: var(--text);
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-line);
 	border-radius: var(--r-pill);
 }
 
-.suggestion-chip:hover {
-	color: var(--text);
-	border-color: var(--accent-line);
+.suggestion-chip .icon {
+	inline-size: 0.95em;
+	block-size: 0.95em;
+	color: var(--accent-text);
+}
+
+.suggestion-chip::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	box-shadow: var(--glow-card-hover);
+	opacity: 0;
+	pointer-events: none;
+}
+
+.suggestion-chip:hover,
+.suggestion-chip:focus-visible {
+	color: var(--text-strong);
+	border-color: var(--accent);
+}
+
+.suggestion-chip:hover::after,
+.suggestion-chip:focus-visible::after {
+	opacity: 1;
 }
 
 /* Feedback: quiet until the message is hovered or focused. */
@@ -706,13 +912,13 @@ header {
 	flex-direction: column;
 	gap: var(--sp-2);
 	margin-block-end: var(--sp-3);
-	padding: var(--sp-2);
+	padding: var(--sp-3);
 	background: var(--surface-composer);
 	backdrop-filter: var(--blur-composer);
 	-webkit-backdrop-filter: var(--blur-composer);
 	border: 1px solid var(--line);
-	border-radius: var(--r-md);
-	box-shadow: var(--shadow-composer);
+	border-radius: var(--r-lg);
+	box-shadow: var(--shadow-composer), var(--glow-composer);
 }
 
 .message-input {
@@ -723,14 +929,16 @@ header {
 	border-color: var(--accent);
 }
 
-/* The focus ring (DESIGN.md 7): 2px --accent-line just outside the pill.
-   Its own layer, so it can bloom with transform and opacity. */
+/* The focus ring (DESIGN.md 7): 2px --accent-line just outside the pill,
+   carrying the stronger focus glow. Its own layer, so ring and glow bloom
+   together with transform and opacity. */
 .message-input::after {
 	content: "";
 	position: absolute;
 	inset: -4px;
 	border: 2px solid var(--accent-line);
-	border-radius: calc(var(--r-md) + 4px);
+	border-radius: calc(var(--r-lg) + 4px);
+	box-shadow: var(--glow-composer-focus);
 	opacity: 0;
 	transform: scale(0.985);
 	pointer-events: none;
@@ -739,6 +947,22 @@ header {
 .message-input:focus-within::after {
 	opacity: 1;
 	transform: none;
+}
+
+/* The sweep: a band of light that runs along the composer's top edge while
+   a reply streams (motion.css animates it). Kept clear of the corners. */
+.message-input::before {
+	content: "";
+	position: absolute;
+	inset-block-start: -1px;
+	inset-inline-start: var(--r-lg);
+	inline-size: calc((100% - 2 * var(--r-lg)) * 0.3);
+	block-size: 2px;
+	border-radius: var(--r-pill);
+	background: var(--sweep);
+	box-shadow: var(--sweep-glow);
+	opacity: 0;
+	pointer-events: none;
 }
 
 /* ── Jump to latest (DESIGN.md 7) ───────────────────────────────────────── */
@@ -1314,6 +1538,7 @@ header {
 	border-inline-start: 2px solid var(--line);
 }
 
+#voice-out-btn,
 #enhance-btn {
 	display: inline-flex;
 	align-items: center;
@@ -1327,9 +1552,36 @@ header {
 	border-radius: var(--r-pill);
 }
 
+#voice-out-btn:hover,
 #enhance-btn:hover {
 	background: var(--field);
 	border-color: var(--line-strong);
+}
+
+/* Spoken replies on: the toggle carries the accent so it reads as active. */
+#voice-out-btn[data-mode="always"],
+#voice-out-btn[data-mode="auto"] {
+	color: var(--accent-text);
+}
+
+#voice-out-btn {
+	margin-inline-start: auto;
+}
+
+@media (max-width: 400px) {
+	.voice-out-label {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+}
+
+/* A reply that is being read aloud: its speak button shows the live state. */
+.assistant-message.is-speaking .speak-button {
+	color: var(--accent-text);
 }
 
 .input-row {
@@ -1341,7 +1593,7 @@ header {
 #user-input {
 	flex: 1;
 	min-inline-size: 0;
-	min-block-size: 24px;
+	min-block-size: 44px;
 	max-block-size: 180px;
 	padding: 6px 4px;
 	font-family: inherit;
@@ -1581,6 +1833,10 @@ footer {
 		max-inline-size: 92%;
 	}
 
+	.logo-image {
+		block-size: 40px;
+	}
+
 	#chat-messages {
 		padding: var(--sp-3) var(--sp-2);
 	}
@@ -1608,7 +1864,7 @@ footer {
 
 @media (max-width: 400px) {
 	.logo-image {
-		block-size: 28px;
+		block-size: 34px;
 	}
 
 	#send-button,

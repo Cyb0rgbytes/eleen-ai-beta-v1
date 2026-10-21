@@ -16,7 +16,7 @@ Dials, inferred from the read: variance 5, motion 4, density 4. A chat UI is rea
 
 1. **The scene is never filtered.** No `filter`, no `mix-blend-mode`, no tint on the Spline viewer. Legibility comes from the scrim and the surfaces, never from altering the model. This was tried in August and reverted within the hour.
 2. **Transparent means click-through.** Any full-bleed layer above the scene has `pointer-events: none`, and re-enables pointer events only on the elements that need them. Twice in August a transparent element silently swallowed the cursor and the robot stopped tracking.
-3. **One reading column.** Conversation text lives in a column no wider than 52rem, centred. Line length stays comfortable at 1920px; the controls stay in the corners.
+3. **One reading column.** Conversation text lives in a column no wider than 64rem, centred (52rem until 2026-10-21; widened at the owner's request). Line length stays comfortable at 1920px; the controls stay in the corners.
 4. **Semantic tokens only.** Components never name a colour. They name a role: `--surface`, `--text`, `--accent`. Themes and directions change the values, never the components.
 5. **Both themes, both directions, from the start.** Every component is checked in dark and light and in LTR and RTL before it ships. Playwright screenshots cover the four combinations (M4.5).
 6. **Calm motion.** Transitions use `--ease` at 160 to 320 ms, animate only `transform` and `opacity`, and collapse to instant under `prefers-reduced-motion`. Nothing loops except a live state indicator.
@@ -130,7 +130,7 @@ A 1.2 ratio from a 16px base, in rem. Arabic renders slightly small at the same 
 
 Weights: 400 body, 500 labels and buttons, 600 titles. Nothing heavier. Hierarchy comes from colour and weight, not size. The greeting is the only place the brand gradient is used as text, and it is a single short line.
 
-Conversation body: `--fs-md`, `--text`, max 72ch inside the 52rem column. Paragraph spacing 0.75em. Assistant replies render as one continuous panel; paragraph margins become internal padding so a transparent gap never cuts the fill.
+Conversation body: `--fs-md`, `--text`, max 72ch inside the 64rem column. Paragraph spacing 0.75em. Assistant replies render as one continuous panel; paragraph margins become internal padding so a transparent gap never cuts the fill.
 
 ## 5. Layer contract
 
@@ -171,13 +171,19 @@ Checked by screenshot in all four combinations: dark LTR, dark RTL, light LTR, l
 
 ### Shell and empty state
 
-Full-width transparent shell, 52rem reading column. The empty state shows a greeting in `--fs-2xl` with the brand gradient on the first line, a one-line subtitle in `--text-dim`, and exactly as many prompt cards as there are prompts, never a blank cell. Cards are `--surface` with `--line` borders at `--r-md`. Three or four cards on desktop, a horizontal scroll-snap row on mobile.
+Full-width transparent shell, 64rem reading column. The logo is 50px tall on desktop, 40px at 768px and below, 34px at 400px. The empty state shows a greeting in `--fs-2xl` with the brand gradient on the first line, a one-line subtitle in `--text-dim`, and exactly as many prompt cards as there are prompts, never a blank cell. Cards are `--surface` with `--line` borders at `--r-md`. Three or four cards on desktop, a horizontal scroll-snap row on mobile.
 
 ### Composer
 
 A pill, `--surface` with `blur(24px)`, `--r-pill`. From inline-start: attach, the text area, microphone, send. Send is a solid `--accent` circle; it is the one control on the page that must read as solid at a glance. The mode pills (Balanced, Creative, Logical) move from above the field into the picker popover. The enhance action stays as an icon inside the pill.
 
-Focus ring: 2px `--accent-line` outside the pill. Disabled: 50% opacity, no pointer. Recording: microphone fills `--recording`, a timer and a live level waveform from the microphone stream appear inline, Escape cancels.
+Focus ring: 2px `--accent-line` outside the pill.
+
+Light and glow (amended 2026-10-21, owner's request): the composer carries a soft brand glow (`--glow-composer`), and its focus ring carries a stronger one (`--glow-composer-focus`) that blooms in with the ring. While a reply streams, a band of light (`--sweep`) runs along the composer's top edge. The assistant avatar glows (`--glow-avatar`), and its halo breathes while a reply thinks, arrives or is read aloud. Glows are static shadows from tokens; anything that fades does so on its own layer's opacity. The scene is never lit, filtered or tinted.
+
+The composer also holds the spoken-replies toggle (when I speak, always, off) beside the enhance action.
+
+Disabled: 50% opacity, no pointer. Recording: microphone fills `--recording`, a timer and a live level waveform from the microphone stream appear inline, Escape cancels.
 
 While a reply streams, Send becomes **Stop**: the same `--accent` circle with a stop glyph and the label "Stop generating". Pressing it aborts the request; the text received so far stays in the panel, marked as stopped.
 
@@ -233,8 +239,8 @@ Bottom inline-end, `--surface-solid`, one line, auto-dismiss at 4s with a visibl
   - User turn: opacity from 0 and `translateX(12px)` toward the inline-end side, so it arrives from the side it lives on.
   - Assistant panel: opacity from 0 and `translateY(8px)`.
   - Empty-state greeting and prompt cards: same rise, staggered 40 ms per element.
-- Prompt card hover: `translateY(-2px)` and the border moves to `--accent-line`. No box-shadow glow.
-- `@media (prefers-reduced-motion: reduce)` sets every transition to `0ms` and removes the streaming pulse.
+- Prompt card hover: `translateY(-2px)`, the border moves to `--accent-line`, and `--glow-card-hover` fades in on the card's own layer.
+- `@media (prefers-reduced-motion: reduce)` sets every transition to `0ms` and removes the streaming pulse, the composer sweep and the avatar halo.
 - The scene itself is the motion layer. On `prefers-reduced-motion`, `saveData`, under four cores, or on a coarse pointer, the scene is skipped and a static WebP poster of the robot takes its place at `z-index: 0` (M5.5).
 
 ## 9. Accessibility floor
@@ -253,6 +259,9 @@ Model output is attacker-influenced: a prompt injection in a document or search 
 - Our code has **no HTML sinks**. Markdown is tokenised and turned into DOM nodes from an allowlist of elements and attributes. Raw HTML in a reply renders as text.
 - Links pass a scheme allowlist (`http`, `https`, `mailto`) and open with `rel="noopener noreferrer nofollow"` and `target="_blank"`.
 - Markdown images never render as `<img>`. A model-written image URL is the classic exfiltration channel; it is shown as a link instead.
+- GitHub-style alerts (`> [!TIP]`, `[!NOTE]`, `[!IMPORTANT]`, `[!WARNING]`) render as `aside.callout`. The kind comes from that fixed list, and each takes one status or brand token.
+- A finished code block gets a header with its language and a Copy button. Syntax colours come from Prism, loaded on first use in its own chunk and used only as a tokenizer: tokens become `span.tok-*` elements whose text is set with `textContent`.
+- While a reply streams, newly arrived text fades in (opacity only, 350 ms). The finished reply carries no fade spans.
 - Trusted Types runs in a Report-Only header. Our code would pass enforcement; Clerk and the Spline viewer may not, and enforcing on their behalf would mean a permissive default policy.
 
 ## 10. What we deliberately do not do
@@ -261,7 +270,7 @@ Model output is attacker-influenced: a prompt injection in a document or search 
 - No `z-index` outside the layer table.
 - No physical direction properties in component CSS.
 - No colour named directly in a component.
-- No decorative dots, no infinite animations except the live recording and streaming indicators.
+- No decorative dots, no infinite animations except live states: recording, streaming (the rule and the composer sweep), and a reply thinking or being read aloud (the avatar halo).
 - No emoji in UI strings.
 - No new accent colour. One accent, both themes.
 - No `h-screen`. Full-height layouts use `100dvh`.
