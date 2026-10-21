@@ -18,7 +18,7 @@ header {
 /* The lockup is one light-on-transparent image, so it carries its own
    separation from the bright scene near the top edge. */
 .logo-image {
-	block-size: 34px;
+	block-size: 50px;
 	inline-size: auto;
 	max-inline-size: 55%;
 	object-fit: contain;
@@ -231,6 +231,26 @@ header {
 	border-color: var(--accent-line);
 }
 
+/* Hover glow on its own layer, so it fades with opacity. */
+.prompt-card {
+	position: relative;
+}
+
+.prompt-card::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	box-shadow: var(--glow-card-hover);
+	opacity: 0;
+	pointer-events: none;
+}
+
+.prompt-card:hover::after,
+.prompt-card:focus-visible::after {
+	opacity: 1;
+}
+
 .prompt-card .icon {
 	inline-size: 20px;
 	block-size: 20px;
@@ -384,6 +404,20 @@ header {
 	font-weight: 700;
 	color: var(--on-accent);
 	user-select: none;
+	position: relative;
+	box-shadow: var(--glow-avatar);
+}
+
+/* A brighter halo that breathes while the reply is thinking, arriving or
+   being read aloud (motion.css). */
+.ai-avatar::after {
+	content: "";
+	position: absolute;
+	inset: -3px;
+	border-radius: 50%;
+	box-shadow: var(--glow-avatar), var(--glow-avatar);
+	opacity: 0;
+	pointer-events: none;
 }
 
 /* ── Message content ────────────────────────────────────────────────────── */
@@ -706,13 +740,13 @@ header {
 	flex-direction: column;
 	gap: var(--sp-2);
 	margin-block-end: var(--sp-3);
-	padding: var(--sp-2);
+	padding: var(--sp-3);
 	background: var(--surface-composer);
 	backdrop-filter: var(--blur-composer);
 	-webkit-backdrop-filter: var(--blur-composer);
 	border: 1px solid var(--line);
-	border-radius: var(--r-md);
-	box-shadow: var(--shadow-composer);
+	border-radius: var(--r-lg);
+	box-shadow: var(--shadow-composer), var(--glow-composer);
 }
 
 .message-input {
@@ -723,14 +757,16 @@ header {
 	border-color: var(--accent);
 }
 
-/* The focus ring (DESIGN.md 7): 2px --accent-line just outside the pill.
-   Its own layer, so it can bloom with transform and opacity. */
+/* The focus ring (DESIGN.md 7): 2px --accent-line just outside the pill,
+   carrying the stronger focus glow. Its own layer, so ring and glow bloom
+   together with transform and opacity. */
 .message-input::after {
 	content: "";
 	position: absolute;
 	inset: -4px;
 	border: 2px solid var(--accent-line);
-	border-radius: calc(var(--r-md) + 4px);
+	border-radius: calc(var(--r-lg) + 4px);
+	box-shadow: var(--glow-composer-focus);
 	opacity: 0;
 	transform: scale(0.985);
 	pointer-events: none;
@@ -739,6 +775,22 @@ header {
 .message-input:focus-within::after {
 	opacity: 1;
 	transform: none;
+}
+
+/* The sweep: a band of light that runs along the composer's top edge while
+   a reply streams (motion.css animates it). Kept clear of the corners. */
+.message-input::before {
+	content: "";
+	position: absolute;
+	inset-block-start: -1px;
+	inset-inline-start: var(--r-lg);
+	inline-size: calc((100% - 2 * var(--r-lg)) * 0.3);
+	block-size: 2px;
+	border-radius: var(--r-pill);
+	background: var(--sweep);
+	box-shadow: var(--sweep-glow);
+	opacity: 0;
+	pointer-events: none;
 }
 
 /* ── Jump to latest (DESIGN.md 7) ───────────────────────────────────────── */
@@ -1369,7 +1421,7 @@ header {
 #user-input {
 	flex: 1;
 	min-inline-size: 0;
-	min-block-size: 24px;
+	min-block-size: 44px;
 	max-block-size: 180px;
 	padding: 6px 4px;
 	font-family: inherit;
@@ -1609,6 +1661,10 @@ footer {
 		max-inline-size: 92%;
 	}
 
+	.logo-image {
+		block-size: 40px;
+	}
+
 	#chat-messages {
 		padding: var(--sp-3) var(--sp-2);
 	}
@@ -1636,7 +1692,7 @@ footer {
 
 @media (max-width: 400px) {
 	.logo-image {
-		block-size: 28px;
+		block-size: 34px;
 	}
 
 	#send-button,

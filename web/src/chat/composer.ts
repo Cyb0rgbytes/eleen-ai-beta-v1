@@ -103,6 +103,8 @@ export function initComposer(chat: ChatApi): Composer {
 			streaming = busy;
 			if (busy) busySince = performance.now();
 			send.classList.toggle("is-stop", busy);
+			// Drives the light sweep along the composer's edge (motion.css).
+			input.closest(".message-input")?.classList.toggle("is-busy", busy);
 			setIcon(send, busy ? "stop" : "arrow-up");
 			if (sendLabel) sendLabel.textContent = busy ? t("stop") : t("send");
 			send.title = busy ? t("stop") : t("send");

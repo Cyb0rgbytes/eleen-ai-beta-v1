@@ -110,11 +110,15 @@
 	}
 }
 
-/* Composer focus ring blooms in. */
+/* Composer focus ring and its glow bloom in; a prompt card's glow fades in. */
 .message-input::after {
 	transition:
 		opacity var(--dur-state) var(--ease),
 		transform var(--dur-state) var(--ease);
+}
+
+.prompt-card::after {
+	transition: opacity var(--dur-state) var(--ease);
 }
 
 /* An icon swapped into a button (Send to Stop, copy to check, mic states)
@@ -263,6 +267,45 @@
 .assistant-message.is-receiving .message-body::before {
 	opacity: 1;
 	animation: rule-breathe 1.2s var(--ease) infinite;
+}
+
+/* The composer sweep: light runs along the top edge while a reply streams. */
+@keyframes composer-sweep {
+	0% {
+		opacity: 0;
+		transform: translateX(0);
+	}
+	15%,
+	85% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+		transform: translateX(calc(233% * var(--dir-sign)));
+	}
+}
+
+.message-input.is-busy::before {
+	animation: composer-sweep 1.8s ease-in-out infinite;
+}
+
+/* The avatar's halo breathes while the reply thinks, arrives or speaks. */
+@keyframes halo-breathe {
+	0%,
+	100% {
+		opacity: 0.35;
+		transform: scale(1);
+	}
+	50% {
+		opacity: 1;
+		transform: scale(1.18);
+	}
+}
+
+.thinking-indicator .ai-avatar::after,
+.assistant-message.is-receiving .ai-avatar::after,
+.assistant-message.is-speaking .ai-avatar::after {
+	animation: halo-breathe 1.4s var(--ease) infinite;
 }
 
 /* The recording ring expands and fades: was a box-shadow pulse. */
