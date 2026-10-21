@@ -1,0 +1,96 @@
+/*
+ * The privacy policy page (web/privacy.html). A plain reading page: the
+ * site's fonts and tokens, no scene, no script. Logical properties only, so
+ * the Arabic section mirrors by its own dir="rtl".
+ */
+@import "./fonts.css";
+@import "./tokens.css";
+@import "./base.css";
+
+.policy {
+	max-inline-size: 44rem;
+	margin-inline: auto;
+	padding-block: var(--sp-4) calc(var(--sp-4) * 2);
+	line-height: 1.65;
+}
+
+.policy-top {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--sp-2);
+	padding-block-end: var(--sp-3);
+	border-block-end: 1px solid var(--line);
+}
+
+.policy-top img {
+	block-size: 40px;
+	inline-size: auto;
+	filter: var(--logo-shadow);
+}
+
+.policy nav {
+	display: flex;
+	gap: var(--sp-3);
+	font-size: var(--fs-sm);
+}
+
+.policy a {
+	color: var(--accent-text);
+	text-underline-offset: 3px;
+	text-decoration-color: var(--link-line);
+}
+
+.policy section {
+	padding-block: var(--sp-4);
+}
+
+.policy section + section {
+	border-block-start: 1px solid var(--line);
+}
+
+.policy h1 {
+	margin-block-end: var(--sp-1);
+	font-size: var(--fs-xl);
+	font-weight: 600;
+	line-height: 1.25;
+	color: var(--text-strong);
+}
+
+.policy h2 {
+	margin-block: var(--sp-4) var(--sp-1);
+	font-size: var(--fs-lg);
+	font-weight: 600;
+	color: var(--text-strong);
+}
+
+.policy p,
+.policy ul {
+	margin-block-end: var(--sp-2);
+}
+
+.policy ul {
+	padding-inline-start: var(--sp-4);
+}
+
+.policy li {
+	margin-block-end: 0.35rem;
+}
+
+.policy .updated {
+	font-size: var(--fs-sm);
+	color: var(--text-faint);
+}
+
+.policy strong {
+	font-weight: 600;
+	color: var(--text-strong);
+}
+
+.policy footer {
+	padding-block-start: var(--sp-3);
+	font-size: var(--fs-xs);
+	color: var(--text-faint);
+	border-block-start: 1px solid var(--line);
+}

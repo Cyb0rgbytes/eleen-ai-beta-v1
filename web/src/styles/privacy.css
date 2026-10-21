@@ -1,0 +1,419 @@
+/*
+ * Consent dialog and the memory-and-privacy panel (M4.6).
+ *
+ * Both are native modal dialogs like the keys form (DESIGN.md 5, the Modals
+ * row): the browser's top layer, so no z-index, and a flat scrim backdrop,
+ * never a blur. Tokens only, logical properties only.
+ */
+
+.privacy-dialog {
+	/* The reset zeroes margins; a modal dialog centres itself with auto. */
+	margin: auto;
+	inline-size: min(34rem, calc(100vw - 2 * var(--sp-3)));
+	max-block-size: calc(100dvh - 2 * var(--sp-4));
+	padding: 0;
+	color: var(--text);
+	background: var(--surface-solid);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--r-md);
+	box-shadow: var(--shadow-toast);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
+.privacy-dialog::backdrop {
+	background: rgb(var(--scrim-rgb) / var(--scrim-bottom));
+}
+
+.privacy-dialog[open] {
+	animation: panel-in var(--dur-panel) var(--ease) both;
+}
+
+.privacy-dialog[open]::backdrop {
+	animation: fade-in var(--dur-panel) var(--ease) both;
+}
+
+.privacy-panel {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-2);
+	padding: var(--sp-4);
+}
+
+.privacy-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--sp-2);
+}
+
+.privacy-title {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sp-1);
+	font-size: var(--fs-lg);
+	font-weight: 600;
+}
+
+.privacy-title .icon {
+	inline-size: 1em;
+	block-size: 1em;
+	color: var(--accent-text);
+}
+
+.privacy-close {
+	display: inline-flex;
+	padding: 0.35rem;
+	color: var(--text-dim);
+	background: none;
+	border: 1px solid transparent;
+	border-radius: var(--r-pill);
+}
+
+.privacy-close:hover {
+	border-color: var(--line-strong);
+}
+
+.privacy-intro,
+.privacy-section-note,
+.privacy-note {
+	font-size: var(--fs-sm);
+	color: var(--text-dim);
+}
+
+.privacy-note {
+	padding: var(--sp-1) var(--sp-2);
+	color: var(--text);
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-line);
+	border-radius: var(--r-sm);
+}
+
+/* ── Switches ───────────────────────────────────────────────────────────── */
+
+.privacy-switches {
+	display: flex;
+	flex-direction: column;
+}
+
+.privacy-switch {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--sp-3);
+	padding-block: var(--sp-2);
+	border-block-start: 1px solid var(--line);
+}
+
+.privacy-switch:last-child {
+	border-block-end: 1px solid var(--line);
+}
+
+.privacy-switch-text {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+	cursor: pointer;
+}
+
+.privacy-switch-label {
+	font-weight: 500;
+}
+
+.privacy-switch-hint {
+	font-size: var(--fs-sm);
+	color: var(--text-dim);
+}
+
+/* The native checkbox, drawn as a track and a knob. role="switch" carries
+   the semantics; the look is only paint. */
+.privacy-switch-input {
+	flex-shrink: 0;
+	position: relative;
+	inline-size: 2.6rem;
+	block-size: 1.5rem;
+	margin-block-start: 0.1rem;
+	appearance: none;
+	-webkit-appearance: none;
+	background: var(--field-hover);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--r-pill);
+	cursor: pointer;
+	transition: background-color var(--dur-state) var(--ease), border-color var(--dur-state) var(--ease);
+}
+
+.privacy-switch-input::before {
+	content: "";
+	position: absolute;
+	inset-block-start: 50%;
+	inset-inline-start: 0.15rem;
+	inline-size: 1.1rem;
+	block-size: 1.1rem;
+	margin-block-start: -0.55rem;
+	background: var(--text-dim);
+	border-radius: 50%;
+	transition: transform var(--dur-state) var(--ease);
+}
+
+.privacy-switch-input:checked {
+	background: var(--accent);
+	border-color: var(--accent);
+}
+
+.privacy-switch-input:checked::before {
+	background: var(--on-accent);
+	/* Toward the inline-end in either direction. */
+	transform: translateX(calc(1.1rem * var(--dir-sign, 1)));
+}
+
+.privacy-switch-input:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+/* ── Buttons, links and messages ────────────────────────────────────────── */
+
+.privacy-actions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: var(--sp-1);
+}
+
+.privacy-button {
+	align-self: flex-start;
+	padding: 6px var(--sp-3);
+	font-size: var(--fs-sm);
+	font-weight: 500;
+	color: var(--text);
+	background: var(--field);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--r-pill);
+}
+
+.privacy-button:hover {
+	border-color: var(--accent-line);
+}
+
+.privacy-button.is-primary {
+	color: var(--on-accent);
+	background: var(--accent);
+	border-color: var(--accent);
+}
+
+.privacy-button.is-primary:hover {
+	background: var(--accent-hover);
+}
+
+.privacy-button.is-danger {
+	color: var(--danger);
+}
+
+.privacy-confirm .privacy-button.is-danger {
+	color: var(--on-accent);
+	background: var(--danger);
+	border-color: var(--danger);
+}
+
+.privacy-button:disabled {
+	opacity: 0.5;
+	pointer-events: none;
+}
+
+.privacy-link {
+	align-self: flex-start;
+	font-size: var(--fs-sm);
+	color: var(--accent-text);
+	text-underline-offset: 3px;
+	text-decoration-color: var(--link-line);
+}
+
+.privacy-error {
+	font-size: var(--fs-sm);
+	color: var(--danger);
+}
+
+.privacy-status {
+	font-size: var(--fs-sm);
+	color: var(--text-dim);
+}
+
+.privacy-status:empty {
+	display: none;
+}
+
+.privacy-status[data-tone="ok"] {
+	color: var(--ok);
+}
+
+.privacy-status[data-tone="error"] {
+	color: var(--danger);
+}
+
+/* ── Sections ───────────────────────────────────────────────────────────── */
+
+.privacy-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-1);
+	padding-block-start: var(--sp-2);
+}
+
+.privacy-section-title {
+	font-size: var(--fs-md);
+	font-weight: 600;
+}
+
+/* An inline "are you sure", in place of the action it guards. */
+.privacy-confirm {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-1);
+	padding: var(--sp-2);
+	background: var(--field);
+	border: 1px solid var(--danger);
+	border-radius: var(--r-sm);
+}
+
+.privacy-confirm.is-warning {
+	border-color: var(--warn);
+}
+
+.privacy-confirm-text {
+	font-size: var(--fs-sm);
+}
+
+/* ── Remembered facts ───────────────────────────────────────────────────── */
+
+.memory-list {
+	display: flex;
+	flex-direction: column;
+	max-block-size: 16rem;
+	overflow-y: auto;
+	list-style: none;
+	border: 1px solid var(--line);
+	border-radius: var(--r-sm);
+}
+
+.memory-row {
+	display: flex;
+	align-items: center;
+	gap: var(--sp-2);
+	padding: var(--sp-1) var(--sp-2);
+}
+
+.memory-row + .memory-row {
+	border-block-start: 1px solid var(--line);
+}
+
+.memory-fact {
+	flex: 1;
+	min-inline-size: 0;
+	font-size: var(--fs-sm);
+	overflow-wrap: anywhere;
+	text-align: start;
+}
+
+.memory-forget {
+	display: inline-flex;
+	flex-shrink: 0;
+	padding: 0.35rem;
+	color: var(--text-dim);
+	background: none;
+	border: 1px solid transparent;
+	border-radius: var(--r-pill);
+}
+
+.memory-forget:hover {
+	color: var(--danger);
+	border-color: var(--line-strong);
+}
+
+.memory-forget:disabled {
+	opacity: 0.5;
+	pointer-events: none;
+}
+
+.memory-forget .icon {
+	inline-size: 1rem;
+	block-size: 1rem;
+}
+
+/* The loading state: three lines shaped like facts (DESIGN.md principle 7). */
+.memory-skeleton {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-2);
+	padding: var(--sp-2);
+	border: 1px solid var(--line);
+	border-radius: var(--r-sm);
+}
+
+.memory-skeleton .skeleton-line:nth-child(2) {
+	inline-size: 80%;
+}
+
+.memory-skeleton .skeleton-line:nth-child(3) {
+	inline-size: 60%;
+}
+
+/* Empty and error states: a sentence on a quiet field, never a raw message. */
+.privacy-state {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-1);
+	padding: var(--sp-2);
+	font-size: var(--fs-sm);
+	color: var(--text-dim);
+	background: var(--field);
+	border: 1px dashed var(--line-strong);
+	border-radius: var(--r-sm);
+}
+
+.privacy-state.is-error {
+	border-style: solid;
+	border-color: var(--danger);
+}
+
+.privacy-state.is-error p {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--sp-1);
+	color: var(--text);
+}
+
+.privacy-state.is-error .icon {
+	inline-size: 1.1em;
+	block-size: 1.1em;
+	flex-shrink: 0;
+	color: var(--danger);
+}
+
+.privacy-foot {
+	padding-block-start: var(--sp-2);
+	border-block-start: 1px solid var(--line);
+}
+
+/* ── Footer link to the policy page ─────────────────────────────────────── */
+
+.gateway-container footer a {
+	color: inherit;
+	text-underline-offset: 2px;
+}
+
+.gateway-container footer a:hover {
+	color: var(--text-dim);
+}
+
+/* ── Touch targets (DESIGN.md 9) ────────────────────────────────────────── */
+
+@media (pointer: coarse) {
+	.privacy-button,
+	.privacy-close,
+	.memory-forget {
+		min-block-size: 44px;
+		min-inline-size: 44px;
+		justify-content: center;
+		align-items: center;
+	}
+}

@@ -145,7 +145,7 @@ Fixed z-indexes. Nothing else on the page sets `z-index`.
 | Auth | 4 | `.auth-container`, `.auth-dock` | auto |
 | Sidebar | 5 | `#sidebar` and its off-canvas scrim | auto |
 | Toasts | 1000 | `#auth-notification`, toasts | none, except a dismiss button |
-| Modals | browser top layer, no `z-index` | Clerk's modals, and the keys dialog (a native `<dialog>` opened with `showModal()`) | auto; the backdrop is a flat scrim, never a blur |
+| Modals | browser top layer, no `z-index` | Clerk's modals, the keys dialog, the consent dialog and the memory-and-privacy panel (each a native `<dialog>` opened with `showModal()`) | auto; the backdrop is a flat scrim, never a blur |
 
 ### The pointer-events rule
 

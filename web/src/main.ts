@@ -23,6 +23,7 @@ import { initVoiceOutToggle } from "./chat/speak";
 import { initVoice } from "./chat/voice";
 import { t } from "./i18n";
 import { createKeysDialog, type KeysDialog } from "./keys/dialog";
+import { initPrivacy } from "./privacy/init";
 import { initScene } from "./scene/spline";
 import { revealIn } from "./ui/motion";
 import { showToast } from "./ui/toast";
@@ -104,6 +105,7 @@ async function boot(): Promise<void> {
 			openKeys: (provider) => keys?.open(provider),
 		});
 	}
+	initPrivacy({ closePicker: () => picker?.close({ restoreFocus: false }), focusPicker: () => picker?.focusTrigger() });
 	initVoice(chat);
 	initVoiceOutToggle(chat.speaker);
 	window.chat = chat;
