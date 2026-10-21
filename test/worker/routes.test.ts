@@ -102,6 +102,7 @@ describe("content security policy", () => {
 			[
 				"'self'",
 				"'unsafe-eval'",
+				"https://*.client.protect.clerk.com",
 				"https://cdn.protect.clerk.com",
 				"https://challenges.cloudflare.com",
 				"https://clerk.eleenai.xyz",
