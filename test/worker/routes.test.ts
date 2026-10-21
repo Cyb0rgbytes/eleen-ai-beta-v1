@@ -255,6 +255,46 @@ describe("voice transcription routes", () => {
 	});
 });
 
+describe("voice output routes", () => {
+	const json = (ip: string) => ({ "content-type": "application/json", "cf-connecting-ip": ip });
+
+	it("requires sign-in on the full-tier route", async () => {
+		const response = await fetchWorker("/api/voice/speak", {
+			method: "POST",
+			headers: json("203.0.113.20"),
+			body: JSON.stringify({ text: "Hello" }),
+		});
+		expect(response.status).toBe(401);
+	});
+
+	it("refuses empty text on the guest route", async () => {
+		const response = await fetchWorker("/api/voice/speak/guest", {
+			method: "POST",
+			headers: json("203.0.113.21"),
+			body: JSON.stringify({ text: "" }),
+		});
+		expect(response.status).toBe(422);
+	});
+
+	it("is metered by its own speak bucket", async () => {
+		const ip = "203.0.113.22";
+		await exhaustGuest("speak", ip);
+		const response = await fetchWorker("/api/voice/speak/guest", {
+			method: "POST",
+			headers: json(ip),
+			body: JSON.stringify({ text: "Hello" }),
+		});
+		expect(response.status).toBe(429);
+	});
+
+	it("lets the page play spoken replies from blob: URLs and nowhere else", async () => {
+		const response = await fetchWorker("/api/v1/health");
+		const csp = response.headers.get("content-security-policy-report-only") ?? "";
+		const media = csp.split(";").map((d) => d.trim()).find((d) => d.startsWith("media-src "));
+		expect(media?.split(/\s+/).slice(1).sort()).toEqual(["'self'", "blob:"]);
+	});
+});
+
 describe("models", () => {
 	it("lists the registry without auth and names the default", async () => {
 		const response = await fetchWorker("/api/v1/models");

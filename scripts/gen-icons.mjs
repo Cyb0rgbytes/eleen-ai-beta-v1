@@ -39,6 +39,9 @@ const ICONS = {
 	"shield-check": { mirror: false }, // prompt card: security
 	image: { mirror: false }, // prompt card: image
 	code: { mirror: false }, // prompt card: code
+	"speaker-high": { mirror: false }, // speak a reply; voice out: always
+	"speaker-slash": { mirror: false }, // voice out: off
+	waveform: { mirror: false }, // voice out: when you speak
 };
 
 const SOURCE = "node_modules/@phosphor-icons/core/assets/regular";

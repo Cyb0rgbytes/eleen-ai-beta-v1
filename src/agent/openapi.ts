@@ -115,6 +115,90 @@ function chatBody(guest: boolean) {
 	};
 }
 
+const RATE_LIMITED = {
+	"429": {
+		description: "Hourly allowance spent. `Retry-After` says when to try again.",
+		content: { "application/json": { schema: ERROR_SCHEMA } },
+	},
+};
+
+function transcribePath(signedIn: boolean) {
+	return {
+		post: {
+			tags: ["voice"],
+			operationId: signedIn ? "transcribe" : "transcribeGuest",
+			summary: `Transcribe a short recording to text${signedIn ? "" : " (guest)"}`,
+			security: signedIn ? [{ clerkBearer: [] }] : [],
+			parameters: [
+				{
+					name: "lang",
+					in: "query",
+					required: false,
+					description: "Language hint. Anything else is auto-detected.",
+					schema: { type: "string", enum: ["en", "ar"] },
+				},
+			],
+			requestBody: {
+				required: true,
+				description: "Raw audio bytes, at most 1.5 MB: WebM, Ogg, MP4, WAV or MP3.",
+				content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } },
+			},
+			responses: {
+				"200": {
+					description: "The transcript.",
+					content: {
+						"application/json": {
+							schema: {
+								type: "object",
+								properties: { text: { type: "string" }, language: { type: ["string", "null"] } },
+								required: ["text"],
+							},
+						},
+					},
+				},
+				...(signedIn ? UNAUTHORIZED : {}),
+				"413": { description: "Recording too long.", content: { "application/json": { schema: ERROR_SCHEMA } } },
+				"415": { description: "Not a supported audio format.", content: { "application/json": { schema: ERROR_SCHEMA } } },
+				"422": { description: "Empty body.", content: { "application/json": { schema: ERROR_SCHEMA } } },
+				...RATE_LIMITED,
+			},
+		},
+	};
+}
+
+function speakPath(signedIn: boolean) {
+	return {
+		post: {
+			tags: ["voice"],
+			operationId: signedIn ? "speak" : "speakGuest",
+			summary: `Read English text aloud${signedIn ? "" : " (guest)"}`,
+			security: signedIn ? [{ clerkBearer: [] }] : [],
+			requestBody: {
+				required: true,
+				content: {
+					"application/json": {
+						schema: {
+							type: "object",
+							properties: { text: { type: "string", minLength: 1, maxLength: 1500 } },
+							required: ["text"],
+						},
+					},
+				},
+			},
+			responses: {
+				"200": {
+					description: "MP3 audio of the text, spoken in English.",
+					content: { "audio/mpeg": { schema: { type: "string", format: "binary" } } },
+				},
+				...(signedIn ? UNAUTHORIZED : {}),
+				"415": { description: "Body is not JSON.", content: { "application/json": { schema: ERROR_SCHEMA } } },
+				"422": { description: "Text missing or too long.", content: { "application/json": { schema: ERROR_SCHEMA } } },
+				...RATE_LIMITED,
+			},
+		},
+	};
+}
+
 export const OPENAPI_DOCUMENT = {
 	openapi: "3.1.0",
 	info: {
@@ -138,6 +222,7 @@ export const OPENAPI_DOCUMENT = {
 		{ name: "image", description: "Image generation" },
 		{ name: "vision", description: "Image and document understanding" },
 		{ name: "search", description: "Web-search-grounded answers" },
+		{ name: "voice", description: "Speech to text and text to speech" },
 		{ name: "meta", description: "Service metadata" },
 	],
 	components: {
@@ -205,6 +290,12 @@ export const OPENAPI_DOCUMENT = {
 						description:
 							"Stream encoding. 1 is the `response`/`[DONE]` framing; 2 uses named " +
 							"events and carries reasoning and usage.",
+					},
+					voice: {
+						type: "boolean",
+						description:
+							"The user asked by voice and will hear the reply: it is kept to a few " +
+							"short spoken sentences.",
 					},
 				},
 				required: ["messages"],
@@ -497,6 +588,10 @@ export const OPENAPI_DOCUMENT = {
 				},
 			},
 		},
+		"/api/voice/transcribe": transcribePath(true),
+		"/api/voice/transcribe/guest": transcribePath(false),
+		"/api/voice/speak": speakPath(true),
+		"/api/voice/speak/guest": speakPath(false),
 		"/api/enhance-prompt": {
 			post: {
 				tags: ["chat"],

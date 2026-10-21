@@ -1,5 +1,7 @@
 /**
- * Voice input: record, transcribe on the Worker with Whisper, send.
+ * Voice input: record, transcribe on the Worker with Whisper, send. A turn
+ * asked this way is marked as voice, so its reply is kept short enough to
+ * hear and, by default, read aloud (speak.ts).
  *
  * A finished recording is sent as soon as it is transcribed, together with
  * anything already typed in the composer (owner's decision, 2026-10-17:
@@ -118,7 +120,7 @@ export function initVoice(chat: ChatApi): void {
 			return;
 		}
 		if (command === "send") {
-			if (input.value.trim()) void chat.sendMessage();
+			if (input.value.trim()) void chat.sendMessage(undefined, { voice: true });
 			else showToast(t("nothingToSend"));
 			return;
 		}
@@ -126,7 +128,8 @@ export function initVoice(chat: ChatApi): void {
 		input.value = input.value.trim() ? `${input.value.trimEnd()} ${text}` : text;
 		input.dispatchEvent(new Event("input"));
 		if (!chat.isProcessing()) {
-			void chat.sendMessage();
+			// Asked by voice: the reply is kept speakable and read aloud.
+			void chat.sendMessage(undefined, { voice: true });
 			return;
 		}
 		input.focus();

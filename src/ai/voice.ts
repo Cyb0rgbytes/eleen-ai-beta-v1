@@ -1,10 +1,10 @@
 /**
  * Voice input: speech to text with Whisper on Workers AI.
  *
- * The browser records with MediaRecorder and posts the raw audio here. The
- * transcript goes back to the composer for the user to read and edit — it is
- * never sent to the chat model automatically, so a misheard command cannot
- * act on its own.
+ * The browser records with MediaRecorder and posts the raw audio here, then
+ * sends the transcript as the user's message (owner's decision, 2026-10-17).
+ * Only an exact whole-transcript command ("send", "new chat") acts instead;
+ * see web/src/chat/voice.ts. The reply can be read back with speak.ts.
  */
 import { Env } from "../types";
 import { gatewayOptions } from "./gateway";

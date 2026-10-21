@@ -106,6 +106,8 @@ export function validateChatBody(raw: unknown): {
 	model?: string;
 	/** Stream encoding; absent means the published v1 framing. */
 	protocol?: Protocol;
+	/** The user asked by voice, so the reply will be read aloud. */
+	voice?: boolean;
 } {
 	const failures: ValidationFailure[] = [];
 	const body = (raw ?? {}) as Record<string, unknown>;
@@ -228,6 +230,10 @@ export function validateChatBody(raw: unknown): {
 		failures.push({ field: "protocol", message: "must be 1 or 2" });
 	}
 
+	if (body.voice !== undefined && typeof body.voice !== "boolean") {
+		failures.push({ field: "voice", message: "must be a boolean" });
+	}
+
 	if (failures.length) throw new ValidationError(failures);
 	if (!messages.length) {
 		throw new ValidationError([
@@ -241,6 +247,7 @@ export function validateChatBody(raw: unknown): {
 		attachments: body.attachments === undefined ? undefined : attachments,
 		model: typeof body.model === "string" && body.model !== "" ? body.model : undefined,
 		protocol: isProtocol(body.protocol) ? body.protocol : undefined,
+		voice: body.voice === true ? true : undefined,
 	};
 }
 

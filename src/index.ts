@@ -32,6 +32,7 @@ import {
 import { Bucket, checkRateLimit, rateLimitHeaders, tooManyRequests } from "./lib/ratelimit";
 import { AUTHORIZED_PARTIES } from "./lib/auth";
 import { handleTranscribe } from "./ai/voice";
+import { handleSpeak } from "./ai/speak";
 import { gatewayOptions } from "./ai/gateway";
 import {
 	assessInjection,
@@ -192,6 +193,13 @@ const MODE_PREFIX: Record<string, string> = {
 	logical:
 		"RESPONSE MODE: LOGICAL. Prioritize rigor. Use numbered steps, verify each step, state assumptions, and double-check the final answer.\n\n",
 };
+
+/**
+ * Added when the user asked by voice: the reply is going to be read aloud,
+ * so it should sound like speech rather than look like a document.
+ */
+const VOICE_PREFIX =
+	"VOICE REPLY: The user is speaking to you and will hear your answer read aloud. Answer in two to four short, natural spoken sentences. Avoid tables, code blocks, headings and long lists unless the user asks for them. Still end with follow-up suggestions.\n\n";
 
 function resolveMode(mode: unknown): string {
 	return typeof mode === "string" && mode in MODE_PREFIX ? mode : "balanced";
@@ -460,6 +468,16 @@ const ROUTES: Record<string, RouteDefinition> = {
 		bucket: "voice",
 		handler: (request, env) => handleTranscribe(request, env),
 	},
+	"/api/voice/speak": {
+		guest: false,
+		bucket: "speak",
+		handler: (request, env) => handleSpeak(request, env),
+	},
+	"/api/voice/speak/guest": {
+		guest: true,
+		bucket: "speak",
+		handler: (request, env) => handleSpeak(request, env),
+	},
 	// Was entirely unmetered, sitting above the auth gate. On the free tier
 	// this endpoint alone could exhaust the inference allowance.
 	"/api/enhance-prompt": {
@@ -710,7 +728,7 @@ export async function handleChatRequest(
 			role: "system",
 			content: buildSystemPrompt({
 				basePrompt: SYSTEM_PROMPT,
-				modePrefix: MODE_PREFIX[mode],
+				modePrefix: (MODE_PREFIX[mode] ?? "") + (body.voice ? VOICE_PREFIX : ""),
 				memory: rawMemory,
 				canary,
 				nonce,

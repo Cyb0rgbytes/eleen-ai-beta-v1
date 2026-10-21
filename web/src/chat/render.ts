@@ -106,13 +106,19 @@ function chips(suggestions: string[]): HTMLElement | null {
 /** The clean text of each finished reply, for Copy. Markers already stripped. */
 export const replyText = new WeakMap<Element, string>();
 
-function actionButton(kind: "copy" | "regenerate"): HTMLButtonElement {
+const ACTIONS = {
+	copy: { icon: "copy", label: "copy" },
+	regenerate: { icon: "arrow-clockwise", label: "regenerate" },
+	speak: { icon: "speaker-high", label: "speak" },
+} as const;
+
+function actionButton(kind: keyof typeof ACTIONS): HTMLButtonElement {
 	const button = el("button", `message-action ${kind}-button`);
 	button.type = "button";
 	button.dataset.action = kind;
-	button.append(icon(kind === "copy" ? "copy" : "arrow-clockwise"));
+	button.append(icon(ACTIONS[kind].icon));
 	const label = el("span", "sr-only");
-	label.textContent = t(kind === "copy" ? "copy" : "regenerate");
+	label.textContent = t(ACTIONS[kind].label);
 	button.append(label);
 	button.title = label.textContent;
 	return button;
@@ -277,7 +283,7 @@ export function createAssistantMessage(): AssistantView {
 			const actions = el("div", "message-actions");
 			const feedback = el("div", "message-feedback");
 			const tools = el("div", "message-tools");
-			if (extracted.text) tools.append(actionButton("copy"));
+			if (extracted.text) tools.append(actionButton("copy"), actionButton("speak"));
 			tools.append(actionButton("regenerate"));
 			feedback.append(tools, feedbackButton("up"), feedbackButton("down"));
 			actions.append(feedback);

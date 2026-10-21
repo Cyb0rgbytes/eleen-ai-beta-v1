@@ -35,6 +35,8 @@ export interface ChatRequestBody {
 	model?: ModelTier | string;
 	/** Stream encoding. Absent means v1. */
 	protocol?: Protocol;
+	/** The user asked by voice: the reply is kept short and speakable. */
+	voice?: boolean;
 }
 
 /** 403 body when the requested model is not available to this caller. */
