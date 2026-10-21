@@ -43,6 +43,10 @@ const ICONS = {
 	"speaker-slash": { mirror: false }, // voice out: off
 	waveform: { mirror: false }, // voice out: when you speak
 	"arrow-right": { mirror: true }, // follow-up suggestion chips
+	monitor: { mirror: false }, // theme: follow the system
+	sun: { mirror: false }, // theme: light
+	moon: { mirror: false }, // theme: dark
+	translate: { mirror: false }, // language toggle
 };
 
 const SOURCE = "node_modules/@phosphor-icons/core/assets/regular";

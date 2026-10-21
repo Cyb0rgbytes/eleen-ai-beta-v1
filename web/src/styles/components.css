@@ -22,9 +22,15 @@ header {
 	inline-size: auto;
 	max-inline-size: 55%;
 	object-fit: contain;
-	/* The lockup is artwork; it does not mirror in RTL. */
+	/* The lockup is artwork; it does not mirror in RTL. When max-inline-size
+	   squeezes it, it is anchored to the inline-start edge it sits on.
+	   object-position has no logical keywords, hence the RTL rule below. */
 	object-position: left center;
 	filter: var(--logo-shadow);
+}
+
+:root[dir="rtl"] .logo-image {
+	object-position: right center;
 }
 
 /* ── Auth anchors ───────────────────────────────────────────────────────── */
@@ -742,7 +748,10 @@ header {
 	display: inline-flex;
 	align-items: center;
 	gap: 0.4rem;
-	padding: 0.45rem 0.6rem 0.45rem 0.9rem;
+	/* The arrow sits at the inline-end, so that side is tighter. Logical,
+	   so the asymmetry follows the chip in RTL (was physical until M4.5). */
+	padding-block: 0.45rem;
+	padding-inline: 0.9rem 0.6rem;
 	font-size: 0.82rem;
 	text-align: start;
 	color: var(--text);
@@ -881,7 +890,8 @@ header {
 	position: absolute;
 	inset: 0;
 	background: linear-gradient(90deg, transparent, var(--field-hover), transparent);
-	transform: translateX(-100%);
+	/* Starts beyond the inline-start edge; motion.css sweeps it to the end. */
+	transform: translateX(calc(-100% * var(--dir-sign)));
 }
 
 /* ── Streaming rule (DESIGN.md section 7) ───────────────────────────────── */
