@@ -166,7 +166,8 @@
 
 #send-button .icon,
 #mic-button .icon,
-.message-action .icon {
+.message-action .icon,
+#theme-toggle .icon {
 	animation: icon-pop var(--dur-state) var(--ease) both;
 }
 
@@ -259,10 +260,11 @@
 	animation: dot-pulse 1.2s var(--ease) infinite;
 }
 
-/* Skeleton sheen: a gradient swept across by transform, a live-state loop. */
+/* Skeleton sheen: a gradient swept across by transform, a live-state loop.
+   It reads in the text direction, inline-start to inline-end. */
 @keyframes sheen {
 	to {
-		transform: translateX(100%);
+		transform: translateX(calc(100% * var(--dir-sign)));
 	}
 }
 

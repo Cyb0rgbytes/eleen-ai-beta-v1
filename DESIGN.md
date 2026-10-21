@@ -26,11 +26,13 @@ Dials, inferred from the read: variance 5, motion 4, density 4. A chat UI is rea
 
 Defined on `:root`, redefined under `:root[data-theme="light"]`. The initial theme comes from `prefers-color-scheme` and a user's saved choice overrides it, applied by a synchronous script in `<head>` so the page never flashes.
 
+> Amended 2026-10-22 (M4.5): the reader chooses **system**, **light** or **dark** with the theme toggle (section 7); system is the default and follows `prefers-color-scheme` live. `data-theme` on `<html>` always holds the resolved value, `light` or `dark`. The choice is stored in `localStorage` as `eleen.theme` (system is stored as no value) and applied before first paint by `web/public/prefs.js`: a classic, render-blocking, same-origin script, because the CSP forbids inline scripts and the module bundle is deferred, so it could run after the first paint. It is the one script in `web/` that Vite does not bundle; it must stay tiny and must never throw, since storage can be blocked.
+
 ### Brand
 
 | Token | Dark | Light | Notes |
 |---|---|---|---|
-| `--accent` | `#6c63ff` | `#5a51f0` | The one accent. Slightly deepened on light for 4.5:1 against white text. |
+| `--accent` | `#635bf6` | `#5a51f0` | The one accent. Deepened in both themes for 4.5:1 against white text: production's `#6c63ff` measured 4.32:1 under the CTA label (M4.5). Glows and tints keep `rgb(108 99 255)`. |
 | `--accent-2` | `#00e5ff` | `#0e7490` | The brand's cyan. Second stop of `--grad` (avatar, active mode pill, greeting), and the focus ring on dark. Deepened on light, where bright cyan fails contrast. |
 | `--grad` | `linear-gradient(135deg, var(--accent), var(--accent-2))` | same | The brand gradient. Not used on large surfaces. |
 | `--accent-text` | `#00e5ff` | `#4a42d6` | Accent used as text on the base surface: links, inline code, the active picker state. Cyan on dark, as production has always had it. |
@@ -62,7 +64,7 @@ Defined on `:root`, redefined under `:root[data-theme="light"]`. The initial the
 |---|---|---|
 | `--text` | `#e8e8ff` | `#16163a` |
 | `--text-dim` | `#a8a8d8` | `#4a4a74` |
-| `--text-faint` | `#6a6a9a` | `#80809f` |
+| `--text-faint` | `#8a8aba` | `#66668a` |
 | `--on-user-bubble` | `#e8e8ff` | `#ffffff` |
 
 ### Status
@@ -72,7 +74,7 @@ Status colours exist only for real state. No decorative dots.
 | Token | Dark | Light |
 |---|---|---|
 | `--ok` | `#4ade80` | `#15803d` |
-| `--warn` | `#fbbf24` | `#b45309` |
+| `--warn` | `#fbbf24` | `#a14a07` |
 | `--danger` | `#f87171` | `#b91c1c` |
 | `--recording` | `#f87171` | `#dc2626` |
 
@@ -95,6 +97,10 @@ The scene's studio backdrop measures `223,223,223`. In light theme the scrim is 
 ### Contrast floor
 
 Body text 4.5:1 against its surface in both themes. The wordmark and the footer carry their own shadows because they sit near the page edge where the scrim has fallen off.
+
+> Amended 2026-10-22 (M4.5 audit). Measured against the worst plausible composite of each translucent surface over the bright scene (`#232332` dark, `#f0f0f6` light), these failed and were fixed in tokens only: `--text-faint` (3.1:1 dark, 3.4:1 light), white on `--accent` in dark (4.32:1), `--warn` and `--tok-number` on light (4.4:1), `--tok-comment` in both themes (4.2:1), and the light `--mode-active` gradient, whose 0.8-alpha cyan end left its white label at 3.7:1 (now opaque stops). `--accent-hover` now deepens instead of brightening, so hovering never drops a label below the floor. The lockup's wordmark is white artwork, so on light `--logo-shadow` is a dark outline; a light shadow made it disappear. A dark-ink lockup asset would be the better fix.
+
+Known exception: the Send button's white glyph on `--grad` is under 3:1 where the gradient turns cyan. It is a brand surface, kept as production has it, and flagged for the owner.
 
 ## 4. Typography
 
@@ -158,7 +164,8 @@ Measured in August: before this rule the robot missed 24 of 57 cursor updates wi
 Arabic is a first-class direction, not a flipped afterthought.
 
 - The language toggle sets `lang` and `dir` on `<html>`. Nothing else is needed for layout to mirror, because:
-- **Logical properties only.** `margin-inline-start`, `padding-inline`, `inset-inline-end`, `border-start-start-radius`, `text-align: start`. No `left`, `right`, `margin-left`, `text-align: left` anywhere in component CSS. Physical properties are allowed only for things that are genuinely physical: the scrim bands, which follow the scene, and the Spline canvas.
+- The choice is stored as `eleen.lang` and applied before first paint by the same `prefs.js` as the theme. Switching reloads the page: strings are set once by each module as it builds its controls, and a half-translated page is worse than a reload. A reload starts a new conversation, so when one is under way the reader is asked first (M4.5).
+- **Logical properties only.** `margin-inline-start`, `padding-inline`, `inset-inline-end`, `border-start-start-radius`, `text-align: start`. No `left`, `right`, `margin-left`, `text-align: left` anywhere in component CSS. Physical properties are allowed only for things that are genuinely physical: the scrim bands, which follow the scene, the body's backdrop glows, and the Spline canvas. Code blocks are LTR in every direction, so their own padding and alignment may be physical. `object-position` has no logical keywords, so the logo's anchoring takes an explicit `[dir="rtl"]` rule. Transforms are physical too: anything that moves toward an inline side multiplies by `--dir-sign` (1 in LTR, -1 in RTL), as the user-turn entrance, toasts, chip arrows, the composer sweep and the skeleton sheen do.
 - **Bubbles use `dir="auto"`.** A user writing Arabic in an English session gets a correctly aligned bubble, and vice versa. Code blocks are always `dir="ltr"`.
 - **Icons that imply direction mirror.** Send arrow, back, chevrons on the branch navigator, the sidebar collapse control. Icons that do not imply direction do not mirror: microphone, attach, search, settings, the model-tier marks.
 - **Numbers stay Western Arabic digits** by default; `html[lang="ar"]` may opt into `font-variant-numeric` and Eastern digits through a user setting later. Not in scope now.
@@ -172,6 +179,10 @@ Checked by screenshot in all four combinations: dark LTR, dark RTL, light LTR, l
 ### Shell and empty state
 
 Full-width transparent shell, 64rem reading column. The logo is 50px tall on desktop, 40px at 768px and below, 34px at 400px. The empty state shows a greeting in `--fs-2xl` with the brand gradient on the first line, a one-line subtitle in `--text-dim`, and exactly as many prompt cards as there are prompts, never a blank cell. Cards are `--surface` with `--line` borders at `--r-md`. Three or four cards on desktop, a horizontal scroll-snap row on mobile.
+
+### Theme and language toggles (M4.5)
+
+Two ghost buttons at the inline-start of the auth plate in the page corner, before the sign-in pair, separated from it by a `--line` divider; the plate is never empty, so they are reachable in every auth state, including when Clerk is unavailable. The theme toggle is icon-only (monitor, sun, moon for system, light, dark), cycles system, light, dark, and is named by a visually hidden label ("Theme: light"). The language toggle shows the other language's own name in that language (`العربية` or `English`, with a matching `lang`) beside a translate glyph; that text is its accessible name. On phones the name is visually hidden and the glyph remains. Both are 44px on coarse pointers. The theme glyph pops in with the icon swap; colours never animate.
 
 ### Composer
 
@@ -280,4 +291,5 @@ Model output is attacker-influenced: a prompt injection in a document or search 
 - Tokens live in `web/style.css` today and move to `web/src/styles/tokens.css` with the TypeScript frontend (M3.5). The light theme is the first consumer of the token file and is the acceptance test that no component names a colour.
 - The frontend builds with Vite from `web/` into `dist/`, which the Worker serves. `web/public/` holds files copied verbatim: the classic `chat.js` and `webmcp.js` scripts, the logo, `robots.txt`.
 - Playwright end-to-end tests live in `e2e/`. The smoke suite runs against a local `wrangler dev`; the screenshot suite (M4.5) runs against production with local CSS routed in, so the real scene renders behind the change under review.
+- Amended 2026-10-22: `e2e/theme.spec.ts` is that suite's first part. It runs locally under reduced motion (the poster stands in for the scene), loads a mocked conversation in all four combinations, asserts the resolved tokens, `dir`, `lang`, the mirrored layout and the toggles' persistence, and saves `test-results/theme/{dark,light}-{ltr,rtl}.png` plus two phone shots for review. They are not pixel baselines; the scene moves.
 - Lighthouse before and after the Spline deferral (M5.5), with LCP as the headline number.

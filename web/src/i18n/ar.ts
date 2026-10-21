@@ -179,4 +179,17 @@ export const ar: Partial<Record<MessageKey, string>> = {
 	historyDeleteYes: "نعم، احذفها كلها",
 	historyDeleted: "تم حذف كل محادثاتك المحفوظة.",
 	historyDeleteFailed: "تعذّر حذف محادثاتك. حاول مرة أخرى.",
+	// M4.5 theming: the theme and language toggles, and static page text.
+	prefsGroup: "تفضيلات العرض",
+	themeSystem: "المظهر: حسب النظام",
+	themeLight: "المظهر: فاتح",
+	themeDark: "المظهر: داكن",
+	langToggle: "English",
+	langToggleLabel: "التبديل إلى الإنجليزية",
+	langSwitchConfirm: "تغيير اللغة يعيد تحميل الصفحة ويمسح هذه المحادثة. هل تريد المتابعة؟",
+	sceneLoading: "جارٍ تحميل المشهد ثلاثي الأبعاد",
+	logoAlt: "EleenAI، بوابتك إلى عالم الذكاء الاصطناعي",
+	footer: "EleenAI © 2026 · بدعم من CSECNIX Technologies",
+	footerPrivacy: "الخصوصية",
+	// End M4.5 theming
 };

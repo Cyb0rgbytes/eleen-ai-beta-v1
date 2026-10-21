@@ -321,7 +321,8 @@ test("on production, the zone's two injected scripts carry this document's nonce
 	const html = (await response?.text()) ?? "";
 	const tags = [...html.matchAll(/<script\b([^>]*)>/g)].map((m) => m[1] ?? "");
 	const attr = (tag: string, name: string) => new RegExp(`\\b${name}="([^"]*)"`).exec(tag)?.[1] ?? null;
-	const ours = (src: string | null) => src !== null && /^(https:\/\/clerk\.eleenai\.xyz\/|\/assets\/)/.test(src);
+	// Clerk, the app bundle, and /prefs.js (theme and language before first paint, M4.5).
+	const ours = (src: string | null) => src !== null && /^(https:\/\/clerk\.eleenai\.xyz\/|\/assets\/|\/prefs\.js$)/.test(src);
 	const injected = tags.filter((tag) => !ours(attr(tag, "src")));
 	// JavaScript Detections (inline) and the Web Analytics beacon. Nothing more.
 	expect(injected.map((tag) => (attr(tag, "src") ? new URL(attr(tag, "src") as string).host : "inline")).sort()).toEqual([
@@ -329,5 +330,5 @@ test("on production, the zone's two injected scripts carry this document's nonce
 		"static.cloudflareinsights.com",
 	]);
 	for (const tag of injected) expect(attr(tag, "nonce"), tag.slice(0, 80)).toBe(nonce);
-	expect(tags.length - injected.length, "our own two scripts").toBe(2);
+	expect(tags.length - injected.length, "our own three scripts").toBe(3);
 });

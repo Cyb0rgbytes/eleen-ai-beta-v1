@@ -180,6 +180,20 @@ export const en = {
 	historyDeleteYes: "Yes, delete them all",
 	historyDeleted: "All your saved conversations are deleted.",
 	historyDeleteFailed: "Could not delete your conversations. Try again.",
+	// M4.5 theming: the theme and language toggles, and static page text.
+	prefsGroup: "Display preferences",
+	themeSystem: "Theme: match system",
+	themeLight: "Theme: light",
+	themeDark: "Theme: dark",
+	// The toggle shows the language it switches to, in that language.
+	langToggle: "العربية",
+	langToggleLabel: "Switch to Arabic",
+	langSwitchConfirm: "Switching language reloads the page and clears this conversation. Continue?",
+	sceneLoading: "Loading 3D scene",
+	logoAlt: "EleenAI, your gateway to the realm of AI",
+	footer: "EleenAI © 2026 · Powered by CSECNIX Technologies",
+	footerPrivacy: "Privacy",
+	// End M4.5 theming
 } as const;
 
 export type MessageKey = keyof typeof en;
