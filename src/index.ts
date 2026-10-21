@@ -757,8 +757,15 @@ export async function handleChatRequest(
 		// The server rebuilds the context from the stored thread and ignores
 		// the history the client sent, so a client can neither forge earlier
 		// turns nor reach another user's. Read only: nothing is written yet.
+		//
+		// Opt-in: a client that saves sends conversationId, parentId (null on
+		// a first turn) or replyTo. A client that sends none of them keeps its
+		// own history, unsaved. Without this, a client that predates saved
+		// chat would start a new conversation on every message and the model
+		// would lose all context.
+		const savesTurn = body.conversationId !== undefined || body.parentId !== undefined || body.replyTo !== undefined;
 		let plan: SavedTurnPlan | null = null;
-		if (encoder.protocol === 2 && consent.history) {
+		if (encoder.protocol === 2 && consent.history && savesTurn) {
 			plan = await planSavedTurn(env.DB, userId, body);
 			messages = plan.context;
 		} else if (!messages.length) {

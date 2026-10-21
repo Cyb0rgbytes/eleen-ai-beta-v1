@@ -146,6 +146,11 @@ export interface SearchResponse {
  *
  * The stream's meta event then carries SavedTurnMeta, and the reply is saved
  * as it streams, ending complete, stopped or error.
+ *
+ * Saving is opt-in per request: a client must send at least one of
+ * conversationId, parentId (null on a first turn) or replyTo. A request with
+ * none of them is answered from its own history and saves nothing, which is
+ * how clients that predate saved chat keep working.
  */
 export interface SavedTurnRequest {
 	conversationId?: string;
