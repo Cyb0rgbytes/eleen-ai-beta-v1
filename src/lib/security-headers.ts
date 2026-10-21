@@ -97,8 +97,14 @@ const CSP = cspDirectives().join("; ");
  * the "eleenai-scene" policy in web/src/scene/spline.ts; Clerk's bundle and
  * the Spline viewer still assign raw strings, so enforcing this would break
  * sign-in and the scene.
+ *
+ * It has no report-uri. Measured on production on 2026-10-17, one page load
+ * sent about 30 Trusted Types reports, all from Clerk and the Spline viewer.
+ * Every one was a Worker request, and together they buried the main policy's
+ * reports, which are the ones that decide the enforcing flip. The violations
+ * still show in the browser console.
  */
-export const TRUSTED_TYPES_POLICY = "require-trusted-types-for 'script'; report-uri /api/csp-report";
+export const TRUSTED_TYPES_POLICY = "require-trusted-types-for 'script'";
 
 const BASE_HEADERS: Record<string, string> = {
 	"X-Content-Type-Options": "nosniff",
