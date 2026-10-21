@@ -122,6 +122,56 @@ const RATE_LIMITED = {
 	},
 };
 
+// ─── History (src/api/history.ts, contract in src/shared/history.ts) ────────
+
+const HISTORY_ERRORS = {
+	...UNAUTHORIZED,
+	"422": {
+		description: "Invalid body or query, with `details` naming each field.",
+		content: { "application/json": { schema: ERROR_SCHEMA } },
+	},
+	...RATE_LIMITED,
+};
+
+const NOT_FOUND = {
+	"404": {
+		description:
+			"No such id among the caller's own rows. Another user's id is a 404 too, never a 403, " +
+			"so the answer does not reveal that it exists.",
+		content: { "application/json": { schema: ERROR_SCHEMA } },
+	},
+};
+
+const ID_PARAM = {
+	name: "id",
+	in: "path",
+	required: true,
+	schema: { type: "string", format: "uuid" },
+} as const;
+
+function jsonOk(description: string, schema: string, status = "200") {
+	return {
+		[status]: {
+			description,
+			content: { "application/json": { schema: { $ref: `#/components/schemas/${schema}` } } },
+		},
+	};
+}
+
+function jsonBody(schema: Record<string, unknown>) {
+	return { required: true, content: { "application/json": { schema } } };
+}
+
+function wrapped(key: string, schema: string) {
+	return {
+		type: "object",
+		properties: { [key]: { $ref: `#/components/schemas/${schema}` } },
+		required: [key],
+	};
+}
+
+const HISTORY_SECURITY = [{ clerkBearer: [] }];
+
 function transcribePath(signedIn: boolean) {
 	return {
 		post: {
@@ -223,6 +273,8 @@ export const OPENAPI_DOCUMENT = {
 		{ name: "vision", description: "Image and document understanding" },
 		{ name: "search", description: "Web-search-grounded answers" },
 		{ name: "voice", description: "Speech to text and text to speech" },
+		{ name: "history", description: "The caller's saved conversations, folders and search" },
+		{ name: "privacy", description: "Consent and long-term memory" },
 		{ name: "meta", description: "Service metadata" },
 	],
 	components: {
@@ -297,8 +349,160 @@ export const OPENAPI_DOCUMENT = {
 							"The user asked by voice and will hear the reply: it is kept to a few " +
 							"short spoken sentences.",
 					},
+					conversationId: {
+						type: "string",
+						format: "uuid",
+						description:
+							"Saved chat (protocol 2, signed in, history consent on): the conversation " +
+							"to add the turn to. Omitted starts a new one. The server rebuilds the " +
+							"context from the stored thread and ignores the history in `messages`; " +
+							"only the last message, the new user turn, is used. Ignored otherwise.",
+					},
+					parentId: {
+						type: ["string", "null"],
+						format: "uuid",
+						description:
+							"Saved chat: the message the new turn follows. null starts a new first " +
+							"turn (an edit of the first message); omitted continues from the " +
+							"conversation's active leaf.",
+					},
+					replyTo: {
+						type: "string",
+						format: "uuid",
+						description:
+							"Saved chat: regenerate the answer to this user message as a new " +
+							"sibling. Requires `conversationId`; `messages` may then be empty.",
+					},
 				},
 				required: ["messages"],
+			},
+			Consent: {
+				type: "object",
+				properties: {
+					history: { type: "boolean", description: "Conversations are saved. Default on." },
+					memory: { type: "boolean", description: "Facts about the user are remembered. Default off." },
+					policyVersion: { type: "integer" },
+					updatedAt: { type: "integer", description: "Unix milliseconds." },
+				},
+				required: ["history", "memory", "policyVersion", "updatedAt"],
+			},
+			ConsentResponse: {
+				type: "object",
+				properties: {
+					consent: {
+						oneOf: [{ $ref: "#/components/schemas/Consent" }, { type: "null" }],
+						description: "null until the user has answered; history is then on and memory off.",
+					},
+					policyVersion: { type: "integer", description: "Ask again when consent.policyVersion is lower." },
+				},
+				required: ["consent", "policyVersion"],
+			},
+			MemoryEntry: {
+				type: "object",
+				properties: {
+					id: { type: "string", format: "uuid" },
+					fact: { type: "string", maxLength: 500 },
+					createdAt: { type: "integer" },
+				},
+				required: ["id", "fact", "createdAt"],
+			},
+			MemoryList: {
+				type: "object",
+				properties: { entries: { type: "array", items: { $ref: "#/components/schemas/MemoryEntry" } } },
+				required: ["entries"],
+			},
+			ConversationSummary: {
+				type: "object",
+				properties: {
+					id: { type: "string", format: "uuid" },
+					title: { type: "string", maxLength: 200 },
+					pinned: { type: "boolean" },
+					folderId: { type: ["string", "null"], format: "uuid" },
+					createdAt: { type: "integer" },
+					updatedAt: { type: "integer" },
+				},
+				required: ["id", "title", "pinned", "folderId", "createdAt", "updatedAt"],
+			},
+			ConversationList: {
+				type: "object",
+				properties: {
+					conversations: {
+						type: "array",
+						maxItems: 50,
+						items: { $ref: "#/components/schemas/ConversationSummary" },
+						description: "Pinned first, then most recently updated.",
+					},
+					nextCursor: { type: ["string", "null"], description: "Pass as `cursor` for the next page." },
+				},
+				required: ["conversations", "nextCursor"],
+			},
+			StoredMessage: {
+				type: "object",
+				properties: {
+					id: { type: "string", format: "uuid" },
+					parentId: { type: ["string", "null"], format: "uuid" },
+					seq: { type: "integer", description: "Creation order; siblings sort by it." },
+					role: { type: "string", enum: ["user", "assistant"] },
+					content: { type: "string" },
+					reasoning: { type: ["string", "null"] },
+					model: { type: ["string", "null"] },
+					status: { type: "string", enum: ["streaming", "complete", "stopped", "error"] },
+					compareGroup: { type: ["string", "null"] },
+					completionTokens: { type: ["integer", "null"] },
+					createdAt: { type: "integer" },
+				},
+				required: ["id", "parentId", "seq", "role", "content", "status", "createdAt"],
+			},
+			ConversationDetail: {
+				type: "object",
+				properties: {
+					conversation: {
+						allOf: [
+							{ $ref: "#/components/schemas/ConversationSummary" },
+							{
+								type: "object",
+								properties: { activeLeafId: { type: ["string", "null"], format: "uuid" } },
+								required: ["activeLeafId"],
+							},
+						],
+					},
+					messages: {
+						type: "array",
+						items: { $ref: "#/components/schemas/StoredMessage" },
+						description: "The whole tree, ordered by seq.",
+					},
+				},
+				required: ["conversation", "messages"],
+			},
+			Folder: {
+				type: "object",
+				properties: {
+					id: { type: "string", format: "uuid" },
+					name: { type: "string", minLength: 1, maxLength: 80 },
+					position: { type: "integer" },
+				},
+				required: ["id", "name", "position"],
+			},
+			HistorySearchResponse: {
+				type: "object",
+				properties: {
+					results: {
+						type: "array",
+						maxItems: 20,
+						items: {
+							type: "object",
+							properties: {
+								conversationId: { type: "string", format: "uuid" },
+								messageId: { type: "string", format: "uuid" },
+								title: { type: "string" },
+								snippet: { type: "string", description: "Plain text around the match. Never HTML." },
+								createdAt: { type: "integer" },
+							},
+							required: ["conversationId", "messageId", "title", "snippet", "createdAt"],
+						},
+					},
+				},
+				required: ["results"],
 			},
 			StoredKey: {
 				type: "object",
@@ -433,12 +637,15 @@ export const OPENAPI_DOCUMENT = {
 				operationId: "chat",
 				summary: "Streaming chat completion (authenticated)",
 				description:
-					"Conversation history is not stored. A short summarised profile of the " +
-					"user (at most 2 KB) is updated in the background. Request bodies are " +
-					"limited to 6 MiB.",
+					"With `protocol` 2 and history consent on (the default), the turn is saved " +
+					"to the caller's conversation history and the `meta` event carries " +
+					"`conversationId`, `userMessageId` (absent on a regenerate) and " +
+					"`assistantMessageId`; an id that is not the caller's is a 404. With " +
+					"memory consent on, stored facts personalise the reply and new ones are " +
+					"learnt in the background. Request bodies are limited to 6 MiB.",
 				security: [{ clerkBearer: [] }],
 				requestBody: chatBody(false),
-				responses: { ...CHAT_RESPONSE, ...UNAUTHORIZED, ...MODEL_FORBIDDEN, ...JSON_ERRORS },
+				responses: { ...CHAT_RESPONSE, ...UNAUTHORIZED, ...MODEL_FORBIDDEN, ...NOT_FOUND, ...JSON_ERRORS },
 			},
 		},
 		"/api/chat/guest": {
@@ -703,6 +910,227 @@ export const OPENAPI_DOCUMENT = {
 					"404": { description: "No key was stored for that provider." },
 					...UNAUTHORIZED,
 				},
+			},
+		},
+		"/api/v1/consent": {
+			get: {
+				tags: ["privacy"],
+				operationId: "getConsent",
+				summary: "What the caller agreed to",
+				security: HISTORY_SECURITY,
+				responses: { ...jsonOk("The caller's consent, or null if never answered.", "ConsentResponse"), ...HISTORY_ERRORS },
+			},
+			put: {
+				tags: ["privacy"],
+				operationId: "putConsent",
+				summary: "Record the caller's consent against the current policy version",
+				description: "Turning memory off deletes every stored fact in the same request.",
+				security: HISTORY_SECURITY,
+				requestBody: jsonBody({
+					type: "object",
+					properties: { history: { type: "boolean" }, memory: { type: "boolean" } },
+					required: ["history", "memory"],
+				}),
+				responses: { ...jsonOk("Stored.", "ConsentResponse"), ...HISTORY_ERRORS },
+			},
+		},
+		"/api/v1/memory": {
+			get: {
+				tags: ["privacy"],
+				operationId: "listMemory",
+				summary: "Every fact remembered about the caller",
+				security: HISTORY_SECURITY,
+				responses: { ...jsonOk("Oldest first.", "MemoryList"), ...HISTORY_ERRORS },
+			},
+			delete: {
+				tags: ["privacy"],
+				operationId: "forgetMemory",
+				summary: "Forget every fact",
+				security: HISTORY_SECURITY,
+				responses: { "204": { description: "Forgotten." }, ...HISTORY_ERRORS },
+			},
+		},
+		"/api/v1/memory/{id}": {
+			delete: {
+				tags: ["privacy"],
+				operationId: "forgetFact",
+				summary: "Forget one fact",
+				security: HISTORY_SECURITY,
+				parameters: [ID_PARAM],
+				responses: { "204": { description: "Forgotten." }, ...NOT_FOUND, ...HISTORY_ERRORS },
+			},
+		},
+		"/api/v1/conversations": {
+			get: {
+				tags: ["history"],
+				operationId: "listConversations",
+				summary: "The caller's conversations, 50 per page",
+				security: HISTORY_SECURITY,
+				parameters: [
+					{
+						name: "folder",
+						in: "query",
+						required: false,
+						description: "A folder id, or `none` for conversations in no folder.",
+						schema: { type: "string" },
+					},
+					{ name: "cursor", in: "query", required: false, description: "`nextCursor` from the previous page.", schema: { type: "string" } },
+				],
+				responses: { ...jsonOk("One page.", "ConversationList"), ...HISTORY_ERRORS },
+			},
+			post: {
+				tags: ["history"],
+				operationId: "createConversation",
+				summary: "Start an empty conversation",
+				security: HISTORY_SECURITY,
+				requestBody: {
+					required: false,
+					content: {
+						"application/json": { schema: { type: "object", properties: { title: { type: "string", maxLength: 200 } } } },
+					},
+				},
+				responses: {
+					"201": {
+						description: "Created.",
+						content: { "application/json": { schema: wrapped("conversation", "ConversationSummary") } },
+					},
+					...HISTORY_ERRORS,
+				},
+			},
+			delete: {
+				tags: ["history"],
+				operationId: "deleteAllConversations",
+				summary: "Delete all of the caller's history for good",
+				security: HISTORY_SECURITY,
+				responses: { "204": { description: "Deleted." }, ...HISTORY_ERRORS },
+			},
+		},
+		"/api/v1/conversations/{id}": {
+			get: {
+				tags: ["history"],
+				operationId: "getConversation",
+				summary: "A conversation with its whole message tree",
+				security: HISTORY_SECURITY,
+				parameters: [ID_PARAM],
+				responses: { ...jsonOk("The conversation.", "ConversationDetail"), ...NOT_FOUND, ...HISTORY_ERRORS },
+			},
+			patch: {
+				tags: ["history"],
+				operationId: "updateConversation",
+				summary: "Rename, pin, file in a folder, or switch the visible branch",
+				security: HISTORY_SECURITY,
+				parameters: [ID_PARAM],
+				requestBody: jsonBody({
+					type: "object",
+					properties: {
+						title: { type: "string", maxLength: 200 },
+						pinned: { type: "boolean" },
+						folderId: { type: ["string", "null"], format: "uuid" },
+						activeLeafId: { type: "string", format: "uuid", description: "A message in this conversation." },
+					},
+				}),
+				responses: {
+					"200": {
+						description: "Updated.",
+						content: { "application/json": { schema: wrapped("conversation", "ConversationSummary") } },
+					},
+					...NOT_FOUND,
+					...HISTORY_ERRORS,
+				},
+			},
+			delete: {
+				tags: ["history"],
+				operationId: "deleteConversation",
+				summary: "Delete a conversation",
+				description: "Soft by default, so it can be undone; `?purge=1` removes it for good.",
+				security: HISTORY_SECURITY,
+				parameters: [
+					ID_PARAM,
+					{ name: "purge", in: "query", required: false, schema: { type: "string", enum: ["1"] } },
+				],
+				responses: { "204": { description: "Deleted." }, ...NOT_FOUND, ...HISTORY_ERRORS },
+			},
+		},
+		"/api/v1/folders": {
+			get: {
+				tags: ["history"],
+				operationId: "listFolders",
+				summary: "The caller's folders",
+				security: HISTORY_SECURITY,
+				responses: {
+					"200": {
+						description: "Ordered by position.",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: { folders: { type: "array", items: { $ref: "#/components/schemas/Folder" } } },
+									required: ["folders"],
+								},
+							},
+						},
+					},
+					...HISTORY_ERRORS,
+				},
+			},
+			post: {
+				tags: ["history"],
+				operationId: "createFolder",
+				summary: "Create a folder at the end of the list",
+				security: HISTORY_SECURITY,
+				requestBody: jsonBody({
+					type: "object",
+					properties: { name: { type: "string", minLength: 1, maxLength: 80 } },
+					required: ["name"],
+				}),
+				responses: {
+					"201": { description: "Created.", content: { "application/json": { schema: wrapped("folder", "Folder") } } },
+					...HISTORY_ERRORS,
+				},
+			},
+		},
+		"/api/v1/folders/{id}": {
+			patch: {
+				tags: ["history"],
+				operationId: "updateFolder",
+				summary: "Rename or move a folder",
+				security: HISTORY_SECURITY,
+				parameters: [ID_PARAM],
+				requestBody: jsonBody({
+					type: "object",
+					properties: {
+						name: { type: "string", minLength: 1, maxLength: 80 },
+						position: { type: "integer", minimum: 0 },
+					},
+				}),
+				responses: {
+					"200": { description: "Updated.", content: { "application/json": { schema: wrapped("folder", "Folder") } } },
+					...NOT_FOUND,
+					...HISTORY_ERRORS,
+				},
+			},
+			delete: {
+				tags: ["history"],
+				operationId: "deleteFolder",
+				summary: "Delete a folder; its conversations move to no folder",
+				security: HISTORY_SECURITY,
+				parameters: [ID_PARAM],
+				responses: { "204": { description: "Deleted." }, ...NOT_FOUND, ...HISTORY_ERRORS },
+			},
+		},
+		"/api/v1/search": {
+			get: {
+				tags: ["history"],
+				operationId: "searchHistory",
+				summary: "Full-text search over the caller's saved messages",
+				description:
+					"Each word matches as a prefix. Arabic diacritics and Latin accents are " +
+					"ignored. At most 20 results, newest first; deleted conversations are left out.",
+				security: HISTORY_SECURITY,
+				parameters: [
+					{ name: "q", in: "query", required: true, schema: { type: "string", minLength: 1, maxLength: 200 } },
+				],
+				responses: { ...jsonOk("Matches.", "HistorySearchResponse"), ...HISTORY_ERRORS },
 			},
 		},
 		"/api/v1/models": {
