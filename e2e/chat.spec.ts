@@ -301,8 +301,10 @@ test("loads no third-party script beyond Clerk and the Spline viewer", async ({ 
 		}
 		if (parsed.origin === origin) continue;
 		expect(parsed.protocol, url).toBe("https:");
-		// Clerk's SDK, its bot-protection bootstrap (Clerk Protect), and the
-		// pinned Spline viewer. The CSP's script-src must list exactly these.
+		// Clerk's SDK, its bot-protection bootstrap (Clerk Protect) and that
+		// bootstrap's loader on a random subdomain, and the pinned Spline
+		// viewer. The CSP's script-src must list exactly these.
+		if (parsed.host.endsWith(".client.protect.clerk.com")) continue;
 		expect(["clerk.eleenai.xyz", "cdn.protect.clerk.com", "unpkg.com"], url).toContain(parsed.host);
 	}
 	expect(await page.locator("script:not([src])").count()).toBe(0);

@@ -18,6 +18,9 @@ const SCRIPT_SOURCES = [
 	"https://unpkg.com", // Spline viewer 1.12.88: no licence to self-host it
 	"https://clerk.eleenai.xyz", // Clerk SDK, production frontend API
 	"https://cdn.protect.clerk.com", // Clerk Protect bot-detection bootstrap
+	// The bootstrap then loads loader.js from a fresh random subdomain on each
+	// visit (four in the 2026-10-17 to 10-21 reports), so only a wildcard fits.
+	"https://*.client.protect.clerk.com",
 	"https://challenges.cloudflare.com", // Turnstile inside Clerk's sign-in
 	// Web Analytics: the zone injects an external beacon tag into the page.
 	"https://static.cloudflareinsights.com",
