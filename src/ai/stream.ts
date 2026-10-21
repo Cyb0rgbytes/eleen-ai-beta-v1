@@ -29,13 +29,26 @@ export interface StreamOptions {
 	encoder: SseEncoder;
 	/** Fields for the v2 `meta` event, sent first. Ignored by v1. */
 	meta?: Record<string, unknown>;
+	/**
+	 * Sees exactly what passed the filter, as it is sent: how a saved turn
+	 * records the reply (src/chat/saved.ts). It never changes the bytes.
+	 */
+	observer?: StreamObserver;
+}
+
+export interface StreamObserver {
+	text(safe: string): void;
+	reasoning(safe: string): void;
+	usage(fields: { promptTokens?: number; completionTokens?: number }): void;
+	/** The output was cut and replaced with a refusal. */
+	blocked(): void;
 }
 
 export function filterModelStream(
 	source: ReadableStream<Uint8Array>,
 	options: StreamOptions,
 ): ReadableStream<Uint8Array> {
-	const { parser, encoder } = options;
+	const { parser, encoder, observer } = options;
 	const textFilter = createOutputFilter(options.canary);
 	const reasoningFilter = createOutputFilter(options.canary);
 	const decoder = new TextDecoder();
@@ -51,6 +64,7 @@ export function filterModelStream(
 
 	function block(controller: TransformStreamDefaultController<Uint8Array>, reason: string | undefined) {
 		blocked = true;
+		observer?.blocked();
 		console.error("Blocked model output", { reason });
 		send(controller, encoder.error(refusalResponse()));
 		send(controller, encoder.done());
@@ -64,6 +78,7 @@ export function filterModelStream(
 				block(controller, reasoningFilter.reason);
 				return false;
 			}
+			if (safe) observer?.reasoning(safe);
 			send(controller, encoder.reasoning(safe));
 			return true;
 		}
@@ -73,6 +88,7 @@ export function filterModelStream(
 			block(controller, textFilter.reason);
 			return false;
 		}
+		if (safe) observer?.text(safe);
 		send(controller, encoder.token(safe));
 		return true;
 	}
@@ -121,13 +137,22 @@ export function filterModelStream(
 			}
 
 			const reasoningTail = reasoningFilter.flush();
-			if (reasoningTail) send(controller, encoder.reasoning(reasoningTail));
+			if (reasoningTail) {
+				observer?.reasoning(reasoningTail);
+				send(controller, encoder.reasoning(reasoningTail));
+			}
 
 			const textTail = textFilter.flush();
-			if (textTail) send(controller, encoder.token(textTail));
+			if (textTail) {
+				observer?.text(textTail);
+				send(controller, encoder.token(textTail));
+			}
 
 			const usage = parser.usage();
-			if (usage) send(controller, encoder.usage({ ...usage }));
+			if (usage) {
+				observer?.usage(usage);
+				send(controller, encoder.usage({ ...usage }));
+			}
 
 			send(controller, encoder.done());
 		},

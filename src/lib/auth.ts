@@ -12,3 +12,32 @@ export const AUTHORIZED_PARTIES = [
 	"https://eleenai.xyz",
 	"http://localhost:8787",
 ];
+
+/**
+ * Test seam for the REST gate: decides who a request is signed in as, in
+ * place of Clerk. The history routes act on "the caller's own rows", and the
+ * only way to prove one user cannot reach another's is to make requests as
+ * two users; no test can mint a real Clerk session.
+ *
+ * It cannot be switched on from outside. It is a module variable, null in
+ * every deployment, and the only way to set it is to call
+ * setTestAuthenticator from code running in the same isolate. Nothing under
+ * src/ does (test/auth-seam.test.ts checks that), so no header, cookie,
+ * query or environment variable a request can carry has any effect on it.
+ */
+type TestAuthenticator = (request: Request) => string | null;
+
+let testAuthenticator: TestAuthenticator | null = null;
+
+/** Tests only. Pass null to restore Clerk. */
+export function setTestAuthenticator(authenticate: TestAuthenticator | null): void {
+	testAuthenticator = authenticate;
+}
+
+/**
+ * undefined when the seam is off (always, outside tests); otherwise the user
+ * id the test assigned this request, or null for signed out.
+ */
+export function testAuthenticate(request: Request): string | null | undefined {
+	return testAuthenticator ? testAuthenticator(request) : undefined;
+}

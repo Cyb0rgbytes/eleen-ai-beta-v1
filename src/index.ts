@@ -9,7 +9,7 @@
  *  - Image generation via Gemini 2.0 Flash / Flux-1-Schnell fallback
  *  - Vision analysis via Gemini (image understanding)
  *  - Web search grounding via Gemini Google Search
- *  - Long-term memory via KV
+ *  - Saved conversation history and long-term memory, with consent, in D1
  *  - Multimodal file attachments (images, documents)
  *
  * @license MIT
@@ -30,7 +30,30 @@ import {
 	MAX_QUERY_CHARS,
 } from "./lib/validate";
 import { Bucket, checkRateLimit, rateLimitHeaders, tooManyRequests } from "./lib/ratelimit";
-import { AUTHORIZED_PARTIES } from "./lib/auth";
+import { AUTHORIZED_PARTIES, testAuthenticate } from "./lib/auth";
+import {
+	handleConsent,
+	handleConversation,
+	handleConversations,
+	handleFolder,
+	handleFolders,
+	handleMemory,
+	handleMemoryEntry,
+	handleSearch,
+} from "./api/history";
+import { ensureAccount, memoryProfile, rememberFromTurn } from "./chat/memory";
+import {
+	HistoryNotFound,
+	SavedTurnPlan,
+	commitSavedTurn,
+	createReplyCollector,
+	finishSavedTurn,
+	planSavedTurn,
+	recordReply,
+} from "./chat/saved";
+import { effectiveConsent, getConsent } from "./db/consent";
+import { listMemory } from "./db/memory";
+import type { SavedTurnMeta } from "./shared/history";
 import { handleTranscribe } from "./ai/voice";
 import { handleSpeak } from "./ai/speak";
 import { gatewayOptions } from "./ai/gateway";
@@ -71,9 +94,6 @@ const MODEL_ID = UTILITY_MODEL.id as "@cf/meta/llama-3.1-8b-instruct-fp8";
 /** Fallback image generation model */
 const FALLBACK_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell";
 
-/** Maximum size for stored memory profile (bytes) */
-const MAX_MEMORY_SIZE = 2048;
-
 /** Gemini API base URL */
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
@@ -113,21 +133,6 @@ function geminiHeaders(env: Env): Record<string, string> {
 		"x-goog-api-key": env.GEMINI_API_KEY,
 	};
 }
-
-/**
- * Versioned, namespaced key for a user's memory profile.
- *
- * Previously the raw userId was the entire key, which left the namespace with
- * no room for anything else (rate-limit counters now share it) and no way to
- * migrate the value's format. The version segment makes a future change a
- * matter of writing under `mem:v2:`.
- */
-function memoryKey(userId: string): string {
-	return `mem:v1:${userId}`;
-}
-
-/** Stored profiles expire rather than accumulating indefinitely. */
-const MEMORY_TTL_SECONDS = 90 * 24 * 60 * 60;
 
 function base64ToBytes(base64: string): Uint8Array {
 	const clean = base64.replace(/^data:[^,]+,/, "").replace(/\s/g, "");
@@ -328,8 +333,9 @@ async function route(
 		// byte-identical apart from the token cap. One table keyed by tier
 		// replaces both, so a change to a route cannot be applied to one
 		// tier and forgotten on the other.
-		const route = ROUTES[url.pathname];
-		if (!route) return new Response("Not found", { status: 404 });
+		const matched = matchRoute(url.pathname);
+		if (!matched) return new Response("Not found", { status: 404 });
+		const { route, params } = matched;
 
 		const methods = route.methods ?? ["POST"];
 		if (!methods.includes(request.method)) {
@@ -353,40 +359,48 @@ async function route(
 					},
 				});
 
-			// No bearer token and no Clerk session cookie: there is nothing to
-			// verify, so answer without a round trip to Clerk.
-			const hasBearer = /^Bearer\s+\S/i.test(request.headers.get("authorization") ?? "");
-			const hasSession = /(?:^|;\s*)__session=/.test(request.headers.get("cookie") ?? "");
-			if (!hasBearer && !hasSession) return unauthorized();
+			// Tests sign requests in without Clerk; off in every deployment and
+			// unreachable from a request. See src/lib/auth.ts.
+			const testUser = testAuthenticate(request);
+			if (testUser !== undefined) {
+				if (!testUser) return unauthorized();
+				userId = testUser;
+			} else {
+				// No bearer token and no Clerk session cookie: there is nothing to
+				// verify, so answer without a round trip to Clerk.
+				const hasBearer = /^Bearer\s+\S/i.test(request.headers.get("authorization") ?? "");
+				const hasSession = /(?:^|;\s*)__session=/.test(request.headers.get("cookie") ?? "");
+				if (!hasBearer && !hasSession) return unauthorized();
 
-			if (!env.CLERK_SECRET_KEY) {
-				console.error("CLERK_SECRET_KEY is not set; authenticated routes are unavailable.");
-				return new Response(JSON.stringify({ error: "Sign-in is not configured on this deployment." }), {
-					status: 503,
-					headers: { "content-type": "application/json" },
-				});
+				if (!env.CLERK_SECRET_KEY) {
+					console.error("CLERK_SECRET_KEY is not set; authenticated routes are unavailable.");
+					return new Response(JSON.stringify({ error: "Sign-in is not configured on this deployment." }), {
+						status: 503,
+						headers: { "content-type": "application/json" },
+					});
+				}
+
+				let authState: Awaited<ReturnType<ReturnType<typeof createClerkClient>["authenticateRequest"]>>;
+				try {
+					const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY });
+					authState = await clerk.authenticateRequest(request, {
+						secretKey: env.CLERK_SECRET_KEY,
+						publishableKey: env.CLERK_PUBLISHABLE_KEY,
+						// Rejects tokens minted for a different origin, which is what
+						// stops a token issued to another site being replayed here.
+						authorizedParties: AUTHORIZED_PARTIES,
+					});
+				} catch (error) {
+					// A token Clerk cannot parse, or Clerk unreachable: either way the
+					// caller is not signed in. Never a 500 with a stack trace.
+					console.error("Auth verification failed:", error instanceof Error ? error.message : "unknown");
+					return unauthorized();
+				}
+
+				if (!authState.isSignedIn) return unauthorized(Object.fromEntries(authState.headers));
+
+				userId = authState.toAuth().userId;
 			}
-
-			let authState: Awaited<ReturnType<ReturnType<typeof createClerkClient>["authenticateRequest"]>>;
-			try {
-				const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY });
-				authState = await clerk.authenticateRequest(request, {
-					secretKey: env.CLERK_SECRET_KEY,
-					publishableKey: env.CLERK_PUBLISHABLE_KEY,
-					// Rejects tokens minted for a different origin, which is what
-					// stops a token issued to another site being replayed here.
-					authorizedParties: AUTHORIZED_PARTIES,
-				});
-			} catch (error) {
-				// A token Clerk cannot parse, or Clerk unreachable: either way the
-				// caller is not signed in. Never a 500 with a stack trace.
-				console.error("Auth verification failed:", error instanceof Error ? error.message : "unknown");
-				return unauthorized();
-			}
-
-			if (!authState.isSignedIn) return unauthorized(Object.fromEntries(authState.headers));
-
-			userId = authState.toAuth().userId;
 		}
 
 		// ── Rate limit ───────────────────────────────────────────────────
@@ -398,7 +412,7 @@ async function route(
 			return tooManyRequests(limit);
 		}
 
-		const response = await route.handler(request, env, ctx, userId);
+		const response = await route.handler(request, env, ctx, userId, params);
 
 		// Surface the remaining allowance so clients can back off before
 		// they are refused.
@@ -425,6 +439,8 @@ interface RouteDefinition {
 		env: Env,
 		ctx: ExecutionContext,
 		userId: string,
+		/** Path segments captured by a PARAM_ROUTES pattern; empty for ROUTES. */
+		params: readonly string[],
 	) => Promise<Response>;
 }
 
@@ -507,7 +523,79 @@ const ROUTES: Record<string, RouteDefinition> = {
 		bucket: "keys",
 		handler: (request, env, _ctx, userId) => handleKeys(request, env, userId),
 	},
+	// Phase 4: the caller's saved conversations, folders, search, consent and
+	// memory (src/api/history.ts). Signed-in only: a guest's chat stays in
+	// the browser.
+	"/api/v1/consent": {
+		guest: false,
+		methods: ["GET", "PUT"],
+		bucket: "history",
+		handler: handleConsent,
+	},
+	"/api/v1/memory": {
+		guest: false,
+		methods: ["GET", "DELETE"],
+		bucket: "history",
+		handler: handleMemory,
+	},
+	"/api/v1/conversations": {
+		guest: false,
+		methods: ["GET", "POST", "DELETE"],
+		bucket: "history",
+		handler: handleConversations,
+	},
+	"/api/v1/folders": {
+		guest: false,
+		methods: ["GET", "POST"],
+		bucket: "history",
+		handler: handleFolders,
+	},
+	"/api/v1/search": {
+		guest: false,
+		methods: ["GET"],
+		bucket: "history",
+		handler: handleSearch,
+	},
 };
+
+/**
+ * Routes with an id in the path, tried in order after the exact table. The
+ * pattern captures one segment and nothing else, so an id can never contain
+ * a slash; the handler still checks it is a UUID before any query.
+ */
+const PARAM_ROUTES: readonly (RouteDefinition & { pattern: RegExp })[] = [
+	{
+		pattern: /^\/api\/v1\/conversations\/([^/]+)$/,
+		guest: false,
+		methods: ["GET", "PATCH", "DELETE"],
+		bucket: "history",
+		handler: handleConversation,
+	},
+	{
+		pattern: /^\/api\/v1\/folders\/([^/]+)$/,
+		guest: false,
+		methods: ["PATCH", "DELETE"],
+		bucket: "history",
+		handler: handleFolder,
+	},
+	{
+		pattern: /^\/api\/v1\/memory\/([^/]+)$/,
+		guest: false,
+		methods: ["DELETE"],
+		bucket: "history",
+		handler: handleMemoryEntry,
+	},
+];
+
+function matchRoute(pathname: string): { route: RouteDefinition; params: string[] } | null {
+	const exact = ROUTES[pathname];
+	if (exact) return { route: exact, params: [] };
+	for (const route of PARAM_ROUTES) {
+		const match = route.pattern.exec(pathname);
+		if (match) return { route, params: match.slice(1) };
+	}
+	return null;
+}
 
 // ─── Provider keys ───────────────────────────────────────────────────────────
 
@@ -615,7 +703,7 @@ export async function handleChatRequest(
 
 	try {
 		const body = validateChatBody(await request.json());
-		const messages = body.messages;
+		let messages = body.messages;
 		const attachments: Attachment[] = (body.attachments || []).slice(0, MAX_ATTACHMENTS);
 		const mode = resolveMode(body.mode);
 		encoder = createEncoder(body.protocol ?? 1);
@@ -650,6 +738,32 @@ export async function handleChatRequest(
 				);
 			}
 			userKey = stored;
+		}
+
+		// 0. Account and consent. A signed-in user's turn is saved when they
+		//    use the v2 protocol and have not turned history off; memory is
+		//    used only once they have turned it on. If the database cannot be
+		//    reached the chat still runs, unsaved and without memory.
+		let consent = { history: false, memory: false };
+		if (userId !== "guest") {
+			try {
+				await ensureAccount(env, ctx, userId);
+				consent = effectiveConsent(await getConsent(env.DB, userId));
+			} catch (error) {
+				console.error("Account lookup failed:", error instanceof Error ? error.message : "unknown");
+			}
+		}
+
+		// The server rebuilds the context from the stored thread and ignores
+		// the history the client sent, so a client can neither forge earlier
+		// turns nor reach another user's. Read only: nothing is written yet.
+		let plan: SavedTurnPlan | null = null;
+		if (encoder.protocol === 2 && consent.history) {
+			plan = await planSavedTurn(env.DB, userId, body);
+			messages = plan.context;
+		} else if (!messages.length) {
+			// A regenerate (replyTo, no messages) has nothing to answer unsaved.
+			throw new ValidationError([{ field: "messages", message: "must not be empty" }]);
 		}
 
 		// 1. Classify the incoming turn. Only the latest user message is
@@ -690,15 +804,21 @@ export async function handleChatRequest(
 		const nonce = newNonce();
 		const canary = newCanary();
 
-		// 2. Contextual memory. Namespaced and read under the versioned key.
-		let rawMemory = "";
-		if (userId !== "guest" && env.ELEEN_MEMORY) {
+		// 2. Long-term memory, only with consent: the stored facts become the
+		//    profile block, which buildSystemPrompt wraps as untrusted.
+		let facts: string[] = [];
+		if (consent.memory) {
 			try {
-				rawMemory = (await env.ELEEN_MEMORY.get(memoryKey(userId))) || "";
-			} catch (e) {
-				console.warn("Could not fetch memory for user", userId, e);
+				facts = (await listMemory(env.DB, userId)).map((entry) => entry.fact);
+			} catch (error) {
+				console.warn("Could not load memory:", error instanceof Error ? error.message : "unknown");
 			}
 		}
+		const rawMemory = memoryProfile(facts);
+
+		// The turns as written, before attachments and wrapping change them,
+		// for the background memory update.
+		const recentTurns = messages.slice(-4).map((m) => ({ ...m }));
 
 		// 3. Process attachments — inject descriptions into the conversation.
 		//    File contents are third-party text and get the untrusted wrapper.
@@ -758,24 +878,56 @@ export async function handleChatRequest(
 			userKey,
 		});
 
-		// 7. Background memory update.
-		if (userId !== "guest" && env.ELEEN_MEMORY) {
-			ctx.waitUntil(updateMemory(env, userId, messages, rawMemory));
+		// 7. Save the turn: the user message and an empty assistant row the
+		//    reply fills in when it ends. Only now that the model has started,
+		//    so a refused or failed request leaves nothing behind.
+		let saved: SavedTurnMeta | null = null;
+		if (plan) {
+			try {
+				saved = await commitSavedTurn(env.DB, userId, plan, spec.id);
+			} catch (error) {
+				await run.stream.cancel().catch(() => {});
+				throw error;
+			}
 		}
 
-		// 8. Filter the outbound stream. Nothing reaches the client until it
+		// 8. Background memory update, with consent. A regenerate repeats a
+		//    turn that was already read.
+		if (consent.memory && !plan?.replyTo) {
+			ctx.waitUntil(rememberFromTurn(env, userId, recentTurns, facts, saved?.userMessageId ?? null));
+		}
+
+		// 9. Filter the outbound stream. Nothing reaches the client until it
 		//    has been checked for the canary and for infrastructure leakage;
-		//    a reasoning model's thinking is screened the same way.
+		//    a reasoning model's thinking is screened the same way. A saved
+		//    turn's ids ride in the v2 meta event.
+		const collector = plan ? createReplyCollector() : null;
 		const filtered = filterModelStream(run.stream, {
 			canary,
 			parser: createChunkParser(spec.reasoning),
 			encoder,
-			meta: { model: spec.id, tier: spec.tier },
+			meta: { model: spec.id, tier: spec.tier, ...(saved ?? {}) },
+			observer: collector?.observer,
 		});
+
+		if (plan && saved && collector) {
+			const savedPlan = plan;
+			const ids = saved;
+			const recorded = recordReply(filtered, collector, ctx, (outcome) =>
+				finishSavedTurn(env, userId, savedPlan, ids, outcome),
+			);
+			return new Response(recorded, { headers: SSE_HEADERS });
+		}
 
 		return new Response(filtered, { headers: SSE_HEADERS });
 	} catch (error) {
 		if (error instanceof ValidationError) return validationResponse(error);
+		if (error instanceof HistoryNotFound) {
+			return new Response(JSON.stringify({ error: "Not found." }), {
+				status: 404,
+				headers: { "content-type": "application/json" },
+			});
+		}
 		if (error instanceof KeyRequiredError) {
 			return new Response(
 				JSON.stringify({ error: error.message, model: error.spec.id, reason: "key-required" }),
@@ -870,51 +1022,6 @@ async function analyzeAttachment(env: Env, attachment: Attachment): Promise<stri
 		return `Document content (first 4000 chars):\n${truncated}`;
 	} catch {
 		return "Could not read document content.";
-	}
-}
-
-// ─── Memory Manager ──────────────────────────────────────────────────────────
-
-async function updateMemory(
-	env: Env,
-	userId: string,
-	messages: ChatMessage[],
-	rawMemory: string,
-) {
-	try {
-		const recentMessages = messages
-			.filter((m) => m.role !== "system")
-			.slice(-4)
-			.map((m) => `${m.role.toUpperCase()}: ${m.content}`)
-			.join("\n");
-
-		if (!recentMessages.trim()) return;
-
-		const summaryPrompt = `You are a memory manager for an AI assistant.
-Current Memory Profile: ${rawMemory || "None"}
-Recent Conversation:
-${recentMessages}
-
-Extract any NEW important facts about the user: their name, preferences, interests, location, profession, communication style, and key topics discussed.
-Keep the profile extremely concise, bulleted, and in third-person.
-If there is nothing new or important to add, output the Current Memory Profile exactly as is.`;
-
-		const response = await env.AI.run(MODEL_ID, {
-			messages: [{ role: "user", content: summaryPrompt }],
-			max_tokens: 256,
-		}, gatewayOptions(env, { route: "memory" }));
-
-		const newMemory = (response as any).response;
-		if (!newMemory || !newMemory.trim()) return;
-
-		const trimmed = newMemory.trim();
-		if (trimmed !== rawMemory.trim() && trimmed.length <= MAX_MEMORY_SIZE) {
-			await env.ELEEN_MEMORY.put(memoryKey(userId), trimmed, {
-				expirationTtl: MEMORY_TTL_SECONDS,
-			});
-		}
-	} catch (e) {
-		console.error("Memory update failed:", e);
 	}
 }
 
