@@ -102,6 +102,14 @@ export const RULES = {
 		user: { limit: 20, windowSeconds: HOUR },
 		failClosedForGuests: true,
 	},
+	// Conversation history, folders, search, consent and memory. Database
+	// reads and writes only, no inference, so the ceiling is generous: the
+	// sidebar alone makes several calls per page load. Guests have no history.
+	history: {
+		guest: { limit: 0, windowSeconds: HOUR },
+		user: { limit: 600, windowSeconds: HOUR },
+		failClosedForGuests: true,
+	},
 } satisfies Record<string, BucketRules>;
 
 export type Bucket = keyof typeof RULES;

@@ -56,6 +56,16 @@ export function sanitizeAttachmentName(raw: unknown): string {
 
 const ALLOWED_ROLES = new Set(["user", "assistant"]);
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Every id the history API mints is a random UUID, so anything else cannot
+ * name a row and is refused before it reaches a query.
+ */
+export function isUuid(value: unknown): value is string {
+	return typeof value === "string" && UUID.test(value);
+}
+
 export interface ValidationFailure {
 	field: string;
 	message: string;
@@ -108,6 +118,10 @@ export function validateChatBody(raw: unknown): {
 	protocol?: Protocol;
 	/** The user asked by voice, so the reply will be read aloud. */
 	voice?: boolean;
+	/** Saved chat ids (src/shared/history.ts). Only acted on for a saved turn. */
+	conversationId?: string;
+	parentId?: string | null;
+	replyTo?: string;
 } {
 	const failures: ValidationFailure[] = [];
 	const body = (raw ?? {}) as Record<string, unknown>;
@@ -115,7 +129,28 @@ export function validateChatBody(raw: unknown): {
 	if (!Array.isArray(body.messages)) {
 		throw new ValidationError([{ field: "messages", message: "must be an array" }]);
 	}
-	if (body.messages.length === 0) {
+
+	// A regenerate names the turn to answer again and sends no messages: the
+	// server already has them. Anything else needs at least one message.
+	const regenerate = isUuid(body.replyTo);
+
+	if (body.conversationId !== undefined && !isUuid(body.conversationId)) {
+		failures.push({ field: "conversationId", message: "must be a conversation id" });
+	}
+	if (body.parentId !== undefined && body.parentId !== null && !isUuid(body.parentId)) {
+		failures.push({ field: "parentId", message: "must be a message id or null" });
+	}
+	if (body.replyTo !== undefined) {
+		if (!regenerate) failures.push({ field: "replyTo", message: "must be a message id" });
+		if (body.conversationId === undefined) {
+			failures.push({ field: "replyTo", message: "requires conversationId" });
+		}
+		if (body.parentId !== undefined) {
+			failures.push({ field: "replyTo", message: "cannot be combined with parentId" });
+		}
+	}
+
+	if (body.messages.length === 0 && !regenerate) {
 		failures.push({ field: "messages", message: "must not be empty" });
 	}
 	if (body.messages.length > MAX_MESSAGES) {
@@ -235,7 +270,7 @@ export function validateChatBody(raw: unknown): {
 	}
 
 	if (failures.length) throw new ValidationError(failures);
-	if (!messages.length) {
+	if (!messages.length && !regenerate) {
 		throw new ValidationError([
 			{ field: "messages", message: "must contain at least one user or assistant message" },
 		]);
@@ -248,6 +283,10 @@ export function validateChatBody(raw: unknown): {
 		model: typeof body.model === "string" && body.model !== "" ? body.model : undefined,
 		protocol: isProtocol(body.protocol) ? body.protocol : undefined,
 		voice: body.voice === true ? true : undefined,
+		// Lowercased so a client echoing an id in another case still matches.
+		conversationId: isUuid(body.conversationId) ? body.conversationId.toLowerCase() : undefined,
+		parentId: isUuid(body.parentId) ? body.parentId.toLowerCase() : body.parentId === null ? null : undefined,
+		replyTo: regenerate ? (body.replyTo as string).toLowerCase() : undefined,
 	};
 }
 
