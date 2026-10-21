@@ -144,6 +144,7 @@ export const en = {
 	sceneLoading: "Loading 3D scene",
 	logoAlt: "EleenAI, your gateway to the realm of AI",
 	footer: "EleenAI © 2026 · Powered by CSECNIX Technologies",
+	footerPrivacy: "Privacy",
 	// End M4.5 theming
 } as const;
 

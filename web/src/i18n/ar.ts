@@ -142,5 +142,6 @@ export const ar: Partial<Record<MessageKey, string>> = {
 	sceneLoading: "جارٍ تحميل المشهد ثلاثي الأبعاد",
 	logoAlt: "EleenAI، بوابتك إلى عالم الذكاء الاصطناعي",
 	footer: "EleenAI © 2026 · بدعم من CSECNIX Technologies",
+	footerPrivacy: "الخصوصية",
 	// End M4.5 theming
 };

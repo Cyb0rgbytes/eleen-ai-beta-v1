@@ -30,7 +30,13 @@ export interface PrefsOptions {
 /** Text that index.html carries in English, in the current language. */
 function translateStaticText(): void {
 	const footer = document.querySelector(".gateway-container > footer > p");
-	if (footer) footer.textContent = t("footer");
+	if (footer) {
+		// Translate the words but keep the link to the privacy page; setting
+		// textContent on the whole paragraph would delete it.
+		const link = footer.querySelector("a");
+		if (link) link.textContent = t("footerPrivacy");
+		footer.replaceChildren(t("footer"), ...(link ? [" · ", link] : []));
+	}
 	const logo = document.querySelector<HTMLImageElement>(".logo-image");
 	if (logo) logo.alt = t("logoAlt");
 	const loader = document.getElementById("spline-loader");

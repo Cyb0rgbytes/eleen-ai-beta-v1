@@ -119,4 +119,14 @@ describe("initPrefs", () => {
 		expect(document.querySelector(".dot")).not.toBeNull();
 		expect(document.querySelector("#lang-toggle .lang-toggle-text")?.textContent).toBe("English");
 	});
+
+	it("keeps the footer's links when it translates the footer", () => {
+		document.querySelector("footer p")!.innerHTML = 'EleenAI · <a href="/privacy">Privacy</a>';
+		localStorage.setItem(LANG_KEY, "ar");
+		initPrefs();
+		const link = document.querySelector<HTMLAnchorElement>("footer p a");
+		expect(link?.getAttribute("href")).toBe("/privacy");
+		expect(link?.textContent).toBe("الخصوصية");
+		expect(document.querySelector("footer p")?.textContent).toContain("بدعم من");
+	});
 });
