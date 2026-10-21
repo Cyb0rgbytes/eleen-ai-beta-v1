@@ -112,6 +112,43 @@ describe("rendering", () => {
 	});
 });
 
+describe("callouts", () => {
+	it("turns each alert kind into a labelled callout, and caution into a warning", () => {
+		const cases: [string, string, string][] = [
+			["TIP", "tip", "Tip"],
+			["NOTE", "note", "Note"],
+			["IMPORTANT", "important", "Important"],
+			["WARNING", "warning", "Warning"],
+			["caution", "warning", "Warning"],
+		];
+		for (const [marker, kind, title] of cases) {
+			const host = render(`> [!${marker}]\n> Keep **keys** out of the repo.`);
+			assertSafe(host, marker);
+			const aside = host.querySelector("aside.callout") as HTMLElement;
+			expect(aside.dataset.kind, marker).toBe(kind);
+			expect(aside.querySelector(".callout-title")?.textContent).toBe(title);
+			expect(aside.querySelector("strong")?.textContent).toBe("keys");
+			expect(aside.textContent).not.toContain("[!");
+			expect(host.querySelector("blockquote")).toBeNull();
+		}
+	});
+
+	it("leaves an ordinary quote, and an unknown alert kind, as a blockquote", () => {
+		for (const source of ["> just a quote", "> [!DANGER]\n> not a kind we know"]) {
+			const host = render(source);
+			expect(host.querySelector("aside"), source).toBeNull();
+			expect(host.querySelector("blockquote"), source).not.toBeNull();
+		}
+	});
+
+	it("keeps hostile content inside a callout as text", () => {
+		const host = render('> [!TIP]\n> <img src=x onerror="window.__xss=1"> [x](javascript:alert(1))');
+		assertSafe(host, "hostile callout");
+		expect(host.querySelector("img")).toBeNull();
+		expect(host.querySelector("a")).toBeNull();
+	});
+});
+
 describe("safeHref", () => {
 	it("allows http, https and mailto", () => {
 		expect(safeHref("https://a.b/c")).toBe("https://a.b/c");

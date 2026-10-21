@@ -117,8 +117,38 @@
 		transform var(--dur-state) var(--ease);
 }
 
-.prompt-card::after {
+.prompt-card::after,
+.suggestion-chip::after {
 	transition: opacity var(--dur-state) var(--ease);
+}
+
+/* Chips point onward: the arrow nudges toward the inline-end on hover. */
+.suggestion-chip .icon {
+	transition: transform var(--dur-state) var(--ease);
+}
+
+.suggestion-chip:hover .icon {
+	transform: translateX(calc(3px * var(--dir-sign)));
+}
+
+:root[dir="rtl"] .suggestion-chip:hover .icon[data-mirror] {
+	transform: translateX(calc(3px * var(--dir-sign))) scaleX(-1);
+}
+
+/* Streaming text fades in as it arrives (render.ts). Each run carries its
+   age, so a rebuild resumes its fade instead of restarting it. */
+@keyframes text-arrive {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+.fresh {
+	animation: text-arrive 350ms var(--ease) both;
+	animation-delay: calc(var(--age, 0ms) * -1);
 }
 
 /* An icon swapped into a button (Send to Stop, copy to check, mic states)

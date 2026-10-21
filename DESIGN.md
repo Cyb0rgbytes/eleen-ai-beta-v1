@@ -259,6 +259,9 @@ Model output is attacker-influenced: a prompt injection in a document or search 
 - Our code has **no HTML sinks**. Markdown is tokenised and turned into DOM nodes from an allowlist of elements and attributes. Raw HTML in a reply renders as text.
 - Links pass a scheme allowlist (`http`, `https`, `mailto`) and open with `rel="noopener noreferrer nofollow"` and `target="_blank"`.
 - Markdown images never render as `<img>`. A model-written image URL is the classic exfiltration channel; it is shown as a link instead.
+- GitHub-style alerts (`> [!TIP]`, `[!NOTE]`, `[!IMPORTANT]`, `[!WARNING]`) render as `aside.callout`. The kind comes from that fixed list, and each takes one status or brand token.
+- A finished code block gets a header with its language and a Copy button. Syntax colours come from Prism, loaded on first use in its own chunk and used only as a tokenizer: tokens become `span.tok-*` elements whose text is set with `textContent`.
+- While a reply streams, newly arrived text fades in (opacity only, 350 ms). The finished reply carries no fade spans.
 - Trusted Types runs in a Report-Only header. Our code would pass enforcement; Clerk and the Spline viewer may not, and enforcing on their behalf would mean a permissive default policy.
 
 ## 10. What we deliberately do not do

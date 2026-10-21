@@ -123,6 +123,19 @@ describe("inspectOutput", () => {
 
 	it("blocks verbatim system prompt fragments", () => {
 		expect(inspectOutput("CORE IDENTITY:\nYou are a next-gen...", canary).blocked).toBe(true);
+		for (const heading of ["PERSONALITY & STYLE:\n1. Be friendly", "REASONING & ACCURACY:\n1. For complex"]) {
+			expect(inspectOutput(heading, canary).blocked, heading).toBe(true);
+		}
+	});
+
+	it("lets ordinary replies that sound like the prompt's advice through", () => {
+		for (const text of [
+			"Here is how to answer: start with the result.",
+			"Follow-up suggestions: try the second option.",
+			"> [!TIP]\n> Keep your keys out of the repo.",
+		]) {
+			expect(inspectOutput(text, canary).blocked, text).toBe(false);
+		}
 	});
 });
 
