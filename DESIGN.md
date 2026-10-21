@@ -149,7 +149,7 @@ Fixed z-indexes. Nothing else on the page sets `z-index`.
 
 ### The pointer-events rule
 
-A transparent element still receives pointer events. Every layer above the scene that spans the viewport is `pointer-events: none`, and only the controls inside it opt back in. The conversation scroller does not opt in; its `.message` children do, so text can be selected while the gaps between messages hand the cursor to the scene. Wheel events over the column are forwarded to the scroller by `chat.js`. Touch is exempt: on `(hover: none), (pointer: coarse)` the scroller takes pointer events itself, because touch scrolling is hit-test driven.
+A transparent element still receives pointer events. Every layer above the scene that spans the viewport is `pointer-events: none`, and only the controls inside it opt back in. The conversation scroller opts in, so the browser scrolls it natively in every browser. The robot still sees the cursor everywhere: `web/src/scene/spline.ts` re-sends every mouse move over the page's own elements to the Spline canvas. Amended 2026-10-21. Before that, the column was click-through and a script forwarded the wheel, which lagged, barely moved in Firefox (line-mode deltas), and still froze the robot over the prompt cards and composer.
 
 Measured in August: before this rule the robot missed 24 of 57 cursor updates with an 850px dead band across the middle of the screen; after it, 51 of 57 with a 175px band.
 
