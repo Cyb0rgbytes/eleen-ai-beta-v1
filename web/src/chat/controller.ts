@@ -31,6 +31,7 @@ import {
 } from "./render";
 import { follow } from "./scroll";
 import { createSpeaker, shouldAutoSpeak, type Speaker } from "./speak";
+import { codeText } from "./code";
 
 const MAX_HISTORY = 20;
 
@@ -357,6 +358,8 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 				void regenerate();
 			} else if (action.dataset.action === "copy" && reply) {
 				void copyReply(action, replyText.get(reply) ?? "");
+			} else if (action.dataset.action === "copy-code") {
+				void copyReply(action, codeText(action), "copyCode");
 			} else if (action.dataset.action === "speak" && reply) {
 				if (reply.classList.contains("is-speaking")) speaker.stop();
 				else speakReply(reply);
@@ -368,8 +371,8 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 		if (image) window.open(image.src, "_blank", "noopener");
 	});
 
-	/** Copy a reply's text; the icon morphs to a check and back (DESIGN.md 7). */
-	async function copyReply(button: HTMLButtonElement, text: string): Promise<void> {
+	/** Copy a reply's (or a code block's) text; the icon morphs to a check and back (DESIGN.md 7). */
+	async function copyReply(button: HTMLButtonElement, text: string, labelKey: "copy" | "copyCode" = "copy"): Promise<void> {
 		try {
 			await navigator.clipboard.writeText(text);
 		} catch {
@@ -383,7 +386,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 		setTimeout(() => {
 			button.classList.remove("is-done");
 			setIcon(button, "copy");
-			if (label) label.textContent = t("copy");
+			if (label) label.textContent = t(labelKey);
 		}, 1500);
 	}
 

@@ -96,6 +96,16 @@
 	--sweep: linear-gradient(90deg, transparent, rgb(0 229 255 / 0.95), rgb(108 99 255 / 0.95), transparent);
 	--sweep-glow: 0 0 12px rgb(0 229 255 / 0.6);
 
+	/* Syntax colours for code blocks */
+	--tok-comment: #6f7399;
+	--tok-keyword: #b39dff;
+	--tok-string: #7ee2b8;
+	--tok-number: #ffb86b;
+	--tok-function: #6fd8ff;
+	--tok-type: #ff8fc8;
+	--tok-property: #c8ccff;
+	--tok-punct: #9a9cc4;
+
 	/* Type (DESIGN.md section 4) */
 	--font-sans: "Inter Variable", "Inter", "Noto Sans Arabic", "Segoe UI", system-ui, -apple-system, sans-serif;
 	--font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
@@ -203,6 +213,15 @@
 	--glow-card-hover: 0 0 26px rgb(90 81 240 / 0.18);
 	--sweep: linear-gradient(90deg, transparent, rgb(14 116 144 / 0.85), rgb(90 81 240 / 0.85), transparent);
 	--sweep-glow: 0 0 10px rgb(90 81 240 / 0.4);
+
+	--tok-comment: #6a6e8c;
+	--tok-keyword: #5b3fd6;
+	--tok-string: #0f7a52;
+	--tok-number: #b45309;
+	--tok-function: #0e6e8f;
+	--tok-type: #b0246f;
+	--tok-property: #3b3f8f;
+	--tok-punct: #5a5d80;
 }
 
 /* Arabic renders small at the same size as Latin (DESIGN.md section 4). */

@@ -210,8 +210,8 @@ const INFRASTRUCTURE_PHRASES: readonly RegExp[] = [
 const PROMPT_NGRAMS = [
 	"security rules (highest priority",
 	"core identity:",
-	"reasoning & intelligence:",
-	"tone & communication:",
+	"personality & style:",
+	"reasoning & accuracy:",
 	"tool status indicators",
 	"untrusted_input",
 	"stored user profile (untrusted",
