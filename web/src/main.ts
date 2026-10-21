@@ -18,10 +18,11 @@ import { createChat, type ChatApi } from "./chat/controller";
 import { createEmptyState, setGreetingName } from "./chat/empty";
 import { initJumpPill } from "./chat/jump";
 import { initPicker, type Picker } from "./chat/picker";
+import { watchReader } from "./chat/scroll";
 import { initVoice } from "./chat/voice";
 import { t } from "./i18n";
 import { createKeysDialog, type KeysDialog } from "./keys/dialog";
-import { forwardWheel, initScene } from "./scene/spline";
+import { initScene } from "./scene/spline";
 import { revealIn } from "./ui/motion";
 import { showToast } from "./ui/toast";
 import { registerWebMcp } from "./webmcp";
@@ -70,7 +71,7 @@ async function boot(): Promise<void> {
 
 	const messages = document.getElementById("chat-messages");
 	if (!messages) throw new Error("#chat-messages is missing");
-	forwardWheel(messages);
+	watchReader(messages);
 
 	let composer: Composer | null = null;
 	const jump = initJumpPill(messages, messages.parentElement ?? document.body);

@@ -97,13 +97,14 @@
 	pointer-events: none;
 }
 
-/* Interactive regions opt back in. The scroller stays click-through: it is
-   the centred column where the cursor spends its time, and claiming events
-   there blanks a band down the middle of the scene. Message bubbles take
-   events for text selection; wheel scrolling over the gaps is forwarded by
-   the scene module. */
+/* Interactive regions opt back in. The scroller does too, so the browser
+   scrolls it natively, smoothly and off the main thread, in every browser.
+   The robot no longer needs the column to be click-through: the scene
+   module re-sends cursor moves over any element to the canvas. */
 .gateway-container header,
 .gateway-container footer,
+#chat-messages,
+.chat-messages,
 .message-input,
 .message,
 .thinking-indicator,
@@ -116,16 +117,6 @@
 /* The phone row scrolls sideways, so it needs its own events there. */
 @media (max-width: 600px) {
 	.prompt-cards {
-		pointer-events: auto;
-	}
-}
-
-/* Touch scrolling is hit-test driven and the forwarder only covers wheel
-   events, so on a coarse pointer the scroller takes its events back. Keyed
-   on the pointer, not width: a narrow desktop window still has a cursor. */
-@media (hover: none), (pointer: coarse) {
-	#chat-messages,
-	.chat-messages {
 		pointer-events: auto;
 	}
 }

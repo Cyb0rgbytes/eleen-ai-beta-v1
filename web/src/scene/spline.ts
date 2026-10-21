@@ -101,6 +101,7 @@ export function initScene(): SceneMode {
 	};
 	viewer.addEventListener("load", loaded, { once: true });
 	loadViewer();
+	forwardPointer(viewer);
 	// The viewer's load event is not reliable across versions; the poster
 	// stays underneath, so an early crossfade only reveals the same scene.
 	setTimeout(loaded, FADE_FALLBACK_MS);
@@ -108,24 +109,38 @@ export function initScene(): SceneMode {
 }
 
 /**
- * The message column is click-through so the scene keeps seeing the cursor
- * across the middle of the screen (DESIGN.md section 5). The wheel needs a
- * real target, so it is caught on the window and applied to the scroller
- * whenever the pointer is over it. Elements that scroll themselves keep
- * their own wheel.
+ * The robot follows the cursor through the viewer's canvas, which sits under
+ * the whole page. Wherever the cursor is over something else (a message, a
+ * prompt card, the composer), its moves are re-sent to the canvas, so the
+ * robot keeps tracking instead of freezing mid-turn (DESIGN.md section 5).
+ * Measured 2026-10-21: re-sent moves turn the robot exactly as real ones do.
+ *
+ * Mouse only: touch has no hover to follow. Passive, so it never delays a
+ * scroll, and the re-sent events carry the canvas in their path, so they
+ * are not re-sent again.
  */
-export function forwardWheel(scroller: HTMLElement): void {
+export function forwardPointer(viewer: Element): void {
+	let canvas: HTMLCanvasElement | null = null;
 	window.addEventListener(
-		"wheel",
+		"pointermove",
 		(event) => {
-			if (event.target instanceof Element && event.target.closest("textarea, pre, .md-table, .message-input, .reasoning-text")) return;
-			const box = scroller.getBoundingClientRect();
-			const over =
-				event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom;
-			if (!over || scroller.scrollHeight <= scroller.clientHeight) return;
-			scroller.scrollTop += event.deltaY;
-			event.preventDefault();
+			if (event.pointerType !== "mouse") return;
+			canvas ??= viewer.shadowRoot?.querySelector("canvas") ?? null;
+			if (!canvas || event.composedPath().includes(canvas)) return;
+			const init: PointerEventInit = {
+				clientX: event.clientX,
+				clientY: event.clientY,
+				screenX: event.screenX,
+				screenY: event.screenY,
+				pointerId: event.pointerId,
+				pointerType: "mouse",
+				isPrimary: true,
+				bubbles: true,
+				composed: true,
+			};
+			canvas.dispatchEvent(new PointerEvent("pointermove", init));
+			canvas.dispatchEvent(new MouseEvent("mousemove", init));
 		},
-		{ passive: false },
+		{ passive: true },
 	);
 }
