@@ -20,11 +20,14 @@
 		// see it. We need it to, in order to attach RFC 8288 Link headers and do
 		// Accept: text/markdown negotiation. env.ASSETS.fetch() bypasses this
 		// setting, so delegating back to it (see src/index.ts) does not loop.
-		// Only these two paths match a static asset; every other route already
-		// falls through to the Worker on its own.
+		// These paths match a static asset; every other route already falls
+		// through to the Worker on its own. The privacy page is listed so it
+		// gets the security headers (CSP, frame-ancestors, HSTS) like "/" does.
 		"run_worker_first": [
 			"/",
-			"/index.html"
+			"/index.html",
+			"/privacy",
+			"/privacy.html"
 		]
 	},
 	// Import *.md as strings so agent-facing renditions (home, docs, auth, skills)
