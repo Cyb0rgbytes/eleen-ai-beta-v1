@@ -7,6 +7,7 @@
  */
 import type { ModelTier } from "./models";
 import type { Protocol } from "./stream";
+import type { SavedTurnRequest } from "./history";
 
 export interface ChatMessage {
 	role: "system" | "user" | "assistant";
@@ -37,6 +38,13 @@ export interface ChatRequestBody {
 	protocol?: Protocol;
 	/** The user asked by voice: the reply is kept short and speakable. */
 	voice?: boolean;
+	/**
+	 * Saved chat (protocol 2, signed in, history on); see SavedTurnRequest in
+	 * history.ts. Ignored otherwise. With replyTo, messages may be empty.
+	 */
+	conversationId?: SavedTurnRequest["conversationId"];
+	parentId?: SavedTurnRequest["parentId"];
+	replyTo?: SavedTurnRequest["replyTo"];
 }
 
 /** 403 body when the requested model is not available to this caller. */

@@ -49,7 +49,8 @@ export function handlePreflight(request: Request, isProduction: boolean): Respon
 		status: 204,
 		headers: {
 			...corsHeaders(origin, isProduction),
-			"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+			// PATCH for the history API's partial updates (rename, pin, move).
+			"Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
 			"Access-Control-Allow-Headers": "content-type, authorization",
 			"Access-Control-Max-Age": "86400",
 		},

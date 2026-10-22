@@ -12,6 +12,15 @@ export interface MetaPayload {
 	model?: string;
 	tier?: ModelTier;
 	protocol: 2;
+	/**
+	 * Present only when the turn is being saved (signed in, history on): the
+	 * ids the server minted, so the client can address the conversation and
+	 * the new messages without a second request. See SavedTurnMeta.
+	 */
+	conversationId?: string;
+	/** Absent on a regenerate, which adds no user turn. */
+	userMessageId?: string;
+	assistantMessageId?: string;
 }
 
 export interface TextPayload {
