@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy policy - EleenAI</title>
+    <meta name="description" content="What EleenAI stores about you, where it is kept, who can see it, and how to delete it.">
+    <!-- A plain page: the site's fonts and tokens, and no script at all, so it
+         works under the site CSP and with JavaScript off. -->
+    <link rel="stylesheet" href="/src/styles/privacy-page.css">
+</head>
+<body>
+    <main class="policy">
+        <div class="policy-top">
+            <a href="/"><img src="/logo.png" alt="EleenAI, back to the chat" width="160" height="40"></a>
+            <nav aria-label="Language">
+                <a href="#en" hreflang="en">English</a>
+                <a href="#ar" hreflang="ar" lang="ar">العربية</a>
+            </nav>
+        </div>
+
+        <!-- Keep the two versions in step. Policy version 1 (POLICY_VERSION in
+             src/shared/history.ts): a change that needs fresh consent bumps it. -->
+        <section id="en" lang="en" dir="ltr">
+            <h1>Privacy policy</h1>
+            <p class="updated">Policy version 1, October 2026</p>
+
+            <p>EleenAI is a chat assistant. This page says, in plain words, what it keeps about you, where, who can see it, and how to delete it. You choose the two things that matter most when you first sign in, and you can change them at any time under <strong>Memory and privacy</strong> in the model menu.</p>
+
+            <h2>If you chat as a guest</h2>
+            <p>Your conversation stays in your browser tab. It is not saved on our side, and it is gone when you close or reload the page. To keep you and everyone else within fair limits, we count your requests per hour against a hashed form of your network address, never the address itself.</p>
+
+            <h2>What we store when you are signed in</h2>
+            <ul>
+                <li><strong>Your conversations</strong>, if "Save my conversations" is on. It is on unless you turn it off. Turning it off stops new chats being saved; ones already saved stay until you delete them.</li>
+                <li><strong>Facts about you</strong>, if "Remember facts about me" is on. It is off unless you turn it on. These are short notes, such as your name or a preference, used to make later chats more helpful. Turning memory off forgets all of them.</li>
+                <li><strong>Your choices</strong> about the two settings above, and which version of this policy you made them under.</li>
+                <li><strong>Usage counters</strong>: how many requests you have made in the current hour, so the rate limits work.</li>
+                <li><strong>Provider API keys</strong> you add for premium models, encrypted. We never show a key again, only its last four characters.</li>
+                <li><strong>Your account id</strong> from our sign-in provider, Clerk, which handles your sign-in, email address and password. We do not see your password.</li>
+            </ul>
+
+            <h2>Where it is kept</h2>
+            <p>In a Cloudflare D1 database, run by Cloudflare on our behalf. The app itself runs on Cloudflare Workers.</p>
+
+            <h2>Who can see it</h2>
+            <p>Only you, through the app. Every request is checked against your account, so no other user can read your conversations, facts or keys. Beyond that, the people who run EleenAI operate the infrastructure it is stored on, and Cloudflare hosts it. We do not sell your data or use it for advertising.</p>
+
+            <h2>Who your messages are sent to</h2>
+            <p>To answer you, your messages go to the model you picked. The standard models run on Cloudflare Workers AI. A premium model you run on your own key goes to that provider (OpenAI, Anthropic, Google or DeepSeek) under their terms.</p>
+
+            <h2>Voice</h2>
+            <ul>
+                <li><strong>Voice recordings</strong> are sent to a speech-to-text model to be turned into text, then discarded. We do not store the audio.</li>
+                <li><strong>Spoken replies</strong>: the reply's text is sent to a voice model to be read out. We do not store the audio it makes.</li>
+            </ul>
+
+            <h2>How to delete it</h2>
+            <p>Sign in, open the model menu next to the message box, and choose <strong>Memory and privacy</strong>. There you can forget one fact, forget everything, turn either setting off, or delete all your saved conversations. Deleting is permanent. To remove a provider key, use <strong>Manage API keys</strong> in the same menu.</p>
+
+            <h2>Changes</h2>
+            <p>If this policy changes in a way that affects your choices, we will ask you again when you next sign in.</p>
+        </section>
+
+        <section id="ar" lang="ar" dir="rtl">
+            <h1>سياسة الخصوصية</h1>
+            <p class="updated">الإصدار 1 من السياسة، أكتوبر 2026</p>
+
+            <p>EleenAI مساعد محادثة. توضّح هذه الصفحة بكلمات بسيطة ما يحتفظ به عنك، وأين، ومن يمكنه رؤيته، وكيف تحذفه. تختار أهم أمرين عند تسجيل دخولك أول مرة، ويمكنك تغييرهما في أي وقت من <strong>الذاكرة والخصوصية</strong> في قائمة النماذج.</p>
+
+            <h2>إذا كنت تحادث كزائر</h2>
+            <p>تبقى محادثتك في علامة التبويب في متصفحك. لا تُحفظ لدينا، وتختفي عند إغلاق الصفحة أو إعادة تحميلها. ولإبقائك والجميع ضمن حدود عادلة، نعدّ طلباتك في الساعة مقابل صيغة مُجزّأة (hash) من عنوان شبكتك، لا العنوان نفسه.</p>
+
+            <h2>ما نحفظه عند تسجيل دخولك</h2>
+            <ul>
+                <li><strong>محادثاتك</strong>، إذا كان خيار «حفظ محادثاتي» مفعّلًا. وهو مفعّل ما لم توقفه. إيقافه يمنع حفظ المحادثات الجديدة، وتبقى المحفوظة سابقًا حتى تحذفها.</li>
+                <li><strong>معلومات عنك</strong>، إذا كان خيار «تذكّر معلومات عني» مفعّلًا. وهو متوقف ما لم تشغّله. هي ملاحظات قصيرة، مثل اسمك أو تفضيل لديك، تجعل المحادثات اللاحقة أنفع. إيقاف الذاكرة يمحوها كلها.</li>
+                <li><strong>اختياراتك</strong> في الإعدادين أعلاه، وإصدار هذه السياسة الذي اخترتها بموجبه.</li>
+                <li><strong>عدّادات الاستخدام</strong>: عدد طلباتك في الساعة الحالية، لتعمل حدود الاستخدام.</li>
+                <li><strong>مفاتيح API</strong> التي تضيفها للنماذج المميزة، مشفّرة. لا نعرض المفتاح مرة أخرى، باستثناء آخر أربعة أحرف منه.</li>
+                <li><strong>معرّف حسابك</strong> لدى مزوّد تسجيل الدخول Clerk، الذي يتولى تسجيل دخولك وبريدك الإلكتروني وكلمة مرورك. لا نرى كلمة مرورك.</li>
+            </ul>
+
+            <h2>أين تُحفظ</h2>
+            <p>في قاعدة بيانات Cloudflare D1 تديرها Cloudflare نيابةً عنا. ويعمل التطبيق نفسه على Cloudflare Workers.</p>
+
+            <h2>من يمكنه رؤيتها</h2>
+            <p>أنت وحدك، من خلال التطبيق. يُتحقق من كل طلب مقابل حسابك، فلا يستطيع أي مستخدم آخر قراءة محادثاتك أو معلوماتك أو مفاتيحك. وفيما عدا ذلك، يدير القائمون على EleenAI البنية التي تُخزَّن عليها، وتستضيفها Cloudflare. لا نبيع بياناتك ولا نستخدمها للإعلانات.</p>
+
+            <h2>إلى من تُرسل رسائلك</h2>
+            <p>للرد عليك، تُرسل رسائلك إلى النموذج الذي اخترته. تعمل النماذج القياسية على Cloudflare Workers AI. أما النموذج المميز الذي تشغّله بمفتاحك فتذهب رسائله إلى مزوّده (OpenAI أو Anthropic أو Google أو DeepSeek) وفق شروطه.</p>
+
+            <h2>الصوت</h2>
+            <ul>
+                <li><strong>التسجيلات الصوتية</strong> تُرسل إلى نموذج تحويل الكلام إلى نص، ثم تُهمل. لا نحفظ الصوت.</li>
+                <li><strong>الردود الصوتية</strong>: يُرسل نص الرد إلى نموذج صوتي ليقرأه. لا نحفظ الصوت الناتج.</li>
+            </ul>
+
+            <h2>كيف تحذفها</h2>
+            <p>سجّل الدخول، وافتح قائمة النماذج بجانب مربع الرسالة، واختر <strong>الذاكرة والخصوصية</strong>. هناك يمكنك نسيان معلومة واحدة، أو نسيان كل شيء، أو إيقاف أي من الإعدادين، أو حذف كل محادثاتك المحفوظة. الحذف نهائي. ولإزالة مفتاح مزوّد، استخدم <strong>إدارة مفاتيح API</strong> في القائمة نفسها.</p>
+
+            <h2>التغييرات</h2>
+            <p>إذا تغيّرت هذه السياسة بما يمس اختياراتك، فسنسألك مجددًا عند تسجيل دخولك التالي.</p>
+        </section>
+
+        <footer>
+            <p>EleenAI &copy; 2026 &middot; Powered by CSECNIX Technologies &middot; <a href="/">Back to the chat</a></p>
+        </footer>
+    </main>
+</body>
+</html>

@@ -78,6 +78,30 @@ export function isSignedIn(): boolean {
 	return Boolean(clerk?.session);
 }
 
+type AuthListener = (state: AuthState) => void;
+const listeners = new Set<AuthListener>();
+
+function emit(state: AuthState): void {
+	for (const listener of listeners) {
+		try {
+			listener(state);
+		} catch (error) {
+			console.error("Auth listener failed:", error);
+		}
+	}
+}
+
+/**
+ * Follow the auth state from anywhere, without threading a callback through
+ * main.ts: called once settled (or at once if it already is), then on every
+ * sign-in and sign-out. Returns the unsubscribe.
+ */
+export function subscribeAuth(listener: AuthListener): () => void {
+	listeners.add(listener);
+	if (settled) listener(authState());
+	return () => listeners.delete(listener);
+}
+
 async function waitForSdk(): Promise<ClerkGlobal | null> {
 	const started = Date.now();
 	while (!window.Clerk) {
@@ -112,6 +136,7 @@ export async function initAuth(onChange: (state: AuthState, previous: AuthState)
 			const next = stateOf(user);
 			onChange(next, previous);
 			previous = next;
+			emit(next);
 		});
 		return previous;
 	} catch (error) {
@@ -121,6 +146,7 @@ export async function initAuth(onChange: (state: AuthState, previous: AuthState)
 	} finally {
 		settled = true;
 		markReady();
+		emit(authState());
 	}
 }
 
