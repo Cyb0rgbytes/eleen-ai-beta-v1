@@ -1,0 +1,70 @@
+/*
+ * The theme and language toggles (M4.5, web/src/prefs/controls.ts). They
+ * open the auth plate in the page corner, ahead of the sign-in pair, and
+ * are quiet ghost buttons so they never compete with the primary CTA.
+ * Colours from tokens.css only; the icon pop lives in motion.css.
+ */
+
+.prefs {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	padding-inline-end: var(--sp-1);
+	border-inline-end: 1px solid var(--line);
+}
+
+/* Nothing visible after the toggles (auth unavailable): no divider. */
+.prefs:not(:has(~ :not([hidden]))) {
+	padding-inline-end: 0;
+	border-inline-end: 0;
+}
+
+.pref-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.35rem;
+	min-block-size: 34px;
+	min-inline-size: 34px;
+	padding-inline: 0.5rem;
+	font-size: 0.85rem;
+	font-weight: 500;
+	line-height: 1;
+	white-space: nowrap;
+	color: var(--text-dim);
+	background: none;
+	border: 1px solid transparent;
+	border-radius: var(--r-pill);
+}
+
+.pref-button:hover {
+	color: var(--text);
+	background: var(--field-hover);
+	border-color: var(--line-strong);
+}
+
+.pref-button .icon {
+	inline-size: 18px;
+	block-size: 18px;
+}
+
+/* DESIGN.md 9: 44px targets on touch screens. */
+@media (pointer: coarse) {
+	.pref-button {
+		min-block-size: 44px;
+		min-inline-size: 44px;
+	}
+}
+
+/* Phones: the plate also holds the sign-in pair, so the language button
+   shows only its glyph. The name stays in the accessibility tree. */
+@media (max-width: 480px) {
+	.lang-toggle-text {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+}

@@ -23,6 +23,7 @@ import { initVoiceOutToggle } from "./chat/speak";
 import { initVoice } from "./chat/voice";
 import { t } from "./i18n";
 import { createKeysDialog, type KeysDialog } from "./keys/dialog";
+import { initPrefs } from "./prefs/controls";
 import { initScene } from "./scene/spline";
 import { revealIn } from "./ui/motion";
 import { showToast } from "./ui/toast";
@@ -68,6 +69,7 @@ function onAuthChange(state: AuthState, previous: AuthState): void {
 }
 
 async function boot(): Promise<void> {
+	initPrefs({ hasConversation: () => (window.chat?.history().length ?? 0) > 1 });
 	initScene();
 
 	const messages = document.getElementById("chat-messages");

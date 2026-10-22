@@ -4,4 +4,5 @@
 @import "./base.css";
 @import "./layers.css";
 @import "./components.css";
+@import "./theme.css";
 @import "./motion.css";

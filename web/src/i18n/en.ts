@@ -132,6 +132,20 @@ export const en = {
 	reasoningLive: "Thinking",
 	reasoningDone: "Thought for {seconds}s",
 	historyGreeting: "Welcome to the ELEENAI Gateway! I'm your conduit to the realm of artificial intelligence.\nHow may I assist you on this journey?",
+	// M4.5 theming: the theme and language toggles, and static page text.
+	prefsGroup: "Display preferences",
+	themeSystem: "Theme: match system",
+	themeLight: "Theme: light",
+	themeDark: "Theme: dark",
+	// The toggle shows the language it switches to, in that language.
+	langToggle: "العربية",
+	langToggleLabel: "Switch to Arabic",
+	langSwitchConfirm: "Switching language reloads the page and clears this conversation. Continue?",
+	sceneLoading: "Loading 3D scene",
+	logoAlt: "EleenAI, your gateway to the realm of AI",
+	footer: "EleenAI © 2026 · Powered by CSECNIX Technologies",
+	footerPrivacy: "Privacy",
+	// End M4.5 theming
 } as const;
 
 export type MessageKey = keyof typeof en;
