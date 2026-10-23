@@ -2,8 +2,9 @@
  * Requests through the real Worker, inside workerd, with its bindings.
  * Nothing here reaches a model: each case is decided before inference.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { env, exports } from "cloudflare:workers";
+import { authorizedParties } from "../../src/lib/auth";
 import { Bucket, RULES, rateLimitKey } from "../../src/lib/ratelimit";
 import { cspMode, withSecurityHeaders } from "../../src/lib/security-headers";
 
@@ -432,5 +433,71 @@ describe("chat validation", () => {
 			});
 			expect(response.status, path).toBe(401);
 		}
+	});
+});
+
+describe("hardening (final audit)", () => {
+	const report = (blocked: string) =>
+		JSON.stringify({ "csp-report": { "violated-directive": "script-src", "blocked-uri": blocked, "document-uri": "https://eleenai.xyz/" } });
+
+	it("logs a CSP report with each field capped, and only for report content types", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		try {
+			const ok = await fetchWorker("/api/csp-report", {
+				method: "POST",
+				headers: { "content-type": "application/csp-report", "cf-connecting-ip": "203.0.113.20" },
+				body: report(`https://x.example/${"a".repeat(5000)}`),
+			});
+			expect(ok.status).toBe(204);
+			const logged = warn.mock.calls.find((c) => c[0] === "CSP violation")?.[1] as Record<string, string>;
+			expect(logged.directive).toBe("script-src");
+			expect(logged.blocked.length).toBeLessThanOrEqual(256);
+
+			warn.mockClear();
+			const plain = await fetchWorker("/api/csp-report", {
+				method: "POST",
+				headers: { "content-type": "text/plain", "cf-connecting-ip": "203.0.113.20" },
+				body: report("https://x.example/"),
+			});
+			expect(plain.status).toBe(204);
+			expect(warn.mock.calls.some((c) => c[0] === "CSP violation")).toBe(false);
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
+	it("ignores an oversized CSP report without reading it into the log", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		try {
+			const big = await fetchWorker("/api/csp-report", {
+				method: "POST",
+				headers: { "content-type": "application/csp-report", "cf-connecting-ip": "203.0.113.21" },
+				body: report(`https://x.example/${"a".repeat(64 * 1024)}`),
+			});
+			expect(big.status).toBe(204);
+			expect(warn.mock.calls.some((c) => c[0] === "CSP violation")).toBe(false);
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
+	it("gives the asset host no credentialed CORS", async () => {
+		const preflight = await fetchWorker("/api/v1/conversations", {
+			method: "OPTIONS",
+			headers: { origin: "https://assets.eleenai.xyz", "access-control-request-method": "GET" },
+		});
+		expect(preflight.status).toBe(403);
+		const site = await fetchWorker("/api/v1/conversations", {
+			method: "OPTIONS",
+			headers: { origin: "https://eleenai.xyz", "access-control-request-method": "GET" },
+		});
+		expect(site.headers.get("access-control-allow-origin")).toBe("https://eleenai.xyz");
+	});
+
+	it("accepts localhost tokens only when the Worker itself runs on localhost", () => {
+		expect(authorizedParties(new URL("https://eleenai.xyz/api/chat"))).toEqual(["https://eleenai.xyz"]);
+		expect(authorizedParties(new URL("https://eleen-ai-beta-v1.example.workers.dev/api/chat"))).toEqual(["https://eleenai.xyz"]);
+		expect(authorizedParties(new URL("http://localhost:8787/api/chat"))).toContain("http://localhost:8787");
+		expect(authorizedParties(new URL("http://127.0.0.1:8787/api/chat"))).toContain("http://localhost:8787");
 	});
 });

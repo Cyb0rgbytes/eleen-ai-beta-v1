@@ -31,7 +31,7 @@ import {
 	MAX_QUERY_CHARS,
 } from "./lib/validate";
 import { Bucket, checkRateLimit, rateLimitHeaders, tooManyRequests } from "./lib/ratelimit";
-import { AUTHORIZED_PARTIES, bearerOnly, testAuthenticate } from "./lib/auth";
+import { authorizedParties, bearerOnly, testAuthenticate } from "./lib/auth";
 import {
 	handleConsent,
 	handleConversation,
@@ -133,6 +133,27 @@ function geminiHeaders(env: Env): Record<string, string> {
 		"Content-Type": "application/json",
 		"x-goog-api-key": env.GEMINI_API_KEY,
 	};
+}
+
+// ─── Log hygiene (final audit #14) ──────────────────────────────────────────
+// Logs keep what an operator needs to act, and no more: no prompts, file
+// names or provider bodies, and the user only as a stable one-way tag.
+
+/** A short one-way tag for a user id, so related log lines still group. */
+async function logUser(userId: string): Promise<string> {
+	if (userId === "guest") return "guest";
+	const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`log:${userId}`));
+	return [...new Uint8Array(digest).slice(0, 6)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** A provider's error body, cut to what identifies the failure. */
+function upstreamText(text: string): string {
+	return text.replace(/\s+/g, " ").slice(0, 200);
+}
+
+/** An error's message, never the object (which can carry request data). */
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message.slice(0, 300) : "unknown";
 }
 
 function base64ToBytes(base64: string): Uint8Array {
@@ -352,7 +373,7 @@ async function route(
 
 		// ── CSP violation reports ────────────────────────────────────────
 		if (url.pathname === "/api/csp-report") {
-			return handleCspReport(request);
+			return handleCspReport(request, env);
 		}
 
 		// ── Route table ──────────────────────────────────────────────────
@@ -417,7 +438,7 @@ async function route(
 						publishableKey: env.CLERK_PUBLISHABLE_KEY,
 						// Rejects tokens minted for a different origin, which is what
 						// stops a token issued to another site being replayed here.
-						authorizedParties: AUTHORIZED_PARTIES,
+						authorizedParties: authorizedParties(url),
 					});
 				} catch (error) {
 					// A token Clerk cannot parse, or Clerk unreachable: either way the
@@ -718,24 +739,70 @@ async function handleKeys(request: Request, env: Env, userId: string): Promise<R
  * The policy is enforced, so each report is something a visitor's browser
  * refused to load: read them after any change to what the page loads.
  */
-async function handleCspReport(request: Request): Promise<Response> {
+/** A real report is well under 2 KB; anything near this is not one. */
+const MAX_CSP_REPORT_BYTES = 16 * 1024;
+const MAX_CSP_FIELD_CHARS = 256;
+const CSP_REPORT_TYPES = /^application\/(csp-report|reports\+json|json)\b/i;
+
+/** The body, or null past the cap: counted on the stream, so chunked bodies cannot slip by. */
+async function readSmallBody(request: Request, max: number): Promise<string | null> {
+	if (Number(request.headers.get("content-length")) > max) return null;
+	if (!request.body) return "";
+	const reader = request.body.getReader();
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		total += value.byteLength;
+		if (total > max) {
+			await reader.cancel().catch(() => {});
+			return null;
+		}
+		chunks.push(value);
+	}
+	return new TextDecoder().decode(await new Blob(chunks).arrayBuffer());
+}
+
+const cspField = (value: unknown) =>
+	typeof value === "string" ? value.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, MAX_CSP_FIELD_CHARS) : undefined;
+
+/**
+ * Anyone can post here (browsers send reports without credentials), so it
+ * is kept from becoming a log flood (final audit #9): report content types
+ * only, at most 16 KB, each logged field cut to 256 characters, and the
+ * shared per-IP burst limit. Every refusal is still a 204: a browser cannot
+ * act on anything else, and a flooder learns nothing.
+ */
+async function handleCspReport(request: Request, env: Env): Promise<Response> {
 	if (request.method !== "POST") {
 		return new Response(null, { status: 405, headers: { allow: "POST" } });
 	}
+	const done = () => new Response(null, { status: 204 });
+	if (!CSP_REPORT_TYPES.test(request.headers.get("content-type") ?? "")) return done();
+	if (env.BURST) {
+		const ip = request.headers.get("cf-connecting-ip") || "unknown";
+		const { success } = await env.BURST.limit({ key: `csp:${ip}` });
+		if (!success) return done();
+	}
 
+	const raw = await readSmallBody(request, MAX_CSP_REPORT_BYTES);
+	if (raw === null) return done();
 	try {
-		const report = (await request.json()) as Record<string, unknown>;
+		const parsed = JSON.parse(raw) as unknown;
+		// The Reporting API sends an array of { type, body }; report-uri one object.
+		const first = Array.isArray(parsed) ? (parsed[0] as Record<string, unknown> | undefined)?.body : parsed;
+		const report = (first ?? {}) as Record<string, unknown>;
 		const body = (report["csp-report"] ?? report) as Record<string, unknown>;
 		console.warn("CSP violation", {
-			directive: body["violated-directive"] ?? body["effectiveDirective"],
-			blocked: body["blocked-uri"] ?? body["blockedURL"],
-			document: body["document-uri"] ?? body["documentURL"],
+			directive: cspField(body["violated-directive"] ?? body["effectiveDirective"]),
+			blocked: cspField(body["blocked-uri"] ?? body["blockedURL"]),
+			document: cspField(body["document-uri"] ?? body["documentURL"]),
 		});
 	} catch {
 		// A malformed report is not worth a 400 — the browser cannot act on it.
 	}
-
-	return new Response(null, { status: 204 });
+	return done();
 }
 
 // ─── Chat Handler ────────────────────────────────────────────────────────────
@@ -844,7 +911,7 @@ export async function handleChatRequest(
 
 		if (assessment.refuse) {
 			console.warn("Refused likely injection", {
-				userId,
+				user: await logUser(userId),
 				score: assessment.score,
 				matched: assessment.matched,
 			});
@@ -884,14 +951,14 @@ export async function handleChatRequest(
 				: null;
 		const fileContext = turnFiles ? buildFileContext(turnFiles.loaded, nonce) : null;
 		if (fileContext?.withheld.length) {
-			console.warn("Withheld file contents that looked like injection", { userId, matched: fileContext.matched });
+			console.warn("Withheld file contents that looked like injection", { user: await logUser(userId), matched: fileContext.matched });
 		}
 
 		const harden = assessment.harden || forgedPriming || (fileContext?.harden ?? false);
 
 		if (harden) {
 			console.warn("Hardened response for suspicious input", {
-				userId,
+				user: await logUser(userId),
 				score: assessment.score,
 				forgedPriming,
 				files: fileContext?.harden ?? false,
@@ -1031,7 +1098,7 @@ export async function handleChatRequest(
 				{ status: 403, headers: { "content-type": "application/json" } },
 			);
 		}
-		console.error("Error processing chat request:", error);
+		console.error("Error processing chat request:", errorMessage(error));
 		return new Response(
 			JSON.stringify({ error: "Failed to process request" }),
 			{ status: 500, headers: { "content-type": "application/json" } },
@@ -1080,7 +1147,7 @@ async function handleEnhancePrompt(
 			{ headers: { "content-type": "application/json" } },
 		);
 	} catch (error) {
-		console.error("Prompt enhancement error:", error);
+		console.error("Prompt enhancement error:", errorMessage(error));
 		return new Response(
 			JSON.stringify({ error: "Failed to enhance prompt" }),
 			{ status: 500, headers: { "content-type": "application/json" } },
@@ -1131,10 +1198,10 @@ export async function handleImageGenerate(
 					}
 				} else {
 					const errBody = await geminiResponse.text().catch(() => "");
-					console.warn("Gemini image generation failed, falling back to Flux:", geminiResponse.status, errBody);
+					console.warn("Gemini image generation failed, falling back to Flux:", geminiResponse.status, upstreamText(errBody));
 				}
 			} catch (geminiError) {
-				console.error("Gemini generation error:", geminiError);
+				console.error("Gemini generation error:", errorMessage(geminiError));
 			}
 		}
 
@@ -1162,7 +1229,7 @@ export async function handleImageGenerate(
 		});
 	} catch (error) {
 		if (error instanceof ValidationError) return validationResponse(error);
-		console.error("Error generating image:", error);
+		console.error("Error generating image:", errorMessage(error));
 		return new Response(
 			JSON.stringify({ error: "Failed to generate image" }),
 			{ status: 500, headers: { "content-type": "application/json" } },
@@ -1205,7 +1272,7 @@ export async function handleVisionAnalysis(
 
 		if (!response.ok) {
 			const errText = await response.text().catch(() => "");
-			throw new Error(`Gemini vision API returned ${response.status}: ${errText}`);
+			throw new Error(`Gemini vision API returned ${response.status}: ${upstreamText(errText)}`);
 		}
 
 		const data = (await response.json()) as any;
@@ -1217,7 +1284,7 @@ export async function handleVisionAnalysis(
 		);
 	} catch (error) {
 		if (error instanceof ValidationError) return validationResponse(error);
-		console.error("Vision analysis error:", error);
+		console.error("Vision analysis error:", errorMessage(error));
 		return new Response(
 			JSON.stringify({ error: "Vision analysis failed" }),
 			{ status: 500, headers: { "content-type": "application/json" } },
@@ -1257,7 +1324,7 @@ export async function handleWebSearch(
 
 		if (!response.ok) {
 			const errText = await response.text().catch(() => "");
-			throw new Error(`Gemini search API returned ${response.status}: ${errText}`);
+			throw new Error(`Gemini search API returned ${response.status}: ${upstreamText(errText)}`);
 		}
 
 		const data = (await response.json()) as any;
@@ -1283,7 +1350,7 @@ export async function handleWebSearch(
 		);
 	} catch (error) {
 		if (error instanceof ValidationError) return validationResponse(error);
-		console.error("Web search error:", error);
+		console.error("Web search error:", errorMessage(error));
 		return new Response(
 			JSON.stringify({ error: "Web search failed" }),
 			{ status: 500, headers: { "content-type": "application/json" } },
