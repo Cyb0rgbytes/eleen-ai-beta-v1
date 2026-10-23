@@ -202,8 +202,10 @@ test("the privacy page is linked from the footer and needs no script", async ({ 
 		await expect(page.locator("section#en")).toContainText(words);
 	}
 	// None of ours. On production the zone injects its two scripts (JavaScript
-	// Detections and the Web Analytics beacon), each with the document's nonce.
-	expect(await page.locator("script:not([nonce])").count()).toBe(0);
+	// Detections and the Web Analytics beacon), each with the document's nonce,
+	// and the Detections loader sometimes adds its own same-origin
+	// /cdn-cgi/challenge-platform/ script without one. None of those are ours.
+	expect(await page.locator('script:not([nonce]):not([src^="/cdn-cgi/"])').count()).toBe(0);
 	// The site stylesheet applied: the heading takes the token colour, not
 	// the browser's default black. After the click the URL commits before
 	// the stylesheet lands, so wait for the load (it flaked on production).
