@@ -20,6 +20,7 @@ import { isSignedIn, openSignIn } from "../auth/clerk";
 import { t } from "../i18n";
 import { setIcon } from "../ui/icons";
 import { showToast } from "../ui/toast";
+import { getHistoryState, setHistoryState } from "../history/state";
 import {
 	createAssistantMessage,
 	createImageMessage,
@@ -51,6 +52,15 @@ export interface ChatApi {
 	sendMessage(text?: string, options?: SendOptions): Promise<void>;
 	stop(): void;
 	clearChat(options?: { confirm?: boolean }): boolean;
+	/** Start a fresh, unsaved chat without asking. The sidebar's New chat. */
+	newChat(): void;
+	/**
+	 * Show a saved conversation, on the branch ending at leafId (or the one
+	 * it was last left on). Rejects if it cannot be loaded.
+	 */
+	openConversation(conversationId: string, leafId?: string): Promise<void>;
+	/** The open saved conversation, or null for a new or unsaved chat. */
+	currentConversationId(): string | null;
 	regenerate(): Promise<void>;
 	history(): ChatMessage[];
 	isProcessing(): boolean;
@@ -308,12 +318,22 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 		speaker.stop();
 	}
 
-	function clearChat({ confirm: ask = true } = {}): boolean {
-		if (ask && !window.confirm(t("clearConfirm"))) return false;
+	function newChat() {
 		stop();
 		history = greeting();
 		messages.replaceChildren(options.emptyState());
+		setHistoryState({ conversationId: null, messages: [], activeLeafId: null });
+	}
+
+	function clearChat({ confirm: ask = true } = {}): boolean {
+		if (ask && !window.confirm(t("clearConfirm"))) return false;
+		newChat();
 		return true;
+	}
+
+	// M4.3 replaces this with loading the tree and rendering its active branch.
+	async function openConversation(_conversationId: string, _leafId?: string): Promise<void> {
+		throw new Error("Opening a saved conversation is not available yet.");
 	}
 
 	/** Fold a rating into the newest assistant turn, as the classic page did. */
@@ -394,6 +414,9 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 		sendMessage,
 		stop,
 		clearChat,
+		newChat,
+		openConversation,
+		currentConversationId: () => getHistoryState().conversationId,
 		regenerate,
 		history: () => history,
 		isProcessing: () => busy,

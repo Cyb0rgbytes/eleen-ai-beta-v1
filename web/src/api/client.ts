@@ -60,7 +60,7 @@ export function setTokenProvider(provider: TokenProvider): void {
 export const DEFAULT_TIMEOUT_MS = 30_000;
 
 export interface RequestOptions {
-	method?: "GET" | "POST" | "PUT" | "DELETE";
+	method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 	/** JSON-serialised. Never included in an error. */
 	body?: unknown;
 	/** Raw body, sent as-is with the given content type (voice audio). */

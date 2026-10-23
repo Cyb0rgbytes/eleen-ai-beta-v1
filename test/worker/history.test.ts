@@ -77,6 +77,7 @@ describe("signed-in only", () => {
 		["GET", `/api/v1/conversations/${NIL_ID}`],
 		["PATCH", `/api/v1/conversations/${NIL_ID}`],
 		["DELETE", `/api/v1/conversations/${NIL_ID}`],
+		["POST", `/api/v1/conversations/${NIL_ID}/restore`],
 		["GET", "/api/v1/folders"],
 		["POST", "/api/v1/folders"],
 		["PATCH", `/api/v1/folders/${NIL_ID}`],
@@ -278,6 +279,39 @@ describe("conversations", () => {
 		expect(await rows("SELECT id FROM conversations WHERE id = ?", first.id)).toHaveLength(1);
 		expect((await api("DELETE", `/api/v1/conversations/${first.id}?purge=1`, ALICE)).status).toBe(204);
 		expect(await rows("SELECT id FROM conversations WHERE id = ?", first.id)).toHaveLength(0);
+	});
+
+	it("restores a soft-deleted conversation, and only that", async () => {
+		const c = await newConversation(ALICE, "Keep me");
+		const restore = `/api/v1/conversations/${c.id}/restore`;
+		// Not deleted yet: nothing to undo.
+		expect((await api("POST", restore, ALICE)).status).toBe(404);
+
+		expect((await api("DELETE", `/api/v1/conversations/${c.id}`, ALICE)).status).toBe(204);
+		const restored = await api<{ conversation: ConversationSummary }>("POST", restore, ALICE);
+		expect(restored.status).toBe(200);
+		expect(restored.body.conversation).toEqual(c);
+		expect((await api("GET", `/api/v1/conversations/${c.id}`, ALICE)).status).toBe(200);
+		expect((await api<ConversationList>("GET", "/api/v1/conversations", ALICE)).body.conversations.map((x) => x.id)).toEqual([c.id]);
+
+		// A purge is for good.
+		expect((await api("DELETE", `/api/v1/conversations/${c.id}?purge=1`, ALICE)).status).toBe(204);
+		expect((await api("POST", restore, ALICE)).status).toBe(404);
+		expect((await api("POST", "/api/v1/conversations/not-a-uuid/restore", ALICE)).status).toBe(404);
+	});
+
+	it("reads a reply stuck in streaming as stopped once it is stale", async () => {
+		const turn = await savedTurn(ALICE, "hello");
+		const old = Date.now() - 3 * 60_000;
+		await env.DB.prepare("UPDATE messages SET status = 'streaming', created_at = ? WHERE id = ?").bind(old, turn.assistantMessageId).run();
+		const detail = await api<ConversationDetail>("GET", `/api/v1/conversations/${turn.conversationId}`, ALICE);
+		expect(detail.body.messages.find((m) => m.id === turn.assistantMessageId)?.status).toBe("stopped");
+		// Only the read changes; the row is left for whatever finishes it.
+		expect(await rows("SELECT status FROM messages WHERE id = ?", turn.assistantMessageId)).toEqual([{ status: "streaming" }]);
+
+		await env.DB.prepare("UPDATE messages SET created_at = ? WHERE id = ?").bind(Date.now(), turn.assistantMessageId).run();
+		const fresh = await api<ConversationDetail>("GET", `/api/v1/conversations/${turn.conversationId}`, ALICE);
+		expect(fresh.body.messages.find((m) => m.id === turn.assistantMessageId)?.status).toBe("streaming");
 	});
 
 	it("validates titles and patches", async () => {
@@ -643,6 +677,11 @@ describe("one user cannot reach another's rows", () => {
 		expect((await api("PATCH", path, BOB, {})).status).toBe(404);
 		expect((await api("DELETE", path, BOB)).status).toBe(404);
 		expect((await api("DELETE", `${path}?purge=1`, BOB)).status).toBe(404);
+		// Nor undo her delete: restore is a 404 while it is deleted, and it stays deleted.
+		expect((await api("DELETE", path, ALICE)).status).toBe(204);
+		expect((await api("POST", `${path}/restore`, BOB)).status).toBe(404);
+		expect((await api("GET", path, ALICE)).status).toBe(404);
+		expect((await api("POST", `${path}/restore`, ALICE)).status).toBe(200);
 		// The answer for someone else's id is the answer for no id at all.
 		const unknown = await api("GET", `/api/v1/conversations/${NIL_ID}`, BOB);
 		expect(await api("GET", path, BOB)).toEqual(unknown);

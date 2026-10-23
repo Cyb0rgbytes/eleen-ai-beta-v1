@@ -20,6 +20,7 @@ import {
 	getConversation,
 	getConversationDetail,
 	listConversations,
+	restoreConversation,
 	updateConversation,
 } from "../db/conversations";
 import { createFolder, deleteFolder, folderExists, listFolders, updateFolder } from "../db/folders";
@@ -213,6 +214,13 @@ export const handleConversation = historyRoute(async (request, env, _ctx, userId
 	if (patch.activeLeafId && !(await getMessageRef(env.DB, userId, id, patch.activeLeafId))) return notFound();
 
 	const conversation = await updateConversation(env.DB, userId, id, patch);
+	return conversation ? reply(200, { conversation }) : notFound();
+});
+
+/** Undo a soft delete, for the sidebar's Undo toast. */
+export const handleConversationRestore = historyRoute(async (_request, env, _ctx, userId, [rawId]) => {
+	if (!isUuid(rawId)) return notFound();
+	const conversation = await restoreConversation(env.DB, userId, rawId.toLowerCase());
 	return conversation ? reply(200, { conversation }) : notFound();
 });
 

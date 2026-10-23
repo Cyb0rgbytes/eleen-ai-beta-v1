@@ -34,6 +34,7 @@ import { AUTHORIZED_PARTIES, testAuthenticate } from "./lib/auth";
 import {
 	handleConsent,
 	handleConversation,
+	handleConversationRestore,
 	handleConversations,
 	handleFolder,
 	handleFolders,
@@ -570,6 +571,13 @@ const PARAM_ROUTES: readonly (RouteDefinition & { pattern: RegExp })[] = [
 		methods: ["GET", "PATCH", "DELETE"],
 		bucket: "history",
 		handler: handleConversation,
+	},
+	{
+		pattern: /^\/api\/v1\/conversations\/([^/]+)\/restore$/,
+		guest: false,
+		methods: ["POST"],
+		bucket: "history",
+		handler: handleConversationRestore,
 	},
 	{
 		pattern: /^\/api\/v1\/folders\/([^/]+)$/,

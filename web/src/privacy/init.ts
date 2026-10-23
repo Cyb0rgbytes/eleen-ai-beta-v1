@@ -17,7 +17,8 @@ import type { ConsentResponse } from "../../../src/shared/history";
 import { subscribeAuth, type AuthState } from "../auth/clerk";
 import { t } from "../i18n";
 import { icon } from "../ui/icons";
-import { getConsent, needsConsent } from "./api";
+import { setHistoryState } from "../history/state";
+import { choicesOf, getConsent, needsConsent } from "./api";
 import type { ConsentDialog } from "./consent";
 import type { PrivacyPanel } from "./panel";
 
@@ -63,7 +64,10 @@ export function initPrivacy(options: PrivacyOptions = {}): Privacy {
 		} catch {
 			return;
 		}
-		if (mine !== session || !needsConsent(response)) return;
+		if (mine !== session) return;
+		// Unanswered means the defaults, which keep history on.
+		setHistoryState({ historyOn: choicesOf(response).history });
+		if (!needsConsent(response)) return;
 		const { createConsentDialog } = await import("./consent");
 		if (mine !== session) return;
 		consentDialog ??= createConsentDialog({
@@ -83,6 +87,8 @@ export function initPrivacy(options: PrivacyOptions = {}): Privacy {
 		if (next === signedIn) return;
 		signedIn = next;
 		session++;
+		// Consent is unknown again until this session's check answers.
+		setHistoryState({ signedIn: next, historyOn: null });
 		if (link) link.hidden = !next;
 		if (next) {
 			pending = checkConsent(session);
