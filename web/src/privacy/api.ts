@@ -8,6 +8,7 @@
  */
 import { POLICY_VERSION, type Consent, type ConsentResponse, type ConsentUpdate, type MemoryEntry } from "../../../src/shared/history";
 import { ApiError, request } from "../api/client";
+import { setHistoryState } from "../history/state";
 
 const TIMEOUT_MS = 10_000;
 
@@ -56,7 +57,10 @@ export async function getConsent(signal?: AbortSignal): Promise<ConsentResponse>
 export async function putConsent(update: ConsentUpdate): Promise<ConsentResponse> {
 	const body: ConsentUpdate = { history: update.history, memory: update.memory };
 	const response = await request("/api/v1/consent", { method: "PUT", body, auth: true, timeoutMs: TIMEOUT_MS });
-	return parseConsentResponse(await response.json());
+	const parsed = parseConsentResponse(await response.json());
+	// Whichever dialog saved it, the chat and the sidebar follow at once.
+	setHistoryState({ historyOn: choicesOf(parsed).history });
+	return parsed;
 }
 
 function parseEntry(value: unknown): MemoryEntry | null {

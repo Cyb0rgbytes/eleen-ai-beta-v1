@@ -17,6 +17,7 @@
  *   GET    /api/v1/conversations/:id        -> ConversationDetail
  *   PATCH  /api/v1/conversations/:id        ConversationUpdate -> { conversation: ConversationSummary }
  *   DELETE /api/v1/conversations/:id        -> 204 (soft; ?purge=1 removes it for good)
+ *   POST   /api/v1/conversations/:id/restore -> { conversation: ConversationSummary }, undoes a soft delete
  *
  *   GET    /api/v1/folders                  -> { folders: Folder[] }
  *   POST   /api/v1/folders                  { name } -> { folder: Folder }

@@ -56,7 +56,10 @@ export function parseFrame(eventName: string | null, data: string): StreamEvent 
 					...(typeof parsed.completionTokens === "number" ? { completionTokens: parsed.completionTokens } : {}),
 				},
 			};
-		case "meta":
+		case "meta": {
+			// Saved-chat ids are only taken as non-empty strings: they go back
+			// into later requests and URL paths.
+			const id = (value: unknown) => typeof value === "string" && value.length > 0 && value.length <= 64;
 			return {
 				type: "meta",
 				data: {
@@ -65,8 +68,12 @@ export function parseFrame(eventName: string | null, data: string): StreamEvent 
 					...(parsed.tier === "fast" || parsed.tier === "smart" || parsed.tier === "reasoning"
 						? { tier: parsed.tier }
 						: {}),
+					...(id(parsed.conversationId) ? { conversationId: parsed.conversationId as string } : {}),
+					...(id(parsed.userMessageId) ? { userMessageId: parsed.userMessageId as string } : {}),
+					...(id(parsed.assistantMessageId) ? { assistantMessageId: parsed.assistantMessageId as string } : {}),
 				},
 			};
+		}
 		case "done":
 			return { type: "done", data: {} };
 	}

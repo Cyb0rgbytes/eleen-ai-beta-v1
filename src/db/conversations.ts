@@ -133,16 +133,29 @@ export async function getConversation(db: D1Database, userId: string, id: string
 		.first<ConversationRow>();
 }
 
+/**
+ * A reply still marked streaming this long after it started will never
+ * finish: its waitUntil was lost. It reads as stopped, so the client shows
+ * what was saved instead of a spinner that never ends. The row is untouched.
+ */
+export const STALE_STREAMING_MS = 2 * 60_000;
+
 export async function getConversationDetail(
 	db: D1Database,
 	userId: string,
 	id: string,
+	now = Date.now(),
 ): Promise<ConversationDetail | null> {
 	const row = await getConversation(db, userId, id);
 	if (!row) return null;
+	const messages = await listMessages(db, userId, id);
 	return {
 		conversation: { ...toSummary(row), activeLeafId: row.active_leaf_id },
-		messages: await listMessages(db, userId, id),
+		messages: messages.map((message) =>
+			message.status === "streaming" && now - message.createdAt > STALE_STREAMING_MS
+				? { ...message, status: "stopped" as const }
+				: message,
+		),
 	};
 }
 
@@ -227,6 +240,18 @@ export async function deleteConversation(
 				.bind(now, id, userId)
 				.run();
 	return result.meta.changes > 0;
+}
+
+/** Undo a soft delete. Null if it is not the caller's, not deleted, or purged. */
+export async function restoreConversation(db: D1Database, userId: string, id: string): Promise<ConversationSummary | null> {
+	const row = await db
+		.prepare(
+			`UPDATE conversations SET deleted_at = NULL WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL
+			RETURNING ${COLUMNS}`,
+		)
+		.bind(id, userId)
+		.first<ConversationRow>();
+	return row ? toSummary(row) : null;
 }
 
 /** Every conversation the caller has, live or soft-deleted, for good. */

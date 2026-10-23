@@ -1051,6 +1051,24 @@ export const OPENAPI_DOCUMENT = {
 				responses: { "204": { description: "Deleted." }, ...NOT_FOUND, ...HISTORY_ERRORS },
 			},
 		},
+		"/api/v1/conversations/{id}/restore": {
+			post: {
+				tags: ["history"],
+				operationId: "restoreConversation",
+				summary: "Undo a soft delete",
+				description: "404 if the conversation is not deleted, was purged, or is not the caller's.",
+				security: HISTORY_SECURITY,
+				parameters: [ID_PARAM],
+				responses: {
+					"200": {
+						description: "Restored.",
+						content: { "application/json": { schema: wrapped("conversation", "ConversationSummary") } },
+					},
+					...NOT_FOUND,
+					...HISTORY_ERRORS,
+				},
+			},
+		},
 		"/api/v1/folders": {
 			get: {
 				tags: ["history"],

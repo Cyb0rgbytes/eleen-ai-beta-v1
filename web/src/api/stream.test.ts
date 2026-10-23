@@ -107,6 +107,17 @@ describe("robustness", () => {
 		});
 	});
 
+	it("keeps the saved-chat ids, and only as non-empty strings", () => {
+		expect(parseFrame("meta", '{"conversationId":"c1","userMessageId":"u1","assistantMessageId":"a1"}')).toEqual({
+			type: "meta",
+			data: { protocol: 2, conversationId: "c1", userMessageId: "u1", assistantMessageId: "a1" },
+		});
+		expect(parseFrame("meta", `{"conversationId":"","userMessageId":5,"assistantMessageId":"${"x".repeat(65)}"}`)).toEqual({
+			type: "meta",
+			data: { protocol: 2 },
+		});
+	});
+
 	it("stops reading when aborted", async () => {
 		const controller = new AbortController();
 		const enc = new TextEncoder();
