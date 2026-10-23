@@ -88,7 +88,9 @@ metadata</a> &mdash; EleenAI does not issue them itself.</p>
 <h3>POST /api/chat &middot; /api/chat/guest</h3>
 <p>Streaming conversational completion. <code>mode</code> is one of
 <code>balanced</code>, <code>creative</code> or <code>logical</code>.
-<code>attachments</code> may carry up to 5 base64-encoded files. Bodies are limited
+Files go by id: upload with <code>POST /api/v1/files</code> (signed in) and list up
+to 4 ids in <code>files</code>; inline base64 <code>attachments</code> are no longer
+accepted. Bodies are limited
 to 6&nbsp;MiB. Any <code>system</code> message supplied by the client is discarded
 server-side.</p>
 <pre><code>{

@@ -15,7 +15,7 @@
  * @license MIT
  */
 import { createClerkClient } from "@clerk/backend";
-import { Env, ChatMessage, Attachment } from "./types";
+import { Env, ChatMessage } from "./types";
 import { handleAgentRoutes } from "./agent/router";
 import { AgentHandlers } from "./agent/deps";
 import { bearerChallenge } from "./agent/wellknown";
@@ -31,7 +31,7 @@ import {
 	MAX_QUERY_CHARS,
 } from "./lib/validate";
 import { Bucket, checkRateLimit, rateLimitHeaders, tooManyRequests } from "./lib/ratelimit";
-import { AUTHORIZED_PARTIES, testAuthenticate } from "./lib/auth";
+import { AUTHORIZED_PARTIES, bearerOnly, testAuthenticate } from "./lib/auth";
 import {
 	handleConsent,
 	handleConversation,
@@ -112,14 +112,8 @@ const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
  * search and image output are refused with 429 until the Google project has
  * billing, so search fails and image generation falls through to Flux.
  */
-const GEMINI_TEXT_MODEL = "gemini-3.6-flash"; // vision, attachments, grounded search
+const GEMINI_TEXT_MODEL = "gemini-3.6-flash"; // vision, grounded search
 const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image"; // supports responseModalities: ["IMAGE"]
-
-/** Max number of attachments processed per chat request. */
-const MAX_ATTACHMENTS = 5;
-
-/** Max base64 length for a single attachment (~5MB decoded). */
-const MAX_ATTACHMENT_B64 = 7 * 1024 * 1024;
 
 // The former requestTooLarge/payloadTooLarge pair is gone. Both read
 // content-length, which a chunked request simply omits — so the check was
@@ -399,11 +393,13 @@ async function route(
 				if (!testUser) return unauthorized();
 				userId = testUser;
 			} else {
-				// No bearer token and no Clerk session cookie: there is nothing to
-				// verify, so answer without a round trip to Clerk.
+				// Bearer only (final audit #8). A session cookie is sent by the
+				// browser on its own, so accepting one would leave cross-site
+				// request forgery stopped by SameSite alone; the web client always
+				// sends the token in the header. No token: answer without asking
+				// Clerk.
 				const hasBearer = /^Bearer\s+\S/i.test(request.headers.get("authorization") ?? "");
-				const hasSession = /(?:^|;\s*)__session=/.test(request.headers.get("cookie") ?? "");
-				if (!hasBearer && !hasSession) return unauthorized();
+				if (!hasBearer) return unauthorized();
 
 				if (!env.CLERK_SECRET_KEY) {
 					console.error("CLERK_SECRET_KEY is not set; authenticated routes are unavailable.");
@@ -416,7 +412,7 @@ async function route(
 				let authState: Awaited<ReturnType<ReturnType<typeof createClerkClient>["authenticateRequest"]>>;
 				try {
 					const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY });
-					authState = await clerk.authenticateRequest(request, {
+					authState = await clerk.authenticateRequest(bearerOnly(request), {
 						secretKey: env.CLERK_SECRET_KEY,
 						publishableKey: env.CLERK_PUBLISHABLE_KEY,
 						// Rejects tokens minted for a different origin, which is what
@@ -759,7 +755,6 @@ export async function handleChatRequest(
 	try {
 		const body = validateChatBody(await request.json());
 		let messages = body.messages;
-		const attachments: Attachment[] = (body.attachments || []).slice(0, MAX_ATTACHMENTS);
 		const mode = resolveMode(body.mode);
 		encoder = createEncoder(body.protocol ?? 1);
 
@@ -919,35 +914,8 @@ export async function handleChatRequest(
 		// for the background memory update.
 		const recentTurns = messages.slice(-4).map((m) => ({ ...m }));
 
-		// 3. Process attachments — inject descriptions into the conversation.
-		//    File contents are third-party text and get the untrusted wrapper.
-		if (attachments.length > 0 && env.GEMINI_API_KEY) {
-			for (const attachment of attachments) {
-				if (!attachment?.data || attachment.data.length > MAX_ATTACHMENT_B64) {
-					console.warn("Skipping oversized or invalid attachment:", attachment?.name);
-					continue;
-				}
-				try {
-					const description = await analyzeAttachment(env, attachment);
-					if (description) {
-						const lastUserIdx = Math.max(messages.length - 1, 0);
-						// The file name is client-supplied text, so it travels
-						// inside the untrusted block with the contents rather
-						// than in the system-role line where it would read as
-						// an instruction. validate.ts has already stripped it
-						// of delimiter-like characters.
-						messages.splice(lastUserIdx, 0, {
-							role: "system",
-							content:
-								`The user attached a file (${attachment.mimeType}). Its name and an analysis of its contents follow:\n` +
-								wrapUntrusted(`File name: ${attachment.name}\n\n${description}`, nonce),
-						});
-					}
-				} catch (e) {
-					console.warn("Attachment analysis failed:", e);
-				}
-			}
-		}
+		// 3. (Inline base64 attachments were retired in the final audit; files
+		//    arrive only as uploads, below.)
 
 		// 3b. Uploaded files, just before the newest user turn.
 		if (fileContext?.messages.length) {
@@ -1117,48 +1085,6 @@ async function handleEnhancePrompt(
 			JSON.stringify({ error: "Failed to enhance prompt" }),
 			{ status: 500, headers: { "content-type": "application/json" } },
 		);
-	}
-}
-
-// ─── Attachment Analyzer ─────────────────────────────────────────────────────
-
-async function analyzeAttachment(env: Env, attachment: Attachment): Promise<string> {
-	if (!env.GEMINI_API_KEY) throw new Error("No Gemini API key");
-
-	const isImage = attachment.mimeType.startsWith("image/");
-	const geminiUrl = `${GEMINI_API_BASE}/models/${GEMINI_TEXT_MODEL}:generateContent`;
-
-	if (isImage) {
-		const response = await fetch(geminiUrl, {
-			method: "POST",
-			headers: geminiHeaders(env),
-			body: JSON.stringify({
-				contents: [{
-					parts: [
-						{ text: "Analyze this image in detail. Describe what you see, identify any text, objects, people, and provide relevant context." },
-						{ inlineData: { mimeType: attachment.mimeType, data: attachment.data } },
-					],
-				}],
-				generationConfig: { maxOutputTokens: 512 },
-			}),
-		});
-
-		if (!response.ok) throw new Error(`Gemini vision failed: ${response.status}`);
-
-		const data = (await response.json()) as any;
-		return data.candidates?.[0]?.content?.parts?.[0]?.text || "Could not analyze image.";
-	}
-
-	// For text-based documents, decode and summarize.
-	// Decode only the first ~6KB of base64 (~4.5KB of text) to bound work.
-	try {
-		const slice = attachment.data.slice(0, 6000);
-		const bytes = base64ToBytes(slice);
-		const textContent = new TextDecoder().decode(bytes);
-		const truncated = textContent.substring(0, 4000); // Cap at 4KB for context
-		return `Document content (first 4000 chars):\n${truncated}`;
-	} catch {
-		return "Could not read document content.";
 	}
 }
 

@@ -105,11 +105,20 @@ describe("content security policy", () => {
 				"https://*.client.protect.clerk.com",
 				"https://cdn.protect.clerk.com",
 				"https://challenges.cloudflare.com",
-				"https://clerk.eleenai.xyz",
+				"https://clerk.eleenai.xyz/npm/@clerk/clerk-js@5.128.0/",
 				"https://static.cloudflareinsights.com",
-				"https://unpkg.com",
+				"https://unpkg.com/@splinetool/viewer@1.12.88/build/",
 			].sort(),
 		);
+		// No bare CDN host: any package on it would be allowed (final audit #2).
+		const connect = directive(csp, "connect-src");
+		for (const host of ["https://unpkg.com", "https://unpkg.com/"]) {
+			expect(scripts).not.toContain(host);
+			expect(connect).not.toContain(host);
+		}
+		expect(scripts).not.toContain("https://clerk.eleenai.xyz");
+		// Clerk's API lives under /v1 on the same host, so connect-src keeps the host.
+		expect(connect).toContain("https://clerk.eleenai.xyz");
 		expect(directive(csp, "font-src")).toEqual(["'self'"]);
 		expect(directive(csp, "object-src")).toEqual(["'none'"]);
 		expect(directive(csp, "frame-ancestors")).toEqual(["'none'"]);
@@ -398,15 +407,30 @@ describe("chat model selection", () => {
 });
 
 describe("chat validation", () => {
-	it("rejects an attachment type the handler cannot read, before any inference", async () => {
-		const response = await fetchWorker("/api/chat/guest", {
-			method: "POST",
-			headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.8" },
-			body: JSON.stringify({
-				messages: [{ role: "user", content: "hi" }],
-				attachments: [{ data: "PHNjcmlwdD4=", mimeType: "text/html", name: "x.html" }],
-			}),
-		});
-		expect(response.status).toBe(422);
+	it("refuses inline attachments before any inference, for guests and users alike", async () => {
+		for (const attachments of [
+			[{ data: "PHNjcmlwdD4=", mimeType: "text/html", name: "x.html" }],
+			[1, 2, 3, 4, 5].map(() => ({ data: "iVBORw0KGgo=", mimeType: "image/png", name: "p.png" })),
+		]) {
+			const response = await fetchWorker("/api/chat/guest", {
+				method: "POST",
+				headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.8" },
+				body: JSON.stringify({ messages: [{ role: "user", content: "hi" }], attachments }),
+			});
+			expect(response.status).toBe(422);
+			expect(await response.text()).toContain("/api/v1/files");
+		}
+	});
+
+	it("does not sign a request in from a session cookie alone", async () => {
+		for (const path of ["/api/chat", "/api/v1/conversations", "/api/v1/files"]) {
+			const response = await fetchWorker(path, {
+				method: "POST",
+				// What a cross-site form would send: a cookie and a "simple" body.
+				headers: { "content-type": "text/plain", cookie: "__session=x.y.z; __client_uat=1" },
+				body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+			});
+			expect(response.status, path).toBe(401);
+		}
 	});
 });

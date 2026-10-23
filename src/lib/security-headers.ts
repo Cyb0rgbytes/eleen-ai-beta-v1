@@ -15,11 +15,21 @@
  * policy Report-Only again, with no code change. Anything else enforces.
  */
 
-/** Every script origin the page loads. Pinned by e2e/chat.spec.ts. */
+/**
+ * The pinned builds the page loads from third parties, as CSP path sources
+ * (final audit #2). A host alone would let any package on unpkg, or any
+ * script on the Clerk host, run if an injection bug ever appeared; a path
+ * ending in "/" allows only files under it. Both URLs carry exact versions,
+ * so no redirect takes them out of the path.
+ */
+export const SPLINE_BUILD = "https://unpkg.com/@splinetool/viewer@1.12.88/build/";
+export const CLERK_BUILD = "https://clerk.eleenai.xyz/npm/@clerk/clerk-js@5.128.0/";
+
+/** Every script source the page loads. Pinned by e2e/chat.spec.ts. */
 const SCRIPT_SOURCES = [
 	"'self'",
-	"https://unpkg.com", // Spline viewer 1.12.88: no licence to self-host it
-	"https://clerk.eleenai.xyz", // Clerk SDK, production frontend API
+	SPLINE_BUILD, // Spline viewer 1.12.88: no licence to self-host it
+	CLERK_BUILD, // Clerk SDK and its UI chunks, from the production frontend API
 	"https://cdn.protect.clerk.com", // Clerk Protect bot-detection bootstrap
 	// The bootstrap then loads loader.js from a fresh random subdomain on each
 	// visit (four in the 2026-10-17 to 10-21 reports), so only a wildcard fits.
@@ -32,7 +42,7 @@ const SCRIPT_SOURCES = [
 const CONNECT_SOURCES = [
 	"'self'",
 	"https://assets.eleenai.xyz", // the scene
-	"https://unpkg.com", // the viewer's own sub-modules
+	SPLINE_BUILD, // the viewer's own sub-modules
 	// The viewer fetches the scene's text fonts itself, from Google's font
 	// CDN (measured in the 2026-10-16 sweep). The page's own fonts stay
 	// self-hosted under font-src 'self'.

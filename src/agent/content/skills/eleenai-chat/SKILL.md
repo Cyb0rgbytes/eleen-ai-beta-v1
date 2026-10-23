@@ -1,6 +1,6 @@
 ---
 name: eleenai-chat
-description: Converse with the EleenAI assistant over its HTTP API, including SSE stream parsing, response modes, file attachments, and the guest versus authenticated tiers.
+description: Converse with the EleenAI assistant over its HTTP API, including SSE stream parsing, response modes, uploaded files, and the guest versus authenticated tiers.
 ---
 
 # EleenAI Chat
@@ -28,8 +28,7 @@ Base URL: `https://eleenai.xyz`
     { "role": "assistant", "content": "..." },
     { "role": "user", "content": "How does that interact with 0-RTT?" }
   ],
-  "mode": "balanced",
-  "attachments": []
+  "mode": "balanced"
 }
 ```
 
@@ -48,8 +47,9 @@ Base URL: `https://eleenai.xyz`
   tier names that all answer the turn (needs `protocol` 2, not combined with
   `model`). Every event then carries `lane`, the model's index; each lane
   ends with its own `done`, and the stream with a `done` that has no lane.
-- `attachments` is optional, up to 5 entries of
-  `{ "data": "<base64>", "mimeType": "...", "name": "..." }`.
+- `files` is optional (signed in only): up to 4 ids returned by
+  `POST /api/v1/files`, which takes the file as the raw body with an
+  `x-file-name` header. Inline base64 `attachments` are no longer accepted.
 - The request body is limited to 6 MiB.
 
 ## Response

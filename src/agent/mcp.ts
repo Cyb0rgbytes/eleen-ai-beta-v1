@@ -16,7 +16,7 @@ import { API_VERSION, ORIGIN, absolute } from "./config";
 import { AgentHandlers, GUEST_TIER, Tier } from "./deps";
 import { bearerChallenge } from "./wellknown";
 import { collectSseText } from "./sse";
-import { AUTHORIZED_PARTIES } from "../lib/auth";
+import { AUTHORIZED_PARTIES, bearerOnly } from "../lib/auth";
 import { Bucket, checkRateLimit } from "../lib/ratelimit";
 
 /** Newest first. We echo the client's version when we know it. */
@@ -169,7 +169,7 @@ async function resolveTier(request: Request, env: Env): Promise<Tier | Response>
 
 	try {
 		const clerk = createClerkClient({ secretKey: env.CLERK_SECRET_KEY });
-		const authState = await clerk.authenticateRequest(request, {
+		const authState = await clerk.authenticateRequest(bearerOnly(request), {
 			secretKey: env.CLERK_SECRET_KEY,
 			publishableKey: env.CLERK_PUBLISHABLE_KEY,
 			authorizedParties: AUTHORIZED_PARTIES,
