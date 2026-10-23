@@ -19,7 +19,7 @@ import { Env, ChatMessage, Attachment } from "./types";
 import { handleAgentRoutes } from "./agent/router";
 import { AgentHandlers } from "./agent/deps";
 import { bearerChallenge } from "./agent/wellknown";
-import { withSecurityHeaders } from "./lib/security-headers";
+import { cspMode, withSecurityHeaders } from "./lib/security-headers";
 import { corsHeaders, handlePreflight } from "./lib/cors";
 import {
 	ValidationError,
@@ -252,7 +252,7 @@ export default {
 		// Applied at the boundary so no handler can be added later that
 		// forgets them. Existing values are preserved, so a handler that set
 		// its own policy deliberately (the R2 branch, MCP's CORS) keeps it.
-		const secured = withSecurityHeaders(response, url);
+		const secured = withSecurityHeaders(response, url, cspMode(env.CSP_MODE));
 
 		if (url.pathname.startsWith("/api/") || url.pathname === "/mcp") {
 			for (const [name, value] of Object.entries(
@@ -694,8 +694,8 @@ async function handleKeys(request: Request, env: Env, userId: string): Promise<R
 /**
  * Collector for Content-Security-Policy violation reports.
  *
- * The policy ships Report-Only, so these are the record of what an enforcing
- * policy would break — the work list for the frontend rebuild.
+ * The policy is enforced, so each report is something a visitor's browser
+ * refused to load: read them after any change to what the page loads.
  */
 async function handleCspReport(request: Request): Promise<Response> {
 	if (request.method !== "POST") {

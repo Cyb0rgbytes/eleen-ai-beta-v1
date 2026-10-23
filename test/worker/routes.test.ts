@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { env, exports } from "cloudflare:workers";
 import { Bucket, RULES, rateLimitKey } from "../../src/lib/ratelimit";
-import { withSecurityHeaders } from "../../src/lib/security-headers";
+import { cspMode, withSecurityHeaders } from "../../src/lib/security-headers";
 
 const ORIGIN = "https://eleenai.xyz";
 
@@ -93,7 +93,7 @@ describe("content security policy", () => {
 
 	it("allows no inline script, and only the known script hosts", async () => {
 		const response = await fetchWorker("/api/v1/health");
-		const csp = response.headers.get("content-security-policy-report-only") ?? "";
+		const csp = response.headers.get("content-security-policy") ?? "";
 		const scripts = directive(csp, "script-src");
 		expect(scripts).not.toContain("'unsafe-inline'");
 		// 'unsafe-eval' is present only for the Spline viewer, which
@@ -117,7 +117,7 @@ describe("content security policy", () => {
 
 	it("allows images only from the page, Clerk avatars and the Spline badge", async () => {
 		const response = await fetchWorker("/api/v1/health");
-		const csp = response.headers.get("content-security-policy-report-only") ?? "";
+		const csp = response.headers.get("content-security-policy") ?? "";
 		const images = directive(csp, "img-src");
 		// A bare https: would let injected markup exfiltrate by image URL.
 		expect(images).not.toContain("https:");
@@ -127,25 +127,42 @@ describe("content security policy", () => {
 		expect(directive(csp, "connect-src")).toContain("https://fonts.gstatic.com");
 	});
 
-	it("reports Trusted Types as a separate policy", async () => {
+	it("enforces the main policy and only reports Trusted Types", async () => {
 		const response = await fetchWorker("/api/v1/health");
-		const header = response.headers.get("content-security-policy-report-only") ?? "";
-		const policies = header.split(",").map((p) => p.trim());
-		expect(policies).toHaveLength(2);
-		expect(policies[1]).toContain("require-trusted-types-for 'script'");
-		expect(policies[0]).not.toContain("require-trusted-types-for");
+		const enforced = response.headers.get("content-security-policy") ?? "";
+		const reportOnly = response.headers.get("content-security-policy-report-only") ?? "";
+		expect(enforced).toContain("default-src 'self'");
+		expect(enforced).not.toContain("require-trusted-types-for");
 		// Only the main policy reports to the Worker; see security-headers.ts.
-		expect(policies[0]).toContain("report-uri /api/csp-report");
-		expect(policies[1]).not.toContain("report-uri");
+		expect(enforced).toContain("report-uri /api/csp-report");
+		expect(reportOnly).toBe("require-trusted-types-for 'script'");
+	});
+
+	it("goes back to Report-Only when CSP_MODE is report", () => {
+		expect(cspMode("report")).toBe("report");
+		expect(cspMode(undefined)).toBe("enforce");
+		expect(cspMode("Report")).toBe("enforce");
+		const page = new Response("<!doctype html>", { headers: { "content-type": "text/html; charset=utf-8" } });
+		const secured = withSecurityHeaders(page, new URL("https://eleenai.xyz/"), "report");
+		expect(secured.headers.get("content-security-policy")).toBeNull();
+		const policies = (secured.headers.get("content-security-policy-report-only") ?? "").split(",").map((p) => p.trim());
+		expect(policies).toHaveLength(2);
+		expect(policies[0]).toContain("default-src 'self'");
+		expect(policies[1]).toBe("require-trusted-types-for 'script'");
+	});
+
+	it("keeps a policy a handler set itself", () => {
+		const own = new Response("x", { headers: { "content-security-policy": "default-src 'none'" } });
+		const secured = withSecurityHeaders(own, new URL("https://eleenai.xyz/x"));
+		expect(secured.headers.get("content-security-policy")).toBe("default-src 'none'");
+		expect(secured.headers.get("content-security-policy-report-only")).toBeNull();
 	});
 
 	// The nonce lets Cloudflare's injected JavaScript Detections script run
 	// while every other inline script stays blocked.
 	function securedPage(): string[] {
 		const page = new Response("<!doctype html>", { headers: { "content-type": "text/html; charset=utf-8" } });
-		const header = withSecurityHeaders(page, new URL("https://eleenai.xyz/")).headers.get(
-			"content-security-policy-report-only",
-		);
+		const header = withSecurityHeaders(page, new URL("https://eleenai.xyz/")).headers.get("content-security-policy");
 		return directive(header ?? "", "script-src");
 	}
 
@@ -155,7 +172,7 @@ describe("content security policy", () => {
 		expect(first).toHaveLength(1);
 		expect(second).toHaveLength(1);
 		expect(first[0]).not.toEqual(second[0]);
-		// 16 random bytes, base64: 24 characters inside 'nonce-…'.
+		// 16 random bytes, base64: 24 characters inside 'nonce-â€¦'.
 		expect(first[0]).toMatch(/^'nonce-[A-Za-z0-9+/]{22}=='$/);
 		// The nonce adds to the allowlist; it never brings inline back.
 		expect(securedPage()).not.toContain("'unsafe-inline'");
@@ -163,13 +180,13 @@ describe("content security policy", () => {
 
 	it("puts no nonce on API responses", async () => {
 		const response = await fetchWorker("/api/v1/health");
-		const csp = response.headers.get("content-security-policy-report-only") ?? "";
+		const csp = response.headers.get("content-security-policy") ?? "";
 		expect(directive(csp, "script-src").some((s) => s.startsWith("'nonce-"))).toBe(false);
 	});
 
 	it("allows the Web Analytics beacon to report", async () => {
 		const response = await fetchWorker("/api/v1/health");
-		const csp = response.headers.get("content-security-policy-report-only") ?? "";
+		const csp = response.headers.get("content-security-policy") ?? "";
 		expect(directive(csp, "connect-src")).toContain("https://cloudflareinsights.com");
 	});
 });
@@ -289,7 +306,7 @@ describe("voice output routes", () => {
 
 	it("lets the page play spoken replies from blob: URLs and nowhere else", async () => {
 		const response = await fetchWorker("/api/v1/health");
-		const csp = response.headers.get("content-security-policy-report-only") ?? "";
+		const csp = response.headers.get("content-security-policy") ?? "";
 		const media = csp.split(";").map((d) => d.trim()).find((d) => d.startsWith("media-src "));
 		expect(media?.split(/\s+/).slice(1).sort()).toEqual(["'self'", "blob:"]);
 	});

@@ -42,6 +42,9 @@ export interface Env {
 	 */
 	AI_GATEWAY_ID?: string;
 
+	/** "report" sends the CSP Report-Only; anything else enforces it (src/lib/security-headers.ts). */
+	CSP_MODE?: string;
+
 	/**
 	 * Master key for users' stored provider keys: 32 random bytes, base64.
 	 * Set via `wrangler secret put KEY_ENCRYPTION_KEY`. Without it the key

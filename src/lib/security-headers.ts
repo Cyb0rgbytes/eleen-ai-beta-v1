@@ -4,12 +4,15 @@
  * Applied to every response the Worker emits, including static assets served
  * through env.ASSETS.
  *
- * CSP ships Report-Only. Since the M3.5 rebuild the page has no inline
+ * CSP is enforced (M3.6). Since the M3.5 rebuild the page has no inline
  * script and no inline handler: every script of ours is a hashed same-origin
- * module, so script-src no longer carries 'unsafe-inline'. 'unsafe-eval'
- * stays for the Spline viewer (see script-src below). The policy goes
- * enforcing after 48 hours of clean reports (M3.6); Trusted Types stays
- * Report-Only as a separate policy.
+ * module, so script-src carries no 'unsafe-inline'. 'unsafe-eval' stays for
+ * the Spline viewer (see script-src below). It went enforcing on 2026-10-23,
+ * after a report window whose only reports were the scene prefetch, fixed in
+ * web/src/scene/spline.ts. Trusted Types stays Report-Only, as its own policy.
+ *
+ * CSP_MODE (wrangler.jsonc vars) is the way back: "report" sends the main
+ * policy Report-Only again, with no code change. Anything else enforces.
  */
 
 /** Every script origin the page loads. Pinned by e2e/chat.spec.ts. */
@@ -121,8 +124,17 @@ const BASE_HEADERS: Record<string, string> = {
 	"Permissions-Policy":
 		"accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), " +
 		"microphone=(self), payment=(), usb=()",
-	"Content-Security-Policy-Report-Only": CSP,
 };
+
+const ENFORCED = "Content-Security-Policy";
+const REPORT_ONLY = "Content-Security-Policy-Report-Only";
+
+export type CspMode = "enforce" | "report";
+
+/** The CSP_MODE var: only an explicit "report" turns enforcement off. */
+export function cspMode(value: string | undefined): CspMode {
+	return value === "report" ? "report" : "enforce";
+}
 
 /**
  * HSTS is only meaningful over TLS, and asserting it from a local dev server
@@ -139,20 +151,22 @@ function hstsApplies(url: URL): boolean {
  * Existing values are not overwritten: a handler that deliberately set its own
  * policy (the R2 asset branch, the MCP CORS headers) keeps it.
  */
-export function withSecurityHeaders(response: Response, url: URL): Response {
+export function withSecurityHeaders(response: Response, url: URL, mode: CspMode = "enforce"): Response {
 	const result = new Response(response.body, response);
 
-	const ownReportOnly = !result.headers.has("Content-Security-Policy-Report-Only");
-	// Only documents get a nonce; scripts, styles and API answers keep the
-	// fixed policy (a nonce means nothing there).
-	if (ownReportOnly && (result.headers.get("Content-Type") ?? "").startsWith("text/html")) {
-		result.headers.set("Content-Security-Policy-Report-Only", htmlCsp());
+	// A response that already carries a policy of either kind keeps it.
+	if (!result.headers.has(ENFORCED) && !result.headers.has(REPORT_ONLY)) {
+		// Only documents get a nonce; scripts, styles and API answers keep the
+		// fixed policy (a nonce means nothing there).
+		const isHtml = (result.headers.get("Content-Type") ?? "").startsWith("text/html");
+		result.headers.set(mode === "report" ? REPORT_ONLY : ENFORCED, isHtml ? htmlCsp() : CSP);
+		// Trusted Types is always Report-Only. In report mode it is a second
+		// policy in the same header; browsers evaluate each separately.
+		result.headers.append(REPORT_ONLY, TRUSTED_TYPES_POLICY);
 	}
 	for (const [name, value] of Object.entries(BASE_HEADERS)) {
 		if (!result.headers.has(name)) result.headers.set(name, value);
 	}
-	// A second policy in the same header: browsers evaluate each separately.
-	if (ownReportOnly) result.headers.append("Content-Security-Policy-Report-Only", TRUSTED_TYPES_POLICY);
 
 	if (hstsApplies(url) && !result.headers.has("Strict-Transport-Security")) {
 		result.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");

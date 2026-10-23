@@ -27,7 +27,8 @@ test.describe("page", () => {
 		expect(response.headers()["content-type"]).toMatch(/charset=utf-8/i);
 		expect(response.headers()["x-frame-options"]).toBe("DENY");
 		expect(response.headers()["x-content-type-options"]).toBe("nosniff");
-		expect(response.headers()["content-security-policy-report-only"]).toBeTruthy();
+		expect(response.headers()["content-security-policy"]).toContain("default-src 'self'");
+		expect(response.headers()["content-security-policy-report-only"]).toBe("require-trusted-types-for 'script'");
 	});
 
 	test("has a tab icon, and /favicon.ico points at it", async ({ page, request }) => {
