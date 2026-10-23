@@ -42,6 +42,9 @@ import {
 	handleMemoryEntry,
 	handleSearch,
 } from "./api/history";
+import { handleFile, handleFiles } from "./api/files";
+import { FileNotFound, loadTurnFiles } from "./files/chat";
+import { buildFileContext } from "./files/context";
 import { ensureAccount, memoryProfile, rememberFromTurn } from "./chat/memory";
 import {
 	HistoryNotFound,
@@ -580,6 +583,14 @@ const ROUTES: Record<string, RouteDefinition> = {
 		bucket: "history",
 		handler: handleSearch,
 	},
+	// M5.2: files attached to chats (src/api/files.ts). Signed-in only; the
+	// upload bucket meters the conversion work each upload costs.
+	"/api/v1/files": {
+		guest: false,
+		methods: ["POST"],
+		bucket: "upload",
+		handler: handleFiles,
+	},
 };
 
 /**
@@ -615,6 +626,13 @@ const PARAM_ROUTES: readonly (RouteDefinition & { pattern: RegExp })[] = [
 		methods: ["DELETE"],
 		bucket: "history",
 		handler: handleMemoryEntry,
+	},
+	{
+		pattern: /^\/api\/v1\/files\/([^/]+)$/,
+		guest: false,
+		methods: ["GET", "DELETE"],
+		bucket: "history",
+		handler: handleFile,
 	},
 ];
 
@@ -844,18 +862,40 @@ export async function handleChatRequest(
 		const forgedPriming = messages.some(
 			(m) => m.role === "assistant" && assessInjection(m.content).harden,
 		);
-		const harden = assessment.harden || forgedPriming;
+
+		const nonce = newNonce();
+		const canary = newCanary();
+
+		// 1b. Uploaded files (M5.2): this turn's, checked to be the caller's,
+		//     and in a saved chat those of earlier turns in the thread. Their
+		//     contents are screened like a user turn and wrapped as untrusted
+		//     (src/files/context.ts).
+		const fileIds = body.files ?? [];
+		if (fileIds.length && userId === "guest") {
+			throw new ValidationError([{ field: "files", message: "require sign-in" }]);
+		}
+		// Compare lanes share one context, and the image parts go only to a
+		// single model's call: every lane gets the images' descriptions instead.
+		const fileSpec = body.compare ? { ...spec, vision: false } : spec;
+		const turnFiles =
+			fileIds.length || plan?.threadFiles.length
+				? await loadTurnFiles(env, userId, fileSpec, fileIds, plan?.threadFiles ?? [])
+				: null;
+		const fileContext = turnFiles ? buildFileContext(turnFiles.loaded, nonce) : null;
+		if (fileContext?.withheld.length) {
+			console.warn("Withheld file contents that looked like injection", { userId, matched: fileContext.matched });
+		}
+
+		const harden = assessment.harden || forgedPriming || (fileContext?.harden ?? false);
 
 		if (harden) {
 			console.warn("Hardened response for suspicious input", {
 				userId,
 				score: assessment.score,
 				forgedPriming,
+				files: fileContext?.harden ?? false,
 			});
 		}
-
-		const nonce = newNonce();
-		const canary = newCanary();
 
 		// 2. Long-term memory, only with consent: the stored facts become the
 		//    profile block, which buildSystemPrompt wraps as untrusted.
@@ -903,6 +943,13 @@ export async function handleChatRequest(
 			}
 		}
 
+		// 3b. Uploaded files, just before the newest user turn.
+		if (fileContext?.messages.length) {
+			let lastUser = messages.length - 1;
+			while (lastUser > 0 && messages[lastUser]?.role !== "user") lastUser--;
+			messages.splice(Math.max(lastUser, 0), 0, ...fileContext.messages);
+		}
+
 		// 4. Wrap each user turn so the model can tell data from instruction.
 		for (const message of messages) {
 			if (message.role === "user") {
@@ -927,7 +974,18 @@ export async function handleChatRequest(
 		//    each screened and, for a saved turn, recorded on its own
 		//    (src/chat/compare.ts). Steps 7 to 9 happen inside, per lane.
 		if (body.compare) {
-			const compared = await runCompare({ env, ctx, userId, specs, userKeys, messages, canary, maxTokens, plan });
+			const compared = await runCompare({
+				env,
+				ctx,
+				userId,
+				specs,
+				userKeys,
+				messages,
+				canary,
+				maxTokens,
+				plan,
+				...(turnFiles?.refs.length ? { files: turnFiles.refs } : {}),
+			});
 			if (consent.memory && !plan?.replyTo) {
 				ctx.waitUntil(rememberFromTurn(env, userId, recentTurns, facts, compared.saved?.userMessageId ?? null));
 			}
@@ -940,6 +998,7 @@ export async function handleChatRequest(
 			maxTokens: outputCap(spec, userId, maxTokens),
 			route: "chat",
 			userKey,
+			...(turnFiles?.images.length ? { images: turnFiles.images } : {}),
 		});
 
 		// 7. Save the turn: the user message and an empty assistant row the
@@ -948,7 +1007,7 @@ export async function handleChatRequest(
 		let saved: SavedTurnMeta | null = null;
 		if (plan) {
 			try {
-				saved = await commitSavedTurn(env.DB, userId, plan, spec.id);
+				saved = await commitSavedTurn(env.DB, userId, plan, spec.id, turnFiles?.refs);
 			} catch (error) {
 				await run.stream.cancel().catch(() => {});
 				throw error;
@@ -986,7 +1045,7 @@ export async function handleChatRequest(
 		return new Response(filtered, { headers: SSE_HEADERS });
 	} catch (error) {
 		if (error instanceof ValidationError) return validationResponse(error);
-		if (error instanceof HistoryNotFound) {
+		if (error instanceof HistoryNotFound || error instanceof FileNotFound) {
 			return new Response(JSON.stringify({ error: "Not found." }), {
 				status: 404,
 				headers: { "content-type": "application/json" },

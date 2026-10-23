@@ -57,6 +57,8 @@ const ICONS = {
 	"caret-left": { mirror: true }, // branch navigator: previous version
 	"caret-right": { mirror: true }, // branch navigator: next version
 	columns: { mirror: false }, // compare models side by side (M5.4)
+	paperclip: { mirror: false }, // composer: attach files (M5.2)
+	"file-text": { mirror: false }, // attachment chip: a document
 };
 
 const SOURCE = "node_modules/@phosphor-icons/core/assets/regular";

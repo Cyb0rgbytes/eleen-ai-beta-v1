@@ -9,7 +9,8 @@ import { env } from "cloudflare:workers";
 import { setTestAuthenticator } from "../../src/lib/auth";
 import { RULES } from "../../src/lib/ratelimit";
 import type { ConversationDetail } from "../../src/shared/history";
-import { TEST_USER_HEADER, api, chat, chatThenStop, fakeAi } from "./helpers";
+import { waitOnExecutionContext } from "cloudflare:test";
+import { TEST_USER_HEADER, api, chat, chatThenStop, fakeAi, send } from "./helpers";
 
 const ALICE = "user_alice";
 const BOB = "user_bob";
@@ -180,6 +181,31 @@ describe("saved compare turns", () => {
 		]);
 		// Titled once, not once per lane.
 		expect(fake.calls.filter((c) => JSON.stringify(c.input).includes("You name chat conversations"))).toHaveLength(1);
+	});
+
+	it("gives every lane the attached file, and records it on the saved turn (M5.2 with M5.4)", async () => {
+		const note = new TextEncoder().encode("The launch code word is pelican.");
+		const { response, ctx } = await send(
+			"/api/v1/files",
+			ALICE,
+			{ method: "POST", body: note, headers: { "content-type": "application/octet-stream", "x-file-name": "notes.txt" } },
+			fakeAi().ai as never,
+		);
+		expect(response.status).toBe(201);
+		const { file } = (await response.json()) as { file: { id: string } };
+		await waitOnExecutionContext(ctx);
+
+		const fake = twoModels();
+		const result = await chat(ALICE, turn("What is the code word?", { files: [file.id] }), fake.ai);
+		expect(result.status).toBe(200);
+		const laneCalls = fake.calls.filter((c) => (c.input as { stream?: boolean }).stream);
+		expect(laneCalls.map((c) => c.model).sort()).toEqual([FAST, SMART].sort());
+		for (const call of laneCalls) expect(JSON.stringify(call.input)).toContain("pelican");
+
+		const [m0] = result.events.filter((e) => e.event === "meta").map((e) => e.data as Record<string, string>);
+		const detail = await api<ConversationDetail>("GET", `/api/v1/conversations/${m0!.conversationId}`, ALICE);
+		const user = detail.body.messages.find((m) => m.role === "user");
+		expect(user?.files?.map((f) => f.id)).toEqual([file.id]);
 	});
 
 	it("continues from the answer the user picked", async () => {

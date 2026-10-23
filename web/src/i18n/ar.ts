@@ -277,4 +277,21 @@ export const ar: Partial<Record<MessageKey, string>> = {
 	compareContinuing: "المتابعة من هذه الإجابة",
 	compareUnavailable: "أحد النماذج التي اخترتها غير متاح لك. غيّر المقارنة وحاول مرة أخرى.",
 	// End M5.4 compare
+	// M5.2 uploads
+	attachFiles: "إرفاق ملفات",
+	attachedFiles: "الملفات المرفقة",
+	removeFile: "إزالة {name}",
+	uploading: "جارٍ رفع {name}",
+	fileSizeKb: "{size} ك.ب",
+	fileSizeMb: "{size} م.ب",
+	uploadSignIn: "سجّل الدخول لإرفاق الملفات.",
+	uploadWait: "انتظر حتى يكتمل الرفع.",
+	uploadTooLarge: "الحد الأقصى لحجم الملف 10 م.ب.",
+	uploadTooMany: "أرفق {count} ملفات على الأكثر في الرسالة الواحدة.",
+	uploadUnsupported: "نوع الملف غير مدعوم. أرفق ملف PDF أو مستند Word أو صورة أو ملفًا نصيًا.",
+	uploadUnreadable: "تعذّرت قراءة أي نص من هذا الملف.",
+	uploadRateLimited: "عدد كبير من عمليات الرفع. حاول لاحقًا.",
+	uploadFailed: "تعذّر رفع الملف.",
+	attachDefaultPrompt: "يرجى الاطلاع على الملف المرفق.",
+	// End M5.2 uploads
 };

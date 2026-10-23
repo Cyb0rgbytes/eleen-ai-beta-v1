@@ -29,6 +29,7 @@ import { ModelSpec, outputCap } from "../ai/registry";
 import { SseEncoder, createEncoder } from "../ai/sse";
 import { filterModelStream } from "../ai/stream";
 import { CompareTurnMeta, SavedTurnPlan, commitCompareTurn, createReplyCollector, finishSavedTurn, recordReply } from "./saved";
+import type { FileRef } from "../shared/files";
 
 /** What a lane says when its model failed to start or broke off. */
 export const LANE_FAILED = "This model could not finish its answer. Try again.";
@@ -113,6 +114,8 @@ export interface CompareRun {
 	canary: string;
 	maxTokens?: number;
 	plan: SavedTurnPlan | null;
+	/** The new user turn's attachments, recorded on a saved turn (M5.2). */
+	files?: FileRef[];
 }
 
 /**
@@ -139,7 +142,7 @@ export async function runCompare(run: CompareRun): Promise<{ body: ReadableStrea
 	let saved: CompareTurnMeta | null = null;
 	if (plan) {
 		try {
-			saved = await commitCompareTurn(env.DB, userId, plan, specs.map((spec) => spec.id));
+			saved = await commitCompareTurn(env.DB, userId, plan, specs.map((spec) => spec.id), run.files);
 		} catch (error) {
 			await Promise.all(started.map((s) => (s.status === "fulfilled" ? s.value.stream.cancel().catch(() => {}) : undefined)));
 			throw error;

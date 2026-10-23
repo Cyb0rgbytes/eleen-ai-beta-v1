@@ -279,6 +279,23 @@ export const en = {
 	compareContinuing: "Continuing from this answer",
 	compareUnavailable: "One of the models you chose is not available to you. Change the comparison and try again.",
 	// End M5.4 compare
+	// M5.2 uploads
+	attachFiles: "Attach files",
+	attachedFiles: "Attached files",
+	removeFile: "Remove {name}",
+	uploading: "Uploading {name}",
+	fileSizeKb: "{size} KB",
+	fileSizeMb: "{size} MB",
+	uploadSignIn: "Sign in to attach files.",
+	uploadWait: "Wait for the upload to finish.",
+	uploadTooLarge: "Files can be at most 10 MB.",
+	uploadTooMany: "Attach at most {count} files to one message.",
+	uploadUnsupported: "That file type is not supported. Attach a PDF, Word document, image or text file.",
+	uploadUnreadable: "No text could be read from that file.",
+	uploadRateLimited: "Too many uploads. Try again later.",
+	uploadFailed: "The file could not be uploaded.",
+	attachDefaultPrompt: "Please take a look at the attached file.",
+	// End M5.2 uploads
 } as const;
 
 export type MessageKey = keyof typeof en;

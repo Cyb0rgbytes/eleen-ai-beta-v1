@@ -51,6 +51,12 @@ export interface ChatRequestBody {
 	 * Signed-in only, protocol 2 only, and not combined with `model`.
 	 */
 	compare?: string[];
+	/**
+	 * Ids from POST /api/v1/files attached to this turn (signed in only, at
+	 * most MAX_FILES_PER_TURN). In a saved chat, files attached to earlier
+	 * turns of the thread are read again on their own.
+	 */
+	files?: string[];
 }
 
 /** 403 body when the requested model is not available to this caller. */

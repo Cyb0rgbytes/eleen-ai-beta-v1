@@ -10,6 +10,7 @@ import { Attachment, ChatMessage } from "../types";
 import { resolveModel } from "../ai/registry";
 import { Protocol, isProtocol } from "../ai/sse";
 import { MAX_COMPARE_LANES } from "../shared/stream";
+import { MAX_FILES_PER_TURN } from "../shared/files";
 
 export const MAX_MESSAGES = 40;
 export const MAX_CONTENT_CHARS = 8000;
@@ -125,6 +126,8 @@ export function validateChatBody(raw: unknown): {
 	replyTo?: string;
 	/** M5.4: 2–3 distinct registry model ids answering side by side. */
 	compare?: string[];
+	/** Uploaded file ids for this turn, deduplicated and lowercased. */
+	files?: string[];
 } {
 	const failures: ValidationFailure[] = [];
 	const body = (raw ?? {}) as Record<string, unknown>;
@@ -278,6 +281,22 @@ export function validateChatBody(raw: unknown): {
 		failures.push({ field: "voice", message: "must be a boolean" });
 	}
 
+	// M5.2: uploaded files by id. Ownership is checked by the handler, in R2.
+	let files: string[] | undefined;
+	if (body.files !== undefined) {
+		if (!Array.isArray(body.files)) {
+			failures.push({ field: "files", message: "must be an array" });
+		} else if (body.files.length > MAX_FILES_PER_TURN) {
+			failures.push({ field: "files", message: `must contain at most ${MAX_FILES_PER_TURN} entries` });
+		} else if (!body.files.every(isUuid)) {
+			failures.push({ field: "files", message: "must be file ids" });
+		} else if (body.files.length && regenerate) {
+			failures.push({ field: "files", message: "cannot be combined with replyTo" });
+		} else {
+			files = [...new Set((body.files as string[]).map((id) => id.toLowerCase()))];
+		}
+	}
+
 	if (failures.length) throw new ValidationError(failures);
 	if (!messages.length && !regenerate) {
 		throw new ValidationError([
@@ -297,6 +316,7 @@ export function validateChatBody(raw: unknown): {
 		parentId: isUuid(body.parentId) ? body.parentId.toLowerCase() : body.parentId === null ? null : undefined,
 		replyTo: regenerate ? (body.replyTo as string).toLowerCase() : undefined,
 		compare,
+		files: files?.length ? files : undefined,
 	};
 }
 
