@@ -11,6 +11,8 @@ import type {
 	ConversationList,
 	ConversationSummary,
 	ConversationUpdate,
+	DeletedConversation,
+	DeletedConversationList,
 	Folder,
 	MessageStatus,
 	SearchHit,
@@ -132,6 +134,31 @@ export async function deleteConversation(conversationId: string): Promise<void> 
 
 export async function restoreConversation(conversationId: string): Promise<ConversationSummary> {
 	return conversationOf(await json(`${path("/api/v1/conversations", conversationId)}/restore`, { method: "POST" }));
+}
+
+function parseDeleted(value: unknown): DeletedConversation | null {
+	const summary = parseSummary(value);
+	return summary ? { ...summary, deletedAt: num(record(value)?.deletedAt) } : null;
+}
+
+/** Recently deleted: still restorable, most recently deleted first. */
+export async function listDeletedConversations(
+	options: { cursor?: string | null; signal?: AbortSignal } = {},
+): Promise<DeletedConversationList> {
+	const query: Record<string, string> = { deleted: "1" };
+	if (options.cursor) query.cursor = options.cursor;
+	const body = await json("/api/v1/conversations", { query, signal: options.signal });
+	return { conversations: list(body.conversations, parseDeleted), nextCursor: strOrNull(body.nextCursor) };
+}
+
+/** For good: no undo. */
+export async function purgeConversation(conversationId: string): Promise<void> {
+	await request(path("/api/v1/conversations", conversationId), {
+		method: "DELETE",
+		auth: true,
+		timeoutMs: TIMEOUT_MS,
+		query: { purge: "1" },
+	});
 }
 
 // ─── Folders ─────────────────────────────────────────────────────────────────

@@ -30,6 +30,18 @@ test.describe("page", () => {
 		expect(response.headers()["content-security-policy-report-only"]).toBeTruthy();
 	});
 
+	test("has a tab icon, and /favicon.ico points at it", async ({ page, request }) => {
+		await page.goto("/");
+		const href = await page.locator('link[rel="icon"]').first().getAttribute("href");
+		expect(href).toBe("/favicon-32.png");
+		const icon = await request.get(href!);
+		expect(icon.status()).toBe(200);
+		expect(icon.headers()["content-type"]).toContain("image/png");
+		const legacy = await request.get("/favicon.ico", { maxRedirects: 0 });
+		expect(legacy.status()).toBe(301);
+		expect(legacy.headers()["location"]).toBe("/favicon-32.png");
+	});
+
 	test("opens the sign-in modal from the Login control", async ({ page }) => {
 		test.skip(!isProduction, "Clerk's production instance only serves the production origin");
 		await page.goto("/");

@@ -11,6 +11,7 @@
  * guarantee the old updateAuthUI()-in-finally gave (regression 6778bb2).
  */
 import { setTokenProvider } from "../api/client";
+import { THEME_CHANGE_EVENT, clerkAppearance, type ClerkAppearance } from "./appearance";
 
 /** The parts of the Clerk browser SDK this page uses. clerk-js ships no
  *  types for the global, so the shape is declared here. */
@@ -25,11 +26,13 @@ interface ClerkGlobal {
 	loaded: boolean;
 	user?: ClerkUser | null;
 	session?: { getToken(): Promise<string | null> } | null;
-	load(options: { publishableKey: string }): Promise<void>;
+	load(options: { publishableKey: string; appearance?: ClerkAppearance }): Promise<void>;
 	addListener(listener: (state: { user?: ClerkUser | null }) => void): () => void;
-	openSignIn(): void;
-	openSignUp(): void;
+	openSignIn(props?: { appearance?: ClerkAppearance }): void;
+	openSignUp(props?: { appearance?: ClerkAppearance }): void;
 	signOut(): Promise<void>;
+	/** clerk-js v5: re-themes components already mounted. Not public API, so optional. */
+	__unstable__updateProps?(props: { appearance?: ClerkAppearance }): void;
 }
 
 declare global {
@@ -119,9 +122,16 @@ export async function initAuth(onChange: (state: AuthState, previous: AuthState)
 	try {
 		const sdk = await waitForSdk();
 		if (!sdk) throw new Error("Clerk SDK did not load within 5s.");
-		if (!sdk.loaded) await sdk.load({ publishableKey: CLERK_PUBLISHABLE_KEY });
+		if (!sdk.loaded) await sdk.load({ publishableKey: CLERK_PUBLISHABLE_KEY, appearance: clerkAppearance() });
 		clerk = sdk;
 		settled = true;
+		document.documentElement.addEventListener(THEME_CHANGE_EVENT, () => {
+			try {
+				clerk?.__unstable__updateProps?.({ appearance: clerkAppearance() });
+			} catch {
+				// Older SDK: the next popup still opens in the new theme.
+			}
+		});
 
 		setTokenProvider(async () => {
 			try {
@@ -157,12 +167,13 @@ export async function initAuth(onChange: (state: AuthState, previous: AuthState)
  */
 export async function openSignIn(): Promise<void> {
 	await ready;
-	clerk?.openSignIn();
+	// The theme at the moment it opens, not at load.
+	clerk?.openSignIn({ appearance: clerkAppearance() });
 }
 
 export async function openSignUp(): Promise<void> {
 	await ready;
-	clerk?.openSignUp();
+	clerk?.openSignUp({ appearance: clerkAppearance() });
 }
 
 export async function signOut(): Promise<void> {

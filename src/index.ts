@@ -54,6 +54,7 @@ import {
 } from "./chat/saved";
 import { effectiveConsent, getConsent } from "./db/consent";
 import { listMemory } from "./db/memory";
+import { purgeExpiredConversations } from "./db/conversations";
 import type { SavedTurnMeta } from "./shared/history";
 import { handleTranscribe } from "./ai/voice";
 import { handleSpeak } from "./ai/speak";
@@ -263,6 +264,18 @@ export default {
 
 		return secured;
 	},
+
+	/**
+	 * Daily (wrangler.jsonc triggers.crons): conversations deleted more than
+	 * DELETED_RETENTION_DAYS ago are removed for good, as the privacy page says.
+	 */
+	async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+		ctx.waitUntil(
+			purgeExpiredConversations(env.DB)
+				.then((count) => console.log("Purged expired conversations", { count }))
+				.catch((error) => console.error("Purge failed:", error instanceof Error ? error.message : "unknown")),
+		);
+	},
 } satisfies ExportedHandler<Env>;
 
 async function route(
@@ -312,6 +325,15 @@ async function route(
 		// anything it does not own, leaving the chain below untouched.
 		const agentResponse = await handleAgentRoutes(request, url, env, ctx, HANDLERS);
 		if (agentResponse) return agentResponse;
+
+		// Browsers and crawlers ask for /favicon.ico whatever the page links;
+		// the icon is a PNG (web/public, scripts/gen-favicons.mjs).
+		if (url.pathname === "/favicon.ico") {
+			return new Response(null, {
+				status: 301,
+				headers: { location: "/favicon-32.png", "cache-control": "public, max-age=86400" },
+			});
+		}
 
 		// Serve static assets (frontend)
 		if (url.pathname === "/" || !url.pathname.startsWith("/api/")) {

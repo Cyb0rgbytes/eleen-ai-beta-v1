@@ -19,9 +19,22 @@
  * back with a toast. While a menu or an inline field is open the list is
  * not rebuilt under the user; the change is drawn when they are done.
  *
+ * Recently deleted sits collapsed at the bottom: soft-deleted chats from the
+ * last DELETED_RETENTION_DAYS, loaded on first expand, each with Restore
+ * and Delete forever (an inline confirm). The server purges older ones daily.
+ *
  * Every title, folder name and snippet is set with textContent.
  */
-import type { ConversationList, ConversationSummary, ConversationUpdate, Folder, SearchHit } from "../../../src/shared/history";
+import type {
+	ConversationList,
+	ConversationSummary,
+	ConversationUpdate,
+	DeletedConversation,
+	DeletedConversationList,
+	Folder,
+	SearchHit,
+} from "../../../src/shared/history";
+import { DELETED_RETENTION_DAYS } from "../../../src/shared/history";
 import * as historyApi from "../history/api";
 import {
 	CONVERSATION_CHANGED_EVENT,
@@ -50,6 +63,8 @@ export interface SidebarApi {
 	patchConversation(id: string, update: ConversationUpdate): Promise<ConversationSummary>;
 	deleteConversation(id: string): Promise<void>;
 	restoreConversation(id: string): Promise<ConversationSummary>;
+	listDeletedConversations(options?: { cursor?: string | null }): Promise<DeletedConversationList>;
+	purgeConversation(id: string): Promise<void>;
 	createFolder(name: string): Promise<Folder>;
 	patchFolder(id: string, update: { name?: string }): Promise<Folder>;
 	deleteFolder(id: string): Promise<void>;
@@ -172,7 +187,22 @@ export function createSidebar(options: SidebarOptions): Sidebar {
 	moreButton.dataset.focusKey = "load-more";
 	recent.wrap.append(moreButton);
 	const state = el("div", "sidebar-state-wrap");
-	sections.append(pinned.wrap, foldersSection.wrap, recent.wrap, state);
+
+	// Recently deleted: collapsed at the bottom, loaded on first expand.
+	const deletedWrap = el("section", "sidebar-section is-deleted");
+	const deletedHead = el("div", "sidebar-section-head");
+	const deletedToggle = button("sidebar-link sidebar-folder-toggle sidebar-deleted-toggle");
+	deletedToggle.dataset.focusKey = "deleted-toggle";
+	deletedToggle.setAttribute("aria-expanded", "false");
+	deletedToggle.setAttribute("aria-controls", "sidebar-deleted-list");
+	deletedToggle.append(icon("caret-down"), el("span", "sidebar-heading", t("sectionDeleted")));
+	deletedHead.append(deletedToggle);
+	const deletedBody = el("div", "sidebar-deleted-body");
+	deletedBody.id = "sidebar-deleted-list";
+	deletedBody.hidden = true;
+	deletedWrap.append(deletedHead, deletedBody);
+
+	sections.append(pinned.wrap, foldersSection.wrap, recent.wrap, state, deletedWrap);
 
 	const off = el("div", "sidebar-off");
 	const offHint = el("p", "sidebar-hint", t("historyOffHint"));
@@ -205,6 +235,12 @@ export function createSidebar(options: SidebarOptions): Sidebar {
 	let dirty = false;
 	let activeId: string | null = chat.currentConversationId();
 	let turnTimer: ReturnType<typeof setTimeout> | undefined;
+	let deletedOpen = false;
+	/** null until first loaded. */
+	let deleted: DeletedConversation[] | null = null;
+	let deletedCursor: string | null = null;
+	let deletedStatus: Status = "idle";
+	let confirmingPurge: string | null = null;
 
 	const search = createSearch({
 		input: searchInput,
@@ -365,7 +401,88 @@ export function createSidebar(options: SidebarOptions): Sidebar {
 		const message = stateMessage();
 		state.replaceChildren(...(message ? [message] : []));
 
+		renderDeleted(ready);
+
 		if (keepFocus) panel.querySelector<HTMLElement>(`[data-focus-key="${cssEscape(keepFocus)}"]`)?.focus();
+	}
+
+	function deletedItem(c: DeletedConversation): HTMLLIElement {
+		const li = el("li", "sidebar-item sidebar-deleted-item");
+		li.dataset.deletedId = c.id;
+		const name = displayTitle(c);
+		const title = el("span", "sidebar-title", name);
+		title.title = name;
+		const actions = el("div", "sidebar-deleted-actions");
+		const restoreButton = button("sidebar-text-button", t("chatRestore"));
+		restoreButton.dataset.focusKey = `restore:${c.id}`;
+		restoreButton.setAttribute("aria-label", t("chatRestoreLabel", { title: name }));
+		restoreButton.addEventListener("click", () => void restoreDeleted(c.id));
+		const purgeButton = button("sidebar-text-button is-danger", t("chatDeleteForever"));
+		purgeButton.dataset.focusKey = `purge:${c.id}`;
+		purgeButton.setAttribute("aria-label", t("chatDeleteForeverLabel", { title: name }));
+		purgeButton.addEventListener("click", () => {
+			confirmingPurge = c.id;
+			render({ focus: `purge-no:${c.id}`, force: true });
+		});
+		actions.append(restoreButton, purgeButton);
+		li.append(title, actions);
+
+		if (confirmingPurge === c.id) {
+			const confirm = el("div", "sidebar-confirm");
+			confirm.setAttribute("role", "group");
+			const text = el("p", "sidebar-confirm-text", t("chatDeleteForeverConfirm", { title: name }));
+			text.id = `sidebar-purge-${c.id}`;
+			confirm.setAttribute("aria-labelledby", text.id);
+			const yes = button("sidebar-text-button is-danger", t("chatDeleteForever"));
+			yes.dataset.focusKey = `purge-yes:${c.id}`;
+			yes.addEventListener("click", () => void purge(c.id));
+			const no = button("sidebar-text-button", t("folderCancel"));
+			no.dataset.focusKey = `purge-no:${c.id}`;
+			no.addEventListener("click", () => {
+				confirmingPurge = null;
+				render({ focus: `purge:${c.id}`, force: true });
+			});
+			confirm.addEventListener("keydown", (event) => {
+				if (event.key !== "Escape") return;
+				event.preventDefault();
+				event.stopPropagation();
+				no.click();
+			});
+			const row = el("div", "sidebar-confirm-actions");
+			row.append(yes, no);
+			confirm.append(text, row);
+			li.append(confirm);
+		}
+		return li;
+	}
+
+	function renderDeleted(ready: boolean) {
+		deletedWrap.hidden = !ready;
+		deletedToggle.setAttribute("aria-expanded", String(deletedOpen));
+		deletedBody.hidden = !deletedOpen;
+		if (!deletedOpen) return;
+		const nodes: HTMLElement[] = [el("p", "sidebar-hint", t("deletedHint", { days: DELETED_RETENTION_DAYS }))];
+		if (deletedStatus === "error") {
+			const retry = button("sidebar-text-button", t("chatsRetry"));
+			retry.dataset.focusKey = "deleted-retry";
+			retry.addEventListener("click", () => void loadDeleted());
+			nodes.push(el("p", "sidebar-state is-error", t("chatsLoadFailed")), retry);
+		} else if (deleted && !deleted.length) {
+			nodes.push(el("p", "sidebar-state is-empty", t("deletedEmpty")));
+		} else if (deleted) {
+			const list = el("ul", "sidebar-list");
+			list.setAttribute("aria-label", t("sectionDeleted"));
+			list.append(...deleted.map(deletedItem));
+			nodes.push(list);
+			if (deletedCursor) {
+				const more = button("sidebar-more-chats", t("loadMore"));
+				more.dataset.focusKey = "deleted-more";
+				more.addEventListener("click", () => void loadDeleted(deletedCursor));
+				nodes.push(more);
+			}
+		}
+		deletedBody.setAttribute("aria-busy", String(deletedStatus === "loading"));
+		deletedBody.replaceChildren(...nodes);
 	}
 
 	function afterInteraction() {
@@ -432,6 +549,64 @@ export function createSidebar(options: SidebarOptions): Sidebar {
 			render();
 		} catch {
 			// Quiet: the list is still usable, and the next turn tries again.
+		}
+	}
+
+	async function loadDeleted(cursor?: string | null) {
+		const mine = gen;
+		deletedStatus = "loading";
+		render();
+		try {
+			const page = await api.listDeletedConversations({ cursor });
+			if (mine !== gen) return;
+			const seen = new Set((cursor ? deleted ?? [] : []).map((c) => c.id));
+			deleted = [...(cursor ? deleted ?? [] : []), ...page.conversations.filter((c) => !seen.has(c.id))];
+			deletedCursor = page.nextCursor;
+			deletedStatus = "ready";
+		} catch {
+			if (mine !== gen) return;
+			deletedStatus = "error";
+		}
+		render({ focus: cursor && deletedCursor ? "deleted-more" : undefined });
+	}
+
+	function toggleDeleted() {
+		deletedOpen = !deletedOpen;
+		confirmingPurge = null;
+		render({ focus: "deleted-toggle", force: true });
+		if (deletedOpen && deleted === null) void loadDeleted();
+	}
+
+	const dropDeleted = (id: string) => {
+		if (deleted) deleted = deleted.filter((c) => c.id !== id);
+	};
+
+	async function restoreDeleted(id: string) {
+		const mine = gen;
+		try {
+			const fresh = await api.restoreConversation(id);
+			if (mine !== gen || mode !== "saved") return;
+			dropDeleted(id);
+			conversations.set(fresh.id, fresh);
+			render({ focus: "deleted-toggle" });
+			showToast(t("chatRestored"), "success");
+		} catch {
+			failed();
+		}
+	}
+
+	async function purge(id: string) {
+		const before = deleted;
+		confirmingPurge = null;
+		dropDeleted(id);
+		render({ focus: "deleted-toggle", force: true });
+		try {
+			await api.purgeConversation(id);
+			showToast(t("chatPurged"), "success");
+		} catch {
+			deleted = before;
+			render();
+			failed();
 		}
 	}
 
@@ -511,6 +686,10 @@ export function createSidebar(options: SidebarOptions): Sidebar {
 			return;
 		}
 		if (chat.currentConversationId() === id) chat.newChat();
+		if (deleted) {
+			deleted = [{ ...before, deletedAt: Date.now() }, ...deleted.filter((c) => c.id !== id)];
+			render();
+		}
 		const mine = gen;
 		showToast(t("chatDeleted"), "info", UNDO_TOAST_MS, {
 			action: { label: t("chatUndo"), onClick: () => void restore(id, mine) },
@@ -521,6 +700,7 @@ export function createSidebar(options: SidebarOptions): Sidebar {
 		try {
 			const fresh = await api.restoreConversation(id);
 			if (mine !== gen || mode !== "saved") return;
+			dropDeleted(id);
 			conversations.set(fresh.id, fresh);
 			render();
 			showToast(t("chatRestored"), "success");
@@ -689,6 +869,7 @@ export function createSidebar(options: SidebarOptions): Sidebar {
 		options.openPrivacy();
 	});
 	moreButton.addEventListener("click", () => void loadMore());
+	deletedToggle.addEventListener("click", toggleDeleted);
 	newFolderButton.addEventListener("click", () => {
 		if (editing) return;
 		closeMenu();
@@ -736,6 +917,12 @@ export function createSidebar(options: SidebarOptions): Sidebar {
 		confirmingFolder = null;
 		editing = null;
 		dirty = false;
+		deletedOpen = false;
+		deleted = null;
+		deletedCursor = null;
+		deletedStatus = "idle";
+		confirmingPurge = null;
+		deletedBody.replaceChildren();
 		pinned.list.replaceChildren();
 		foldersSection.list.replaceChildren();
 		recent.list.replaceChildren();

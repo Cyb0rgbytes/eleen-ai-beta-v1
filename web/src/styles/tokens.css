@@ -19,6 +19,9 @@
 	--accent: #635bf6;
 	--accent-2: #00e5ff;
 	--grad: linear-gradient(135deg, var(--accent), var(--accent-2));
+	/* The same gradient behind a white glyph: --accent-2 is too light for it
+	   (about 1.3:1 at the cyan end); #0891b2 holds 3.7:1 across the button. */
+	--grad-button: linear-gradient(135deg, var(--accent), #0891b2);
 	--accent-text: #00e5ff;
 	--accent-soft: rgb(108 99 255 / 0.14);
 	--accent-line: rgb(108 99 255 / 0.45);
@@ -151,6 +154,8 @@
 
 	--accent: #5a51f0;
 	--accent-2: #0e7490;
+	/* Light's --accent-2 already holds 5.3:1 under white. */
+	--grad-button: var(--grad);
 	--accent-text: #4a42d6;
 	--accent-soft: rgb(90 81 240 / 0.1);
 	--accent-line: rgb(90 81 240 / 0.4);

@@ -974,6 +974,14 @@ export const OPENAPI_DOCUMENT = {
 						description: "A folder id, or `none` for conversations in no folder.",
 						schema: { type: "string" },
 					},
+					{
+						name: "deleted",
+						in: "query",
+						required: false,
+						description:
+							"`1` lists Recently deleted instead: soft-deleted conversations from the last 30 days, most recently deleted first, each with `deletedAt`. Older ones are purged daily.",
+						schema: { type: "string", enum: ["1"] },
+					},
 					{ name: "cursor", in: "query", required: false, description: "`nextCursor` from the previous page.", schema: { type: "string" } },
 				],
 				responses: { ...jsonOk("One page.", "ConversationList"), ...HISTORY_ERRORS },

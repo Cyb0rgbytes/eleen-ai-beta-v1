@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ConversationSummary, Folder } from "../../../src/shared/history";
+import type { ConversationSummary, DeletedConversation, Folder } from "../../../src/shared/history";
 import { CONVERSATION_CHANGED_EVENT, CONVERSATION_UPDATED_EVENT } from "../history/state";
 import { sidebarMode } from "./index";
 import { createSidebar, HISTORY_DELETED_EVENT, type Sidebar, type SidebarApi } from "./sidebar";
@@ -43,6 +43,11 @@ function fakeApi(list: ConversationSummary[], folders: Folder[] = []) {
 		})),
 		deleteConversation: vi.fn(async () => {}),
 		restoreConversation: vi.fn(async (id: string) => list.find((c) => c.id === id) as ConversationSummary),
+		listDeletedConversations: vi.fn(async (_options?: { cursor?: string | null }) => ({
+			conversations: [] as DeletedConversation[],
+			nextCursor: null as string | null,
+		})),
+		purgeConversation: vi.fn(async (_id: string) => {}),
 		createFolder: vi.fn(async (name: string) => ({ id: `f-${name}`, name, position: 9 })),
 		patchFolder: vi.fn(async (id: string, update: { name?: string }) => ({ id, name: update.name ?? "", position: 0 })),
 		deleteFolder: vi.fn(async () => {}),
@@ -293,6 +298,79 @@ describe("item menu", () => {
 		await vi.waitFor(() => expect(ui.item("c1")).not.toBeNull());
 		expect(api.restoreConversation).toHaveBeenCalledWith("c1");
 		expect(document.querySelector(".toast.success")?.textContent).toContain("Chat restored.");
+	});
+
+	describe("Recently deleted", () => {
+		const deletedToggle = (root: HTMLElement) => root.querySelector<HTMLButtonElement>(".sidebar-deleted-toggle")!;
+		const deletedTitles = (root: HTMLElement) =>
+			[...root.querySelectorAll(".sidebar-deleted-item .sidebar-title")].map((n) => n.textContent);
+		const buttonIn = (root: HTMLElement, label: string) =>
+			[...root.querySelectorAll<HTMLButtonElement>(".sidebar-deleted-body button")].find((b) => b.textContent === label);
+
+		it("is collapsed and loads on first expand only", async () => {
+			const { api, ui } = await ready([conv("c1", 1)]);
+			api.listDeletedConversations.mockResolvedValueOnce({
+				conversations: [{ ...conv("d1", 1, { title: '<img src=x onerror="alert(1)">' }), deletedAt: 5 }],
+				nextCursor: null,
+			});
+			const toggle = deletedToggle(ui.root);
+			expect(toggle.getAttribute("aria-expanded")).toBe("false");
+			expect(api.listDeletedConversations).not.toHaveBeenCalled();
+			toggle.click();
+			await vi.waitFor(() => expect(deletedTitles(ui.root)).toEqual(['<img src=x onerror="alert(1)">']));
+			// Text, never markup.
+			expect(ui.root.querySelector(".sidebar-deleted-body img")).toBeNull();
+			expect(ui.root.querySelector(".sidebar-deleted-body .sidebar-hint")?.textContent).toContain("30 days");
+			deletedToggle(ui.root).click();
+			deletedToggle(ui.root).click();
+			expect(api.listDeletedConversations).toHaveBeenCalledOnce();
+		});
+
+		it("restores a chat into the list", async () => {
+			const { api, ui } = await ready([conv("c1", 2), conv("d1", 1)]);
+			api.listDeletedConversations.mockResolvedValueOnce({ conversations: [{ ...conv("d1", 1), deletedAt: 5 }], nextCursor: null });
+			// d1 is in the list only so the fake restore can return it; take it out first.
+			ui.openMenu("d1");
+			ui.menuItem("Delete")?.click();
+			await vi.waitFor(() => expect(api.deleteConversation).toHaveBeenCalledWith("d1"));
+			deletedToggle(ui.root).click();
+			await vi.waitFor(() => expect(deletedTitles(ui.root)).toEqual(["Chat d1"]));
+			buttonIn(ui.root, "Restore")?.click();
+			await vi.waitFor(() => expect(ui.item("d1")).not.toBeNull());
+			expect(api.restoreConversation).toHaveBeenCalledWith("d1");
+			expect(deletedTitles(ui.root)).toEqual([]);
+		});
+
+		it("shows a chat deleted after it was opened, and deletes forever behind a confirm", async () => {
+			const { api, ui } = await ready([conv("c1", 2), conv("c2", 1)]);
+			deletedToggle(ui.root).click();
+			await vi.waitFor(() => expect(ui.root.querySelector(".sidebar-deleted-body .is-empty")).not.toBeNull());
+			ui.openMenu("c2");
+			ui.menuItem("Delete")?.click();
+			await vi.waitFor(() => expect(deletedTitles(ui.root)).toEqual(["Chat c2"]));
+
+			buttonIn(ui.root, "Delete forever")?.click();
+			expect(api.purgeConversation).not.toHaveBeenCalled();
+			expect(ui.root.querySelector(".sidebar-deleted-body .sidebar-confirm")?.textContent).toContain('Delete "Chat c2" for good?');
+			const confirmYes = [...ui.root.querySelectorAll<HTMLButtonElement>(".sidebar-deleted-body .sidebar-confirm button")].find(
+				(b) => b.textContent === "Delete forever",
+			);
+			confirmYes?.click();
+			await vi.waitFor(() => expect(api.purgeConversation).toHaveBeenCalledWith("c2"));
+			expect(deletedTitles(ui.root)).toEqual([]);
+		});
+
+		it("puts a row back when delete forever fails", async () => {
+			const { api, ui } = await ready([conv("c1", 1)]);
+			api.listDeletedConversations.mockResolvedValueOnce({ conversations: [{ ...conv("d1", 1), deletedAt: 5 }], nextCursor: null });
+			api.purgeConversation.mockRejectedValueOnce(new Error("down"));
+			deletedToggle(ui.root).click();
+			await vi.waitFor(() => expect(deletedTitles(ui.root)).toEqual(["Chat d1"]));
+			buttonIn(ui.root, "Delete forever")?.click();
+			[...ui.root.querySelectorAll<HTMLButtonElement>(".sidebar-confirm button")].find((b) => b.textContent === "Delete forever")?.click();
+			await vi.waitFor(() => expect(document.querySelector(".toast.error")).not.toBeNull());
+			expect(deletedTitles(ui.root)).toEqual(["Chat d1"]);
+		});
 	});
 
 	it("puts a chat back when the delete fails", async () => {
