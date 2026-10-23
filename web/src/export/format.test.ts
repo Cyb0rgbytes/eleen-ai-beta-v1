@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { StoredMessage } from "../../../src/shared/history";
 import {
 	balanceFences,
+	defangMarkdown,
 	buildJson,
 	buildMarkdown,
 	escapeMarkdownInline,
@@ -88,6 +89,29 @@ describe("balanceFences", () => {
 
 	it("ignores inline triple backticks", () => {
 		expect(balanceFences("use ```x``` inline")).toBe("use ```x``` inline");
+	});
+});
+
+describe("defangMarkdown", () => {
+	it("turns images into links and escapes raw HTML outside code", () => {
+		expect(defangMarkdown("see ![chart](https://x.example/p.png?d=secret)")).toBe("see [chart](https://x.example/p.png?d=secret)");
+		expect(defangMarkdown("![ref][1]")).toBe("[ref][1]");
+		expect(defangMarkdown('<img src="https://x.example/a.png"> and </div>')).toBe('&lt;img src="https://x.example/a.png"> and &lt;/div>');
+		expect(defangMarkdown("<!-- hidden -->")).toBe("&lt;!-- hidden -->");
+	});
+
+	it("leaves code, comparisons and Arabic text alone", () => {
+		const fenced = "```html\n<img src=x>\n![a](b)\n```";
+		expect(defangMarkdown(fenced)).toBe(fenced);
+		expect(defangMarkdown("use `<b>` and `![a](b)` here")).toBe("use `<b>` and `![a](b)` here");
+		expect(defangMarkdown("if a < 3 and b<=4")).toBe("if a < 3 and b<=4");
+		expect(defangMarkdown("مرحبا ![صورة](https://x.example/i.png)")).toBe("مرحبا [صورة](https://x.example/i.png)");
+	});
+
+	it("is applied to every turn of a Markdown export", () => {
+		const md = buildMarkdown({ title: "t", messages: [{ role: "assistant", content: "![x](https://x.example/i.png)" }] });
+		expect(md).toContain("[x](https://x.example/i.png)");
+		expect(md).not.toContain("![x]");
 	});
 });
 

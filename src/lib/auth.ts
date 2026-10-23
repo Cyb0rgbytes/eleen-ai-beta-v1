@@ -7,11 +7,19 @@
  * instance was accepted there. One list, imported by both, keeps them equal.
  */
 
-/** Origins whose Clerk tokens this deployment will accept. */
-export const AUTHORIZED_PARTIES = [
-	"https://eleenai.xyz",
-	"http://localhost:8787",
-];
+const SITE_ORIGIN = "https://eleenai.xyz";
+const DEV_ORIGIN = "http://localhost:8787";
+
+/**
+ * Origins whose Clerk tokens this request may carry. The local dev origin
+ * counts only when the Worker itself is answering on localhost: a deployed
+ * Worker, on any hostname, accepts tokens minted for the site alone (final
+ * audit #16).
+ */
+export function authorizedParties(url: URL): string[] {
+	const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+	return local ? [SITE_ORIGIN, DEV_ORIGIN] : [SITE_ORIGIN];
+}
 
 /**
  * The request as Clerk should see it: the Authorization header and nothing
