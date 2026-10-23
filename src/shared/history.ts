@@ -31,6 +31,8 @@
  * answer must not reveal that the row exists.
  */
 
+import type { FileRef } from "./files";
+
 /** The privacy policy version the consent dialog asks about. Bump to ask again. */
 export const POLICY_VERSION = 1;
 
@@ -112,6 +114,8 @@ export interface StoredMessage {
 	compareGroup: string | null;
 	completionTokens: number | null;
 	createdAt: number;
+	/** Files attached to a user turn (M5.2). Absent when there were none. */
+	files?: FileRef[];
 }
 
 export interface ConversationDetail {
