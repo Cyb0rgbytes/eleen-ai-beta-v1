@@ -314,13 +314,16 @@ test("loads no third-party script beyond Clerk and the Spline viewer", async ({ 
 			url,
 		).toContain(parsed.host);
 	}
-	expect(await page.locator("script:not([src])").count()).toBe(0);
+	// No inline script of ours. On production the zone injects one (JavaScript
+	// Detections), stamped with this document's nonce: see the next test.
+	expect(await page.locator("script:not([src]):not([nonce])").count()).toBe(0);
 });
 
 test("on production, the zone's two injected scripts carry this document's nonce, and nothing else is injected", async ({ page }) => {
 	test.skip(!/eleenai\.xyz/.test(process.env.E2E_BASE_URL ?? ""), "Cloudflare injects these only on the production zone");
 	const response = await page.goto("/");
-	const header = response?.headers()["content-security-policy-report-only"] ?? response?.headers()["content-security-policy"] ?? "";
+	// The enforced policy carries the nonce; Report-Only now holds only Trusted Types.
+	const header = response?.headers()["content-security-policy"] ?? "";
 	const nonce = /'nonce-([^']+)'/.exec(header)?.[1];
 	expect(nonce, "the document's policy carries a nonce").toBeTruthy();
 
