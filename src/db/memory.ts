@@ -7,7 +7,7 @@
  * here, at the only place facts are written, rather than trusting whoever
  * produced it (today a model summarising the user's own words).
  */
-import { assessInjection } from "../ai/guard";
+import { assessInjection, stripInvisible } from "../ai/guard";
 import { MemoryEntry } from "../shared/history";
 
 export const MAX_FACT_CHARS = 500;
@@ -42,9 +42,13 @@ export async function deleteAllMemory(db: D1Database, userId: string): Promise<v
 	await db.prepare("DELETE FROM memory_entries WHERE user_id = ?").bind(userId).run();
 }
 
-/** Whitespace collapsed, list markers stripped, capped. Empty means drop it. */
+/**
+ * Invisible smuggling characters removed (S2: a fact is replayed into every
+ * later prompt, so it must not carry text the user cannot see), whitespace
+ * collapsed, list markers stripped, capped. Empty means drop it.
+ */
 export function cleanFact(raw: string): string {
-	return raw
+	return stripInvisible(raw)
 		.replace(/[\u0000-\u001f\u007f]/g, " ")
 		.replace(/\s+/g, " ")
 		.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "")

@@ -485,6 +485,24 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 		}
 	}
 
+	/**
+	 * S2: an [IMG_GEN] request from a contained turn, as a button in the reply
+	 * instead of a generation already under way. One click, one image.
+	 */
+	function offerImage(reply: HTMLElement, prompt: string): void {
+		const button = document.createElement("button");
+		button.type = "button";
+		button.className = "image-offer";
+		button.textContent = t("imageOffer");
+		button.title = t("imageOfferHint", { prompt });
+		button.addEventListener("click", () => {
+			if (busy) return;
+			button.remove();
+			void generateImage(prompt);
+		});
+		reply.append(button);
+	}
+
 	/** Nothing sent yet in this chat. */
 	function isFresh(): boolean {
 		return saved ? getHistoryState().messages.length === 0 && !getHistoryState().conversationId : history.length <= 1;
@@ -659,6 +677,8 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 		let completionTokens: number | undefined;
 		let status: MessageStatus = "complete";
 		let replyModel: string | null = null;
+		// S2: a turn that carried a file or was hardened (meta `contained`).
+		let contained = false;
 		if (save) dropSwitch();
 
 		try {
@@ -680,6 +700,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 				})) {
 					if (event.type === "meta") {
 						replyModel = event.data.model ?? null;
+						if (event.data.contained) contained = true;
 						if (save && at === epoch && event.data.conversationId && event.data.assistantMessageId) {
 							ids = { assistantId: event.data.assistantMessageId };
 							if (event.data.userMessageId) ids.userId = event.data.userMessageId;
@@ -728,7 +749,12 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 					commitTurn(save, ids, reply());
 					ids = null;
 				}
-				if (extracted.imagePrompt && !stopped) await generateImage(extracted.imagePrompt);
+				// A reply steered by a file or a likely injection may ask for an
+				// image nobody wanted, so that one waits for a click (S2).
+				if (extracted.imagePrompt && !stopped) {
+					if (contained) offerImage(view.root, extracted.imagePrompt);
+					else await generateImage(extracted.imagePrompt);
+				}
 			}
 			requestAnimationFrame(() => follow(messages));
 		} catch (error) {

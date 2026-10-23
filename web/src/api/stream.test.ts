@@ -146,6 +146,13 @@ describe("robustness", () => {
 		});
 	});
 
+	it("keeps the contained flag (S2) only as true", () => {
+		expect(parseFrame("meta", '{"model":"m","contained":true}')).toEqual({ type: "meta", data: { protocol: 2, model: "m", contained: true } });
+		for (const value of ['"yes"', "1", "false", "null"]) {
+			expect(parseFrame("meta", `{"contained":${value}}`)).toEqual({ type: "meta", data: { protocol: 2 } });
+		}
+	});
+
 	it("keeps the saved-chat ids, and only as non-empty strings", () => {
 		expect(parseFrame("meta", '{"conversationId":"c1","userMessageId":"u1","assistantMessageId":"a1"}')).toEqual({
 			type: "meta",

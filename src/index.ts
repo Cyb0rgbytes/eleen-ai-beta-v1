@@ -955,6 +955,8 @@ export async function handleChatRequest(
 		}
 
 		const harden = assessment.harden || forgedPriming || (fileContext?.harden ?? false);
+		// S2: a turn with file context or hardened: no memory extraction, and the client asks before an [IMG_GEN].
+		const contained = harden || Boolean(fileContext?.messages.length);
 
 		if (harden) {
 			console.warn("Hardened response for suspicious input", {
@@ -1027,7 +1029,7 @@ export async function handleChatRequest(
 				plan,
 				...(turnFiles?.refs.length ? { files: turnFiles.refs } : {}),
 			});
-			if (consent.memory && !plan?.replyTo) {
+			if (consent.memory && !plan?.replyTo && !contained) {
 				ctx.waitUntil(rememberFromTurn(env, userId, recentTurns, facts, compared.saved?.userMessageId ?? null));
 			}
 			return new Response(compared.body, { headers: SSE_HEADERS });
@@ -1057,7 +1059,7 @@ export async function handleChatRequest(
 
 		// 8. Background memory update, with consent. A regenerate repeats a
 		//    turn that was already read.
-		if (consent.memory && !plan?.replyTo) {
+		if (consent.memory && !plan?.replyTo && !contained) {
 			ctx.waitUntil(rememberFromTurn(env, userId, recentTurns, facts, saved?.userMessageId ?? null));
 		}
 
@@ -1070,7 +1072,7 @@ export async function handleChatRequest(
 			canary,
 			parser: createChunkParser(spec.reasoning),
 			encoder,
-			meta: { model: spec.id, tier: spec.tier, ...(saved ?? {}) },
+			meta: { model: spec.id, tier: spec.tier, ...(saved ?? {}), ...(contained ? { contained: true } : {}) },
 			observer: collector?.observer,
 		});
 

@@ -24,6 +24,14 @@ export interface MetaPayload {
 	/** Compare (M5.4), saved: the id every lane's reply shares. */
 	compareGroup?: string;
 	lane?: number;
+	/**
+	 * S2: the turn carried text from outside the conversation (an uploaded
+	 * file or image) or was hardened as a likely injection, so the reply may
+	 * have been steered by someone other than the user. The client then asks
+	 * before acting on anything in it, such as an [IMG_GEN] request. Sent
+	 * only when true.
+	 */
+	contained?: true;
 }
 
 /**
