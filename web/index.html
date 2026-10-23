@@ -72,6 +72,14 @@
         </button>
     </div>
 
+    <!-- The conversation sidebar (M4.4): signed in only, filled by web/src/sidebar.
+         The toggle comes after the panel so it paints above it in the same layer. -->
+    <div id="sidebar-scrim" class="sidebar-scrim" hidden></div>
+    <aside id="sidebar" class="sidebar" aria-label="Conversations" hidden></aside>
+    <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-controls="sidebar" aria-expanded="false" hidden>
+        <span class="sr-only">Open conversations</span>
+    </button>
+
     <div class="gateway-container">
         <header>
             <img src="/logo.png" class="logo-image" alt="EleenAI, your gateway to the realm of AI">

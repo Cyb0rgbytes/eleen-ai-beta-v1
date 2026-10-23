@@ -47,6 +47,12 @@ const ICONS = {
 	sun: { mirror: false }, // theme: light
 	moon: { mirror: false }, // theme: dark
 	translate: { mirror: false }, // language toggle
+	"sidebar-simple": { mirror: true }, // sidebar toggle (M4.4)
+	plus: { mirror: false }, // sidebar: new chat, new folder
+	"magnifying-glass": { mirror: false }, // sidebar: search
+	"dots-three": { mirror: false }, // sidebar: chat options
+	"push-pin": { mirror: false }, // sidebar: pinned chat
+	"folder-simple": { mirror: false }, // sidebar: folder
 	"pencil-simple": { mirror: false }, // edit a sent message
 	"caret-left": { mirror: true }, // branch navigator: previous version
 	"caret-right": { mirror: true }, // branch navigator: next version
