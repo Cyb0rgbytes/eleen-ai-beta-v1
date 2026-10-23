@@ -41,9 +41,11 @@ Streaming conversational completion.
 }
 ```
 
-`mode` is one of `balanced`, `creative` or `logical`. `attachments` may carry up
-to 5 base64-encoded files. Request bodies are limited to 6 MiB. Any `system`
-message supplied by the client is discarded server-side.
+`mode` is one of `balanced`, `creative` or `logical`. Files are sent by id:
+upload each with `POST /api/v1/files` (signed in), then list up to 4 ids in
+`files`. Inline base64 `attachments` are no longer accepted (`422`); an empty
+`attachments` array is still tolerated. Request bodies are limited to 6 MiB. Any
+`system` message supplied by the client is discarded server-side.
 
 `model` is optional: a model id or a tier name (`fast`, `smart`, `reasoning`)
 from `GET /api/v1/models`. Omitted means the default model. An unknown value

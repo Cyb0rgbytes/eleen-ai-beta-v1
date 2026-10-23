@@ -6,6 +6,11 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "eleen-ai-beta-v1",
 	"main": "src/index.ts",
+	// Only eleenai.xyz serves the app (final audit #15): no *.workers.dev copy
+	// and no per-version preview URLs, both of which sit outside the zone's
+	// WAF, bot and rate rules.
+	"workers_dev": false,
+	"preview_urls": false,
 	"compatibility_date": "2025-10-08",
 	"compatibility_flags": [
 		"nodejs_compat",

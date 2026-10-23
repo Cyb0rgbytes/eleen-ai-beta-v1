@@ -8,10 +8,10 @@
  * though CORS is not itself an authentication mechanism.
  */
 
-const ALLOWED_ORIGINS = new Set([
-	"https://eleenai.xyz",
-	"https://assets.eleenai.xyz",
-]);
+// Only the page itself. assets.eleenai.xyz serves bucket objects under
+// their stored types and never calls the API, so it gets no credentialed
+// access (final audit #16).
+const ALLOWED_ORIGINS = new Set(["https://eleenai.xyz"]);
 
 /** Local dev servers, allowed only when not running in production. */
 const DEV_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;

@@ -212,3 +212,6 @@ playwright-report/
 
 # Vite build output, produced by npm run build
 dist/
+
+# Claude Code local state: agent worktrees, settings, scratch (final audit, Info)
+.claude/

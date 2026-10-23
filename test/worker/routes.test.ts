@@ -2,8 +2,9 @@
  * Requests through the real Worker, inside workerd, with its bindings.
  * Nothing here reaches a model: each case is decided before inference.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { env, exports } from "cloudflare:workers";
+import { authorizedParties } from "../../src/lib/auth";
 import { Bucket, RULES, rateLimitKey } from "../../src/lib/ratelimit";
 import { cspMode, withSecurityHeaders } from "../../src/lib/security-headers";
 
@@ -105,11 +106,20 @@ describe("content security policy", () => {
 				"https://*.client.protect.clerk.com",
 				"https://cdn.protect.clerk.com",
 				"https://challenges.cloudflare.com",
-				"https://clerk.eleenai.xyz",
+				"https://clerk.eleenai.xyz/npm/@clerk/clerk-js@5.128.0/",
 				"https://static.cloudflareinsights.com",
-				"https://unpkg.com",
+				"https://unpkg.com/@splinetool/viewer@1.12.88/build/",
 			].sort(),
 		);
+		// No bare CDN host: any package on it would be allowed (final audit #2).
+		const connect = directive(csp, "connect-src");
+		for (const host of ["https://unpkg.com", "https://unpkg.com/"]) {
+			expect(scripts).not.toContain(host);
+			expect(connect).not.toContain(host);
+		}
+		expect(scripts).not.toContain("https://clerk.eleenai.xyz");
+		// Clerk's API lives under /v1 on the same host, so connect-src keeps the host.
+		expect(connect).toContain("https://clerk.eleenai.xyz");
 		expect(directive(csp, "font-src")).toEqual(["'self'"]);
 		expect(directive(csp, "object-src")).toEqual(["'none'"]);
 		expect(directive(csp, "frame-ancestors")).toEqual(["'none'"]);
@@ -398,15 +408,96 @@ describe("chat model selection", () => {
 });
 
 describe("chat validation", () => {
-	it("rejects an attachment type the handler cannot read, before any inference", async () => {
-		const response = await fetchWorker("/api/chat/guest", {
-			method: "POST",
-			headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.8" },
-			body: JSON.stringify({
-				messages: [{ role: "user", content: "hi" }],
-				attachments: [{ data: "PHNjcmlwdD4=", mimeType: "text/html", name: "x.html" }],
-			}),
+	it("refuses inline attachments before any inference, for guests and users alike", async () => {
+		for (const attachments of [
+			[{ data: "PHNjcmlwdD4=", mimeType: "text/html", name: "x.html" }],
+			[1, 2, 3, 4, 5].map(() => ({ data: "iVBORw0KGgo=", mimeType: "image/png", name: "p.png" })),
+		]) {
+			const response = await fetchWorker("/api/chat/guest", {
+				method: "POST",
+				headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.8" },
+				body: JSON.stringify({ messages: [{ role: "user", content: "hi" }], attachments }),
+			});
+			expect(response.status).toBe(422);
+			expect(await response.text()).toContain("/api/v1/files");
+		}
+	});
+
+	it("does not sign a request in from a session cookie alone", async () => {
+		for (const path of ["/api/chat", "/api/v1/conversations", "/api/v1/files"]) {
+			const response = await fetchWorker(path, {
+				method: "POST",
+				// What a cross-site form would send: a cookie and a "simple" body.
+				headers: { "content-type": "text/plain", cookie: "__session=x.y.z; __client_uat=1" },
+				body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+			});
+			expect(response.status, path).toBe(401);
+		}
+	});
+});
+
+describe("hardening (final audit)", () => {
+	const report = (blocked: string) =>
+		JSON.stringify({ "csp-report": { "violated-directive": "script-src", "blocked-uri": blocked, "document-uri": "https://eleenai.xyz/" } });
+
+	it("logs a CSP report with each field capped, and only for report content types", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		try {
+			const ok = await fetchWorker("/api/csp-report", {
+				method: "POST",
+				headers: { "content-type": "application/csp-report", "cf-connecting-ip": "203.0.113.20" },
+				body: report(`https://x.example/${"a".repeat(5000)}`),
+			});
+			expect(ok.status).toBe(204);
+			const logged = warn.mock.calls.find((c) => c[0] === "CSP violation")?.[1] as Record<string, string>;
+			expect(logged.directive).toBe("script-src");
+			expect(logged.blocked.length).toBeLessThanOrEqual(256);
+
+			warn.mockClear();
+			const plain = await fetchWorker("/api/csp-report", {
+				method: "POST",
+				headers: { "content-type": "text/plain", "cf-connecting-ip": "203.0.113.20" },
+				body: report("https://x.example/"),
+			});
+			expect(plain.status).toBe(204);
+			expect(warn.mock.calls.some((c) => c[0] === "CSP violation")).toBe(false);
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
+	it("ignores an oversized CSP report without reading it into the log", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		try {
+			const big = await fetchWorker("/api/csp-report", {
+				method: "POST",
+				headers: { "content-type": "application/csp-report", "cf-connecting-ip": "203.0.113.21" },
+				body: report(`https://x.example/${"a".repeat(64 * 1024)}`),
+			});
+			expect(big.status).toBe(204);
+			expect(warn.mock.calls.some((c) => c[0] === "CSP violation")).toBe(false);
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
+	it("gives the asset host no credentialed CORS", async () => {
+		const preflight = await fetchWorker("/api/v1/conversations", {
+			method: "OPTIONS",
+			headers: { origin: "https://assets.eleenai.xyz", "access-control-request-method": "GET" },
 		});
-		expect(response.status).toBe(422);
+		expect(preflight.status).toBe(403);
+		const site = await fetchWorker("/api/v1/conversations", {
+			method: "OPTIONS",
+			headers: { origin: "https://eleenai.xyz", "access-control-request-method": "GET" },
+		});
+		expect(site.headers.get("access-control-allow-origin")).toBe("https://eleenai.xyz");
+	});
+
+	it("accepts localhost tokens only when the Worker itself runs on localhost", () => {
+		expect(authorizedParties(new URL("https://eleenai.xyz/api/chat"))).toEqual(["https://eleenai.xyz"]);
+		expect(authorizedParties(new URL("https://eleen-ai-beta-v1.example.workers.dev/api/chat"))).toEqual(["https://eleenai.xyz"]);
+		expect(authorizedParties(new URL("http://localhost:8787/api/chat"))).toContain("http://localhost:8787");
+		expect(authorizedParties(new URL("http://127.0.0.1:8787/api/chat"))).toContain("http://localhost:8787");
 	});
 });

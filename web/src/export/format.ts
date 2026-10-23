@@ -105,6 +105,42 @@ export function balanceFences(text: string): string {
 	return `${text.replace(/\n*$/, "")}\n${open.char.repeat(open.length)}`;
 }
 
+/**
+ * Make model text inert for other Markdown viewers (final audit #18). The
+ * app itself never shows a model-written image or raw HTML, but a viewer
+ * like an editor preview would: `![x](https://…?d=…)` loads a remote image,
+ * which is a way to send data out. Outside code, an image becomes a plain
+ * link and a raw HTML tag is escaped; code, fenced or inline, is untouched.
+ */
+export function defangMarkdown(text: string): string {
+	let open: { char: string; length: number } | null = null;
+	return text
+		.split("\n")
+		.map((line) => {
+			const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+			if (match) {
+				const fence = match[1] ?? "";
+				const char = fence.charAt(0);
+				if (!open && !(char === "`" && (match[2] ?? "").includes("`"))) open = { char, length: fence.length };
+				else if (open && char === open.char && fence.length >= open.length && (match[2] ?? "").trim() === "") open = null;
+				return line;
+			}
+			if (open) return line;
+			// Split off inline code spans (`…`, ``…``) and change only the rest.
+			return line
+				.split(/(`+[^`]*`+)/)
+				.map((part, i) =>
+					i % 2
+						? part
+						: part
+								.replace(/!\[/g, "[")
+								.replace(/<(?=[A-Za-z/!?])/g, "&lt;"),
+				)
+				.join("");
+		})
+		.join("\n");
+}
+
 function dateLine(exportedAt: Date, lang: string): string {
 	try {
 		return new Intl.DateTimeFormat(lang, { dateStyle: "long", timeStyle: "short" }).format(exportedAt);
@@ -116,8 +152,8 @@ function dateLine(exportedAt: Date, lang: string): string {
 /**
  * The conversation as a Markdown document: a title, the export date, then
  * each turn under a bold speaker line, separated by rules. Message text is
- * kept as it was written, Arabic and code included; only an unclosed code
- * fence is closed.
+ * kept as it was written, Arabic and code included; an unclosed code fence
+ * is closed, and images and raw HTML outside code are made inert.
  */
 export function buildMarkdown(
 	conversation: ExportConversation,
@@ -133,7 +169,7 @@ export function buildMarkdown(
 	];
 	for (const message of conversation.messages) {
 		const speaker = message.role === "user" ? labels.user : labels.assistant;
-		const body = balanceFences(message.content.replace(/\r\n?/g, "\n")).replace(/\s+$/, "");
+		const body = defangMarkdown(balanceFences(message.content.replace(/\r\n?/g, "\n"))).replace(/\s+$/, "");
 		out.push("", "---", "", `**${speaker}**`, "", body);
 	}
 	return `${out.join("\n")}\n`;
