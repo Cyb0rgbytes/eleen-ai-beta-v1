@@ -12,7 +12,7 @@
  * should not cost the rest of the reply.
  */
 import type { StreamEvent, StreamEventName } from "../../../src/shared/stream";
-import { STREAM_EVENT_NAMES } from "../../../src/shared/stream";
+import { MAX_COMPARE_LANES, STREAM_EVENT_NAMES } from "../../../src/shared/stream";
 
 export type { StreamEvent } from "../../../src/shared/stream";
 
@@ -41,17 +41,24 @@ export function parseFrame(eventName: string | null, data: string): StreamEvent 
 
 	if (!KNOWN.has(eventName)) return null;
 	const name = eventName as StreamEventName;
+	// Compare (M5.4): which reply the event belongs to. Only a small
+	// non-negative integer is taken; anything else reads as no lane.
+	const lane =
+		typeof parsed.lane === "number" && Number.isInteger(parsed.lane) && parsed.lane >= 0 && parsed.lane < MAX_COMPARE_LANES
+			? { lane: parsed.lane }
+			: {};
 
 	switch (name) {
 		case "token":
 		case "reasoning":
-			return typeof parsed.text === "string" ? { type: name, data: { text: parsed.text } } : null;
+			return typeof parsed.text === "string" ? { type: name, data: { text: parsed.text, ...lane } } : null;
 		case "error":
-			return typeof parsed.message === "string" ? { type: "error", data: { message: parsed.message } } : null;
+			return typeof parsed.message === "string" ? { type: "error", data: { message: parsed.message, ...lane } } : null;
 		case "usage":
 			return {
 				type: "usage",
 				data: {
+					...lane,
 					...(typeof parsed.promptTokens === "number" ? { promptTokens: parsed.promptTokens } : {}),
 					...(typeof parsed.completionTokens === "number" ? { completionTokens: parsed.completionTokens } : {}),
 				},
@@ -71,11 +78,13 @@ export function parseFrame(eventName: string | null, data: string): StreamEvent 
 					...(id(parsed.conversationId) ? { conversationId: parsed.conversationId as string } : {}),
 					...(id(parsed.userMessageId) ? { userMessageId: parsed.userMessageId as string } : {}),
 					...(id(parsed.assistantMessageId) ? { assistantMessageId: parsed.assistantMessageId as string } : {}),
+					...(id(parsed.compareGroup) ? { compareGroup: parsed.compareGroup as string } : {}),
+					...lane,
 				},
 			};
 		}
 		case "done":
-			return { type: "done", data: {} };
+			return { type: "done", data: { ...lane } };
 	}
 }
 
@@ -117,7 +126,8 @@ export async function* readEvents(
 						const event = parseFrame(eventName, dataLines.join("\n"));
 						if (event) {
 							yield event;
-							if (event.type === "done") return;
+							// A lane's done ends that reply only; the stream ends at a done without one.
+							if (event.type === "done" && event.data.lane === undefined) return;
 						}
 					}
 					eventName = null;

@@ -26,6 +26,7 @@
  */
 import type { ChatMessage, ChatRequestBody, ResponseMode } from "../../../src/shared/chat";
 import type { ConversationSummary, MessageStatus, StoredMessage } from "../../../src/shared/history";
+import { MAX_COMPARE_LANES } from "../../../src/shared/stream";
 import { ApiError, request, streamChat } from "../api/client";
 import { isSignedIn, openSignIn } from "../auth/clerk";
 import { t } from "../i18n";
@@ -33,8 +34,10 @@ import { setIcon } from "../ui/icons";
 import { showToast } from "../ui/toast";
 import { announceConversation, getHistoryState, isSavedMode, setHistoryState, subscribeHistory } from "../history/state";
 import { getConversation, patchConversation } from "../history/api";
-import { buildTree, deepestLeaf, defaultLeaf, pathTo, siblingInfo } from "../history/tree";
+import { buildTree, compareMembers, deepestLeaf, defaultLeaf, pathTo, siblingInfo } from "../history/tree";
+import { createCompareTurn, fallbackModelLabel, type CompareTurn } from "./compare";
 import {
+	type AssistantView,
 	createAssistantMessage,
 	createConversationLoading,
 	createImageMessage,
@@ -51,6 +54,8 @@ import { openEditor } from "./edit";
 import { follow } from "./scroll";
 import { createSpeaker, shouldAutoSpeak, type Speaker } from "./speak";
 import { codeText } from "./code";
+import { appendFileChips, hasPendingUploads, hasReadyFiles, takeFiles } from "./attachments";
+import type { FileRef } from "../../../src/shared/files";
 
 const MAX_HISTORY = 20;
 /** A branch switch is saved once the clicking stops. */
@@ -68,6 +73,8 @@ interface SavedTurn {
 	parentId: string | null;
 	/** Regenerate: the user message to answer again. */
 	replyTo?: string;
+	/** Files attached to the new user turn (M5.2). */
+	files?: FileRef[];
 }
 
 export interface ChatControllerOptions {
@@ -75,6 +82,14 @@ export interface ChatControllerOptions {
 	onBusyChange(busy: boolean): void;
 	/** Builds the empty state shown before the first message and on a new chat. */
 	emptyState(): HTMLElement;
+	/** A registry model id's display name, from the picker's listing (compare lanes). */
+	labelFor?(modelId: string): string | null;
+}
+
+/** One model chosen for compare (M5.4): what is sent, and what its lane is called. */
+export interface CompareChoice {
+	value: string;
+	label: string;
 }
 
 export interface SendOptions {
@@ -101,6 +116,12 @@ export interface ChatApi {
 	setMode(mode: ResponseMode): void;
 	/** A tier name or model id from the picker, and its display label. */
 	setModel(model: string, label: string): void;
+	/**
+	 * Compare (M5.4): 2 or 3 models answer each new message side by side, or
+	 * null for one model. Signed-in only; ignored for a guest.
+	 */
+	setCompare(models: readonly CompareChoice[] | null): void;
+	compareModels(): readonly CompareChoice[] | null;
 	/** Reads replies aloud; shared with the composer's voice-out toggle. */
 	readonly speaker: Speaker;
 }
@@ -116,6 +137,10 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 	let mode: ResponseMode = "balanced";
 	let model = "fast";
 	let modelLabel = "";
+	/** Compare (M5.4): the models each new message goes to, or null. */
+	let compare: readonly CompareChoice[] | null = null;
+	/** Unsaved compare turns on the page, with each lane's text, for Continue. */
+	const unsavedCompares = new WeakMap<HTMLElement, { view: CompareTurn; texts: string[] }>();
 	let controller: AbortController | null = null;
 	const speaker = createSpeaker();
 	/** This chat saves to the account (decided when its first message is sent, or by opening one). */
@@ -162,7 +187,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 		messages.querySelectorAll<HTMLButtonElement>(".branch-button").forEach((b) => {
 			b.disabled = busy || !b.dataset.branch;
 		});
-		messages.querySelectorAll<HTMLButtonElement>(".edit-button, .edit-save").forEach((b) => {
+		messages.querySelectorAll<HTMLButtonElement>(".edit-button, .edit-save, .compare-continue").forEach((b) => {
 			b.disabled = busy;
 		});
 	}
@@ -186,14 +211,12 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 		syncDisabled();
 	}
 
-	/** A stored assistant message, replayed through the same renderer as a live one. */
-	function replayAssistant(message: StoredMessage): HTMLElement {
-		const view = createAssistantMessage();
+	/** Show a stored reply in a view, through the same renderer as a live one. */
+	function replayInto(view: AssistantView, message: StoredMessage) {
 		view.root.classList.add("is-restored");
-		setTurnId(view.root, message.id);
 		if (message.status === "error") {
 			view.fail(t("errorGeneric"));
-			return view.root;
+			return;
 		}
 		if (message.reasoning) view.restoreReasoning(message.reasoning);
 		view.finish(message.content, {
@@ -202,6 +225,37 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 			stopped: message.status === "stopped" || message.status === "streaming",
 			stoppedNote: t("replyStoppedSaved"),
 		});
+	}
+
+	/** A stored assistant message, replayed through the same renderer as a live one. */
+	function replayAssistant(message: StoredMessage): HTMLElement {
+		const view = createAssistantMessage();
+		setTurnId(view.root, message.id);
+		replayInto(view, message);
+		return view.root;
+	}
+
+	const modelName = (id: string | null) => (id && options.labelFor?.(id)) || fallbackModelLabel(id);
+
+	/**
+	 * A stored compare turn (M5.4): every model's answer again, the one the
+	 * thread continues from marked, the others one click from continuing.
+	 */
+	function replayCompare(message: StoredMessage, members: readonly StoredMessage[]): HTMLElement {
+		const view = createCompareTurn(members.map((m) => modelName(m.model)));
+		view.root.classList.add("is-restored");
+		view.root.dataset.messageId = message.id;
+		members.forEach((member, index) => {
+			const lane = view.lanes[index];
+			if (!lane) return;
+			lane.setMessageId(member.id);
+			replayInto(lane.view, member);
+			lane.settle();
+		});
+		const chosen = members.findIndex((m) => m.id === message.id);
+		view.setChosen(chosen);
+		view.select(Math.max(0, chosen));
+		view.setContinuable(true);
 		return view.root;
 	}
 
@@ -212,9 +266,13 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 			messages.replaceChildren(options.emptyState());
 			return;
 		}
+		const current = tree();
 		const nodes = path.map((message) => {
+			const members = message.role === "assistant" ? compareMembers(current, message.id) : null;
+			if (members && members.length > 1) return replayCompare(message, members);
 			if (message.role === "assistant") return replayAssistant(message);
 			const node = createUserTurn(message.content, message.id);
+			appendFileChips(node, message.files);
 			node.classList.add("is-restored");
 			return node;
 		});
@@ -246,6 +304,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 				compareGroup: null,
 				completionTokens: null,
 				createdAt: now,
+				...(turn.files?.length ? { files: turn.files } : {}),
 			});
 		}
 		const parentId = ids.userId ?? turn.replyTo ?? null;
@@ -450,8 +509,16 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 
 	async function sendMessage(text?: string, { voice = false }: SendOptions = {}): Promise<void> {
 		const input = document.getElementById("user-input") as HTMLTextAreaElement | null;
-		const message = (text ?? input?.value ?? "").trim();
-		if (!message || busy) return;
+		let message = (text ?? input?.value ?? "").trim();
+		if (busy) return;
+		// M5.2: an upload still running holds the send; finished ones go with it.
+		if (hasPendingUploads()) {
+			showToast(t("uploadWait"));
+			return;
+		}
+		if (!message && hasReadyFiles()) message = t("attachDefaultPrompt");
+		if (!message) return;
+		const files = message.toLowerCase().startsWith("/imagine ") ? [] : takeFiles();
 
 		// A chat's mode is fixed by its first message; a chat already under
 		// way never changes into the other kind.
@@ -465,6 +532,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 
 		if (saved) {
 			const userNode = createUserTurn(message);
+			appendFileChips(userNode, files);
 			append(userNode, { force: true });
 			clearInput(input, text);
 			if (imagine) {
@@ -472,11 +540,17 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 				await imagineTurn(message);
 				return;
 			}
-			await runTurn({ voice, save: { text: message, userNode, parentId: getHistoryState().activeLeafId } });
+			const save = { text: message, userNode, parentId: getHistoryState().activeLeafId, files };
+			if (comparing()) await runCompareTurn(save);
+			else await runTurn({ voice, save });
 			return;
 		}
 
-		append(createUserMessage(message), { force: true });
+		// An unsaved compare turn can be continued from only while it is the newest.
+		messages.querySelectorAll(".compare-turn:not([data-message-id]) .compare-lane-foot").forEach((n) => n.remove());
+		const userNode = createUserMessage(message);
+		appendFileChips(userNode, files);
+		append(userNode, { force: true });
 		clearInput(input, text);
 		history.push({ role: "user", content: message });
 
@@ -491,7 +565,13 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 			}
 			return;
 		}
-		await runTurn({ voice });
+		if (comparing()) await runCompareTurn(undefined, files);
+		else await runTurn({ voice, files });
+	}
+
+	/** Compare applies to signed-in users' text turns. */
+	function comparing(): boolean {
+		return compare !== null && isSignedIn();
 	}
 
 	/**
@@ -550,8 +630,8 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 		await runTurn({ save: { text, userNode, parentId: message.parentId } });
 	}
 
-	function requestBody(save: SavedTurn | undefined, voice: boolean): ChatRequestBody {
-		const shared = { mode, model, ...(voice ? { voice: true } : {}) };
+	function requestBody(save: SavedTurn | undefined, voice: boolean, files: readonly FileRef[] = save?.files ?? []): ChatRequestBody {
+		const shared = { mode, model, ...(voice ? { voice: true } : {}), ...(files.length ? { files: files.map((f) => f.id) } : {}) };
 		if (!save) return { messages: history, ...shared };
 		const conversationId = getHistoryState().conversationId;
 		return {
@@ -566,7 +646,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 	 * Stream one assistant turn: from the client history, or, in a saved
 	 * chat, from the tree on the server. Owns busy and the turn-complete event.
 	 */
-	async function runTurn({ voice = false, save }: SendOptions & { save?: SavedTurn } = {}): Promise<void> {
+	async function runTurn({ voice = false, save, files }: SendOptions & { save?: SavedTurn; files?: FileRef[] } = {}): Promise<void> {
 		const thinking = createThinking();
 		append(thinking, { force: true });
 		// Only the newest reply offers Regenerate.
@@ -594,7 +674,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 			};
 
 			try {
-				for await (const event of streamChat(requestBody(save, voice), {
+				for await (const event of streamChat(requestBody(save, voice, files ?? save?.files), {
 					authenticated: isSignedIn(),
 					signal: controller.signal,
 				})) {
@@ -690,6 +770,240 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 				completionTokens: completionTokens ?? null,
 			};
 		}
+	}
+
+	/**
+	 * Compare (M5.4): one request, every lane on one stream. Each lane is
+	 * rendered and finished on its own as its events arrive; Stop aborts the
+	 * request, which stops them all. Owns busy and the turn-complete event.
+	 */
+	async function runCompareTurn(save?: SavedTurn, files: readonly FileRef[] = save?.files ?? []): Promise<void> {
+		const choices = compare ?? [];
+		const view = createCompareTurn(choices.map((c) => c.label));
+		append(view.root, { force: true });
+		messages.querySelectorAll(".regenerate-button").forEach((b) => b.remove());
+
+		const at = epoch;
+		if (save) dropSwitch();
+		interface LaneState {
+			raw: string;
+			reasoning: string;
+			completionTokens?: number;
+			failed: string | null;
+			ended: boolean;
+			status: MessageStatus;
+			model: string | null;
+			id?: string;
+		}
+		const lanes: LaneState[] = choices.map(() => ({ raw: "", reasoning: "", failed: null, ended: false, status: "complete", model: null }));
+		let userId: string | undefined;
+		let group: string | undefined;
+		let stopped = false;
+
+		const finishLane = (index: number) => {
+			const lane = lanes[index];
+			const shown = view.lanes[index];
+			if (!lane || !shown || lane.ended) return;
+			lane.ended = true;
+			if (lane.failed !== null) {
+				lane.status = "error";
+				shown.view.fail(lane.failed);
+			} else {
+				if (stopped) lane.status = "stopped";
+				shown.view.finish(lane.raw, {
+					completionTokens: lane.completionTokens,
+					stopped,
+					...(save && lane.id ? { stoppedNote: t("replyStoppedSaved") } : {}),
+				});
+			}
+			shown.settle();
+		};
+
+		const body: ChatRequestBody = {
+			...requestBody(save, false, files),
+			compare: choices.map((c) => c.value),
+		};
+		delete body.model;
+
+		try {
+			controller = new AbortController();
+			try {
+				for await (const event of streamChat(body, { authenticated: true, signal: controller.signal })) {
+					const index = event.data.lane;
+					// A frame without a lane in a compare stream: an error is everyone's.
+					if (index === undefined) {
+						if (event.type === "error") lanes.forEach((lane) => (lane.failed = event.data.message));
+						continue;
+					}
+					const lane = lanes[index];
+					const shown = view.lanes[index];
+					if (!lane || !shown) continue;
+					if (event.type === "meta") {
+						lane.model = event.data.model ?? null;
+						if (lane.model) shown.setLabel(modelName(lane.model));
+						if (save && at === epoch && event.data.conversationId && event.data.assistantMessageId) {
+							lane.id = event.data.assistantMessageId;
+							shown.setMessageId(lane.id);
+							group = event.data.compareGroup ?? group;
+							if (event.data.userMessageId && !userId) {
+								userId = event.data.userMessageId;
+								if (save.userNode) setTurnId(save.userNode, userId);
+							}
+							adoptConversation(event.data.conversationId, save.text);
+						}
+					} else if (event.type === "reasoning") {
+						lane.reasoning += event.data.text;
+						shown.view.reason(event.data.text);
+					} else if (event.type === "token") {
+						lane.raw += event.data.text;
+						shown.view.update(lane.raw);
+						requestAnimationFrame(() => follow(messages));
+					} else if (event.type === "usage") {
+						lane.completionTokens = event.data.completionTokens;
+					} else if (event.type === "error") {
+						lane.failed = event.data.message;
+					} else if (event.type === "done") {
+						finishLane(index);
+					}
+				}
+			} catch (error) {
+				if (!(error instanceof ApiError && error.kind === "aborted")) throw error;
+			}
+			stopped = controller.signal.aborted;
+			lanes.forEach((_, index) => finishLane(index));
+		} catch (error) {
+			if (lanes.some((lane) => lane.model !== null)) {
+				// Cut off after the lanes began: each unfinished one shows the failure.
+				lanes.forEach((lane) => {
+					if (!lane.ended) lane.failed ??= errorText(error);
+				});
+				lanes.forEach((_, index) => finishLane(index));
+				return;
+			}
+			// Refused before any lane began (rate limit, a model not available).
+			const notice = failureNotice(error);
+			if (notice) {
+				view.root.replaceWith(notice);
+			} else {
+				const failed = createAssistantMessage();
+				view.root.replaceWith(failed.root);
+				failed.fail(error instanceof ApiError && error.kind === "forbidden" ? t("compareUnavailable") : errorText(error));
+			}
+			lanes.forEach((lane) => {
+				lane.ended = true;
+				lane.status = "error";
+			});
+		} finally {
+			const wasStopped = controller?.signal.aborted ?? false;
+			controller = null;
+			if (save && at === epoch) {
+				const ids = lanes.map((lane) => lane.id);
+				if (ids.every((id): id is string => typeof id === "string") && group) {
+					commitCompare(save, userId, group, lanes.map((lane, index) => ({ ...lane, id: ids[index]! })));
+					view.root.dataset.messageId = getHistoryState().activeLeafId ?? "";
+					view.setChosen(0);
+					view.setContinuable(true);
+				} else if (wasStopped) {
+					const conversationId = getHistoryState().conversationId;
+					if (conversationId) void resync(conversationId, at);
+				}
+				refreshTurns();
+			} else if (!save && lanes.some((lane) => lane.status !== "error")) {
+				// Unsaved: the first lane with an answer is what the next turn
+				// follows, until the reader picks another.
+				const first = Math.max(0, lanes.findIndex((lane) => lane.raw.trim()));
+				const text = lanes[first]?.raw ?? "";
+				if (text.trim()) {
+					history.push({ role: "assistant", content: text });
+					unsavedCompares.set(view.root, { view, texts: lanes.map((lane) => (lane.status === "error" ? "" : lane.raw)) });
+					view.setChosen(first);
+					view.setContinuable(true);
+				}
+			}
+			bound();
+			setBusy(false);
+			document.dispatchEvent(new CustomEvent("eleen:turn-complete"));
+		}
+	}
+
+	/** Add a finished saved compare turn to the tree; lane 0 becomes the active leaf, as on the server. */
+	function commitCompare(
+		turn: SavedTurn,
+		userId: string | undefined,
+		group: string,
+		lanes: readonly { id: string; raw: string; reasoning: string; model: string | null; status: MessageStatus; completionTokens?: number }[],
+	) {
+		const state = getHistoryState();
+		let seq = state.messages.reduce((max, m) => Math.max(max, m.seq), 0);
+		const now = Date.now();
+		const added: StoredMessage[] = [];
+		if (userId && turn.text !== undefined) {
+			added.push({
+				id: userId,
+				parentId: turn.parentId,
+				seq: ++seq,
+				role: "user",
+				content: turn.text,
+				reasoning: null,
+				model: null,
+				status: "complete",
+				compareGroup: null,
+				completionTokens: null,
+				createdAt: now,
+			});
+		}
+		const parentId = userId ?? turn.replyTo ?? null;
+		for (const lane of lanes) {
+			added.push({
+				id: lane.id,
+				parentId,
+				seq: ++seq,
+				role: "assistant",
+				content: lane.raw,
+				reasoning: lane.reasoning || null,
+				model: lane.model,
+				status: lane.status,
+				compareGroup: group,
+				completionTokens: lane.completionTokens ?? null,
+				createdAt: now,
+			});
+		}
+		setHistoryState({ messages: [...state.messages, ...added], activeLeafId: lanes[0]?.id ?? state.activeLeafId });
+		if (summary) {
+			summary = { ...summary, updatedAt: now };
+			announceConversation(summary);
+		}
+	}
+
+	/**
+	 * "Continue with this answer" (M5.4). Saved: the lane becomes the active
+	 * leaf (or its newest continuation), and the switch is saved like any
+	 * branch switch. Unsaved: the lane's text replaces the reply the next
+	 * turn follows.
+	 */
+	function continueWith(button: HTMLButtonElement) {
+		if (busy) return;
+		const view = button.closest<HTMLElement>(".compare-turn");
+		const index = Number(button.dataset.lane);
+		const id = button.dataset.laneMessageId;
+		const state = getHistoryState();
+		if (saved && id && state.conversationId) {
+			const current = tree();
+			if (!current.byId.has(id)) return;
+			const leafId = deepestLeaf(current, id);
+			speaker.stop();
+			setHistoryState({ activeLeafId: leafId });
+			renderThread();
+			turnNode(id)?.querySelector<HTMLElement>(".compare-lane.is-chosen .compare-lane-chosen")?.scrollIntoView({ block: "nearest" });
+			saveSwitch(state.conversationId, leafId);
+			return;
+		}
+		const unsaved = view && !saved ? unsavedCompares.get(view) : undefined;
+		const text = unsaved?.texts[index];
+		const last = history.at(-1);
+		if (!unsaved || !text?.trim() || last?.role !== "assistant") return;
+		last.content = text;
+		unsaved.view.setChosen(index);
 	}
 
 	function stop() {
@@ -815,6 +1129,8 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 					openEditor(turn, message.content, { onSave: (text) => void editTurn(turn, text) });
 					syncDisabled();
 				}
+			} else if (action.dataset.action === "continue") {
+				continueWith(action);
 			} else if (action.dataset.action === "regenerate") {
 				void regenerate();
 			} else if (action.dataset.action === "copy" && reply) {
@@ -882,6 +1198,10 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 			model = next;
 			modelLabel = label;
 		},
+		setCompare: (models) => {
+			compare = models && models.length >= 2 ? models.slice(0, MAX_COMPARE_LANES) : null;
+		},
+		compareModels: () => compare,
 		speaker,
 	};
 }

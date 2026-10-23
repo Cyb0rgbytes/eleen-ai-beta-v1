@@ -28,6 +28,7 @@ import {
 import { createFolder, deleteFolder, folderExists, listFolders, updateFolder } from "../db/folders";
 import { deleteAllMemory, deleteMemoryEntry, listMemory } from "../db/memory";
 import { getMessageRef, searchMessages } from "../db/messages";
+import { deleteAllFiles } from "../files/store";
 import { ValidationError, ValidationFailure, isUuid, validationResponse } from "../lib/validate";
 import { POLICY_VERSION } from "../shared/history";
 import type { ConversationPatch } from "../db/conversations";
@@ -168,6 +169,9 @@ export const handleConversations = historyRoute(async (request, env, _ctx, userI
 
 	if (request.method === "DELETE") {
 		await deleteAllConversations(env.DB, userId);
+		// M5.2: the files attached to them go too, saved chat or not. If R2
+		// fails this is a 500 and the client's retry finishes the job.
+		await deleteAllFiles(env, userId);
 		return noContent();
 	}
 

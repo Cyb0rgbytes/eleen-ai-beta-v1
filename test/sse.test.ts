@@ -45,6 +45,25 @@ describe("v2 encoder", () => {
 	});
 });
 
+describe("v2 encoder for a compare lane (M5.4)", () => {
+	const lane = createEncoder(2, { lane: 1 });
+
+	it("tags every payload with its lane", () => {
+		expect(lane.meta({ model: "m" })).toBe('event: meta\ndata: {"model":"m","protocol":2,"lane":1}\n\n');
+		expect(lane.token("a")).toBe('event: token\ndata: {"text":"a","lane":1}\n\n');
+		expect(lane.reasoning("r")).toBe('event: reasoning\ndata: {"text":"r","lane":1}\n\n');
+		expect(lane.usage({ completionTokens: 3 })).toBe('event: usage\ndata: {"completionTokens":3,"lane":1}\n\n');
+		expect(lane.error("bad")).toBe('event: error\ndata: {"message":"bad","lane":1}\n\n');
+		expect(lane.done()).toBe('event: done\ndata: {"lane":1}\n\n');
+		expect(lane.token("")).toBe("");
+	});
+
+	it("leaves an encoder without a lane byte-identical, and v1 has no lanes", () => {
+		expect(createEncoder(2, {}).done()).toBe("event: done\ndata: {}\n\n");
+		expect(createEncoder(1, { lane: 0 }).token("x")).toBe('data: {"response":"x"}\n\n');
+	});
+});
+
 describe("isProtocol", () => {
 	it("accepts only 1 and 2", () => {
 		expect(isProtocol(1)).toBe(true);

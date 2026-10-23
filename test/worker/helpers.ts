@@ -33,6 +33,8 @@ export interface FakeAiOptions {
 	title?: string;
 	/** What the memory call answers. */
 	facts?: string;
+	/** Compare (M5.4): a reply and an ending per model id, over `reply` and `end`. */
+	byModel?: Record<string, { reply?: string[]; end?: StreamEnd; reject?: boolean }>;
 }
 
 function modelStream(chunks: string[], end: StreamEnd): ReadableStream<Uint8Array> {
@@ -61,7 +63,11 @@ export function fakeAi(options: FakeAiOptions = {}) {
 	const ai = {
 		run: async (model: string, input: AiCall["input"]) => {
 			calls.push({ model, input: structuredClone(input) });
-			if (input.stream) return modelStream(options.reply ?? ["Hello", " there."], options.end ?? "complete");
+			if (input.stream) {
+				const own = options.byModel?.[model];
+				if (own?.reject) throw new Error("model unavailable");
+				return modelStream(own?.reply ?? options.reply ?? ["Hello", " there."], own?.end ?? options.end ?? "complete");
+			}
 			const text = JSON.stringify(input.messages ?? []);
 			if (text.includes("You name chat conversations")) return { response: options.title ?? "A Generated Title" };
 			return { response: options.facts ?? "[]" };

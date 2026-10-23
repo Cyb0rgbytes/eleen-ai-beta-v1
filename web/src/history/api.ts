@@ -19,6 +19,7 @@ import type {
 	StoredMessage,
 } from "../../../src/shared/history";
 import { ApiError, request } from "../api/client";
+import { UPLOAD_TYPES, type FileRef } from "../../../src/shared/files";
 
 const TIMEOUT_MS = 10_000;
 
@@ -50,9 +51,17 @@ export function parseSummary(value: unknown): ConversationSummary | null {
 
 const STATUSES: readonly MessageStatus[] = ["streaming", "complete", "stopped", "error"];
 
+/** An attachment on a user turn (M5.2). Its type must be one the server accepts. */
+function parseFileRef(value: unknown): FileRef | null {
+	const f = record(value);
+	if (!f || !id(f.id) || !(UPLOAD_TYPES as readonly unknown[]).includes(f.type)) return null;
+	return { id: f.id, name: str(f.name), type: f.type as FileRef["type"], size: num(f.size), kind: f.kind === "image" ? "image" : "document" };
+}
+
 export function parseMessage(value: unknown): StoredMessage | null {
 	const m = record(value);
 	if (!m || !id(m.id) || (m.role !== "user" && m.role !== "assistant")) return null;
+	const files = list(m.files, parseFileRef);
 	return {
 		id: m.id,
 		parentId: strOrNull(m.parentId),
@@ -65,6 +74,7 @@ export function parseMessage(value: unknown): StoredMessage | null {
 		compareGroup: strOrNull(m.compareGroup),
 		completionTokens: typeof m.completionTokens === "number" ? m.completionTokens : null,
 		createdAt: num(m.createdAt),
+		...(files.length ? { files } : {}),
 	};
 }
 

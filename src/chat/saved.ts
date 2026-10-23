@@ -18,7 +18,8 @@ import { newNonce, wrapUntrusted } from "../ai/guard";
 import { UTILITY_MODEL } from "../ai/registry";
 import type { StreamObserver } from "../ai/stream";
 import { getConversation } from "../db/conversations";
-import { ReplyOutcome, ThreadMessage, finishReply, getMessageRef, hasMessages, insertTurn, loadThread } from "../db/messages";
+import { ReplyOutcome, ThreadMessage, finishReply, getMessageRef, hasMessages, insertTurn, loadThread, parseFiles } from "../db/messages";
+import type { FileRef } from "../shared/files";
 import { MAX_CONTENT_CHARS, ValidationError } from "../lib/validate";
 import type { SavedTurnMeta } from "../shared/history";
 
@@ -49,6 +50,23 @@ export interface SavedTurnPlan {
 	replyTo: string | null;
 	/** What the model is sent: the stored thread, then the new turn. */
 	context: ChatMessage[];
+	/** Files attached to earlier user turns of the thread, newest first (M5.2). */
+	threadFiles: FileRef[];
+}
+
+/** Files on the thread's user turns, newest turn first, each once. */
+export function threadFiles(thread: readonly ThreadMessage[]): FileRef[] {
+	const seen = new Set<string>();
+	const out: FileRef[] = [];
+	for (const message of [...thread].reverse()) {
+		if (message.role !== "user") continue;
+		for (const file of parseFiles(message.files)) {
+			if (seen.has(file.id)) continue;
+			seen.add(file.id);
+			out.push(file);
+		}
+	}
+	return out;
 }
 
 interface SavedTurnBody {
@@ -93,8 +111,12 @@ export async function planSavedTurn(db: D1Database, userId: string, body: SavedT
 	const conversationId = conversation?.id ?? crypto.randomUUID();
 	const firstTurn = conversation ? !(await hasMessages(db, userId, conversationId)) : true;
 
-	const thread = async (leafId: string) =>
-		threadToContext(await loadThread(db, userId, conversationId, leafId, MAX_CONTEXT_MESSAGES));
+	let files: FileRef[] = [];
+	const thread = async (leafId: string) => {
+		const rows = await loadThread(db, userId, conversationId, leafId, MAX_CONTEXT_MESSAGES);
+		files = threadFiles(rows);
+		return threadToContext(rows);
+	};
 
 	if (body.replyTo) {
 		const target = conversation ? await getMessageRef(db, userId, conversationId, body.replyTo) : null;
@@ -104,7 +126,7 @@ export async function planSavedTurn(db: D1Database, userId: string, body: SavedT
 		}
 		const context = await thread(target.id);
 		if (!context.length) throw new ValidationError([{ field: "replyTo", message: "has nothing to answer" }]);
-		return { conversationId, create: false, firstTurn, user: null, replyTo: target.id, context };
+		return { conversationId, create: false, firstTurn, user: null, replyTo: target.id, context, threadFiles: files };
 	}
 
 	const latest = body.messages[body.messages.length - 1];
@@ -133,6 +155,7 @@ export async function planSavedTurn(db: D1Database, userId: string, body: SavedT
 		user: { parentId, content: latest.content },
 		replyTo: null,
 		context,
+		threadFiles: files,
 	};
 }
 
@@ -147,6 +170,8 @@ export async function commitSavedTurn(
 	userId: string,
 	plan: SavedTurnPlan,
 	model: string,
+	/** The new user turn's attachments (M5.2). */
+	files: FileRef[] = [],
 ): Promise<SavedTurnMeta> {
 	const userMessageId = plan.user ? crypto.randomUUID() : undefined;
 	const assistantMessageId = crypto.randomUUID();
@@ -156,7 +181,10 @@ export async function commitSavedTurn(
 		conversationId: plan.conversationId,
 		createWithTitle: plan.create ? (title ?? "") : undefined,
 		titleIfEmpty: title,
-		user: plan.user && userMessageId ? { id: userMessageId, parentId: plan.user.parentId, content: plan.user.content } : undefined,
+		user:
+			plan.user && userMessageId
+				? { id: userMessageId, parentId: plan.user.parentId, content: plan.user.content, ...(files.length ? { files } : {}) }
+				: undefined,
 		assistant: { id: assistantMessageId, parentId: (userMessageId ?? plan.replyTo) as string, model },
 	});
 
@@ -164,6 +192,55 @@ export async function commitSavedTurn(
 		conversationId: plan.conversationId,
 		...(userMessageId ? { userMessageId } : {}),
 		assistantMessageId,
+	};
+}
+
+/** A saved compare turn (M5.4): one user message, one reply row per lane. */
+export interface CompareTurnMeta {
+	conversationId: string;
+	userMessageId?: string;
+	compareGroup: string;
+	/** Indexed by lane. */
+	assistantMessageIds: string[];
+}
+
+/**
+ * Write a compare turn's rows in one transaction: the user message (absent
+ * on a regenerate) and an empty 'streaming' reply per model, siblings that
+ * share a compare_group. Lane 0 is the active leaf until the user continues
+ * from another lane.
+ */
+export async function commitCompareTurn(
+	db: D1Database,
+	userId: string,
+	plan: SavedTurnPlan,
+	models: readonly string[],
+	/** The new user turn's attachments (M5.2). */
+	files: FileRef[] = [],
+): Promise<CompareTurnMeta> {
+	const userMessageId = plan.user ? crypto.randomUUID() : undefined;
+	const compareGroup = crypto.randomUUID();
+	const assistantMessageIds = models.map(() => crypto.randomUUID());
+	const title = plan.firstTurn && plan.user ? fallbackTitle(plan.user.content) : undefined;
+	const [first, ...rest] = models;
+
+	await insertTurn(db, userId, {
+		conversationId: plan.conversationId,
+		createWithTitle: plan.create ? (title ?? "") : undefined,
+		titleIfEmpty: title,
+		user:
+			plan.user && userMessageId
+				? { id: userMessageId, parentId: plan.user.parentId, content: plan.user.content, ...(files.length ? { files } : {}) }
+				: undefined,
+		assistant: { id: assistantMessageIds[0]!, parentId: (userMessageId ?? plan.replyTo) as string, model: first! },
+		compare: { group: compareGroup, siblings: rest.map((model, i) => ({ id: assistantMessageIds[i + 1]!, model })) },
+	});
+
+	return {
+		conversationId: plan.conversationId,
+		...(userMessageId ? { userMessageId } : {}),
+		compareGroup,
+		assistantMessageIds,
 	};
 }
 
@@ -265,10 +342,15 @@ export async function finishSavedTurn(
 	plan: SavedTurnPlan,
 	ids: SavedTurnMeta,
 	outcome: ReplyOutcome,
+	/**
+	 * Compare lanes after the first (M5.4): neither move the active leaf nor
+	 * title the conversation, which lane 0 does once.
+	 */
+	{ primary = true }: { primary?: boolean } = {},
 ): Promise<void> {
-	await finishReply(env.DB, userId, plan.conversationId, ids.assistantMessageId, outcome);
+	await finishReply(env.DB, userId, plan.conversationId, ids.assistantMessageId, outcome, Date.now(), primary);
 
-	if (!plan.firstTurn || !plan.user || outcome.status !== "complete") return;
+	if (!primary || !plan.firstTurn || !plan.user || outcome.status !== "complete") return;
 	const fallback = fallbackTitle(plan.user.content);
 	const title = await generateTitle(env, plan.user.content);
 	if (!title || title === fallback) return;

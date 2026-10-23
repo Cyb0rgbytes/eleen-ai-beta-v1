@@ -264,6 +264,56 @@ export const en = {
 	pwaUpdateReady: "A new version of EleenAI is ready.",
 	pwaUpdateReload: "Reload",
 	// End M5.5 pwa
+	// M5.3 export
+	exportChat: "Export chat",
+	chatExport: "Export",
+	exportMarkdown: "Markdown (.md)",
+	exportJson: "JSON (.json)",
+	exportJsonTree: "JSON with every branch (.json)",
+	exportPrint: "Print / Save as PDF",
+	exportYou: "You",
+	exportAssistant: "EleenAI",
+	exportedOn: "Exported from EleenAI on {date}",
+	exportDone: "Chat exported.",
+	exportNothing: "Nothing to export yet.",
+	exportFailed: "Could not export that chat. Try again.",
+	// End M5.3 export
+	// M5.4 compare
+	compare: "Compare",
+	compareOn: "Compare {count}",
+	compareButtonLabel: "Compare models",
+	compareButtonOnLabel: "Comparing {count} models. Change or turn off",
+	compareTitle: "Compare models",
+	compareIntro: "Choose 2 or 3 models. Each answers your next messages, side by side.",
+	compareCount: "{count} of 3 chosen",
+	compareApply: "Compare",
+	compareOff: "Turn off",
+	compareCancel: "Cancel",
+	compareStarted: "Your next message goes to {count} models.",
+	compareEnded: "Back to one model.",
+	compareTurnLabel: "Answers from {count} models",
+	compareTabs: "Models",
+	compareContinue: "Continue with this answer",
+	compareContinuing: "Continuing from this answer",
+	compareUnavailable: "One of the models you chose is not available to you. Change the comparison and try again.",
+	// End M5.4 compare
+	// M5.2 uploads
+	attachFiles: "Attach files",
+	attachedFiles: "Attached files",
+	removeFile: "Remove {name}",
+	uploading: "Uploading {name}",
+	fileSizeKb: "{size} KB",
+	fileSizeMb: "{size} MB",
+	uploadSignIn: "Sign in to attach files.",
+	uploadWait: "Wait for the upload to finish.",
+	uploadTooLarge: "Files can be at most 10 MB.",
+	uploadTooMany: "Attach at most {count} files to one message.",
+	uploadUnsupported: "That file type is not supported. Attach a PDF, Word document, image or text file.",
+	uploadUnreadable: "No text could be read from that file.",
+	uploadRateLimited: "Too many uploads. Try again later.",
+	uploadFailed: "The file could not be uploaded.",
+	attachDefaultPrompt: "Please take a look at the attached file.",
+	// End M5.2 uploads
 } as const;
 
 export type MessageKey = keyof typeof en;

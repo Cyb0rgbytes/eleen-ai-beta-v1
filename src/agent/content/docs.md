@@ -82,6 +82,27 @@ data: {}
 
 An `error` event replaces the reply when a request is refused mid-stream.
 
+Authenticated callers may send `"compare": ["fast", "smart"]` (2 or 3
+distinct model ids or tier names, with `"protocol": 2` and no `model`) to have
+every listed model answer the same turn. Each costs one unit of the `compare`
+quota. The one stream multiplexes the replies: every event carries `lane`,
+the model's index in `compare`, each lane ends with its own `done`, and the
+stream ends with a `done` that has no lane.
+
+```
+event: meta
+data: {"model":"…","tier":"fast","protocol":2,"lane":0}
+
+event: token
+data: {"text":"TLS","lane":1}
+
+event: done
+data: {"lane":0}
+
+event: done
+data: {}
+```
+
 ### `GET /api/v1/models`
 
 The models the chat endpoint can run, with each entry's `access` requirement:

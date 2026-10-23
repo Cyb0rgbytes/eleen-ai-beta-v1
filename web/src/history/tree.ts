@@ -51,15 +51,64 @@ export function pathTo(tree: Tree, leafId: string | null): StoredMessage[] {
 	return path.reverse();
 }
 
-/** Follow the newest (highest seq) child down from id to a leaf. */
+/**
+ * Compare (M5.4): siblings that share a compareGroup are one turn answered
+ * by several models, so the navigator and the walk down treat them as one
+ * version, a slot. Every other message is a slot of its own.
+ *
+ * A slot's `primary` is the member the walk continues through: the one the
+ * conversation went on from (the member with the newest child), else the
+ * first lane, which is where the server puts the active leaf.
+ */
+export interface Slot {
+	ids: string[];
+	primary: string;
+	group: string | null;
+}
+
+export function slotsOf(tree: Tree, parentId: string | null): Slot[] {
+	const slots: Slot[] = [];
+	const byGroup = new Map<string, Slot>();
+	for (const message of childrenOf(tree, parentId)) {
+		const group = message.compareGroup;
+		const existing = group ? byGroup.get(group) : undefined;
+		if (existing) {
+			existing.ids.push(message.id);
+			continue;
+		}
+		const slot: Slot = { ids: [message.id], primary: message.id, group: group ?? null };
+		if (group) byGroup.set(group, slot);
+		slots.push(slot);
+	}
+	for (const slot of byGroup.values()) {
+		let newest = -1;
+		for (const id of slot.ids) {
+			const child = childrenOf(tree, id).at(-1);
+			if (child && child.seq > newest) {
+				newest = child.seq;
+				slot.primary = id;
+			}
+		}
+	}
+	return slots;
+}
+
+/** The members of id's compare group in lane order, or null when it is not in one. */
+export function compareMembers(tree: Tree, id: string): StoredMessage[] | null {
+	const message = tree.byId.get(id);
+	if (!message?.compareGroup) return null;
+	return childrenOf(tree, message.parentId).filter((m) => m.compareGroup === message.compareGroup);
+}
+
+/** Follow the newest (highest seq) child down from id to a leaf; a compare turn is followed through its primary. */
 export function deepestLeaf(tree: Tree, id: string): string {
 	const seen = new Set<string>([id]);
 	let current = id;
 	for (;;) {
-		const next = childrenOf(tree, current).at(-1);
-		if (!next || seen.has(next.id)) return current;
-		seen.add(next.id);
-		current = next.id;
+		const next = slotsOf(tree, current).at(-1)?.primary;
+		if (!next || seen.has(next)) return current;
+		seen.add(next);
+		current = next;
 	}
 }
 
@@ -77,16 +126,17 @@ export interface SiblingInfo {
 	nextId: string | null;
 }
 
+/** Position among sibling slots: a compare turn counts once, however many models answered. */
 export function siblingInfo(tree: Tree, id: string): SiblingInfo | null {
 	const message = tree.byId.get(id);
 	if (!message) return null;
-	const siblings = childrenOf(tree, message.parentId);
-	const at = siblings.findIndex((s) => s.id === id);
+	const slots = slotsOf(tree, message.parentId);
+	const at = slots.findIndex((s) => s.ids.includes(id));
 	if (at < 0) return null;
 	return {
 		index: at + 1,
-		count: siblings.length,
-		prevId: siblings[at - 1]?.id ?? null,
-		nextId: siblings[at + 1]?.id ?? null,
+		count: slots.length,
+		prevId: slots[at - 1]?.primary ?? null,
+		nextId: slots[at + 1]?.primary ?? null,
 	};
 }

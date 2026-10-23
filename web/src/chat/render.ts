@@ -179,6 +179,11 @@ export function setBranchNav(turn: HTMLElement, position: BranchPosition | null)
 		turn.querySelector(":scope > .turn-actions")?.prepend(nav);
 		return;
 	}
+	// A compare turn (M5.4) is one version, whatever the number of models.
+	if (turn.classList.contains("compare-turn")) {
+		turn.querySelector(":scope > .compare-head")?.append(nav);
+		return;
+	}
 	const body = turn.querySelector(":scope > .message-body");
 	if (!body) return;
 	let row = body.querySelector(":scope > .message-actions");

@@ -16,6 +16,9 @@
  *   event: usage      data: {"promptTokens":n,"completionTokens":n}
  *   event: error      data: {"message":"…"}
  *   event: done       data: {}
+ *
+ * A compare request (M5.4) multiplexes several replies: an encoder created
+ * with a `lane` adds that field to every payload (src/chat/compare.ts).
  */
 
 import type { MetaPayload, Protocol, UsagePayload } from "../shared/stream";
@@ -42,7 +45,24 @@ function v2Event(name: string, data: unknown): string {
 	return `event: ${name}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-export function createEncoder(protocol: Protocol): SseEncoder {
+/**
+ * `lane` (compare, M5.4) adds that field to every v2 payload, so one stream
+ * can carry several replies. Without it the bytes are exactly as before.
+ */
+export function createEncoder(protocol: Protocol, options: { lane?: number } = {}): SseEncoder {
+	if (protocol === 2 && options.lane !== undefined) {
+		const lane = options.lane;
+		return {
+			protocol: 2,
+			meta: (fields) => v2Event("meta", { ...fields, protocol: 2, lane }),
+			token: (text) => (text ? v2Event("token", { text, lane }) : ""),
+			reasoning: (text) => (text ? v2Event("reasoning", { text, lane }) : ""),
+			usage: (fields) => v2Event("usage", { ...fields, lane }),
+			error: (message) => v2Event("error", { message, lane }),
+			done: () => v2Event("done", { lane }),
+		};
+	}
+
 	if (protocol === 1) {
 		return {
 			protocol: 1,
