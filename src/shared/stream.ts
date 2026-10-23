@@ -21,18 +21,35 @@ export interface MetaPayload {
 	/** Absent on a regenerate, which adds no user turn. */
 	userMessageId?: string;
 	assistantMessageId?: string;
+	/** Compare (M5.4), saved: the id every lane's reply shares. */
+	compareGroup?: string;
+	lane?: number;
 }
 
-export interface TextPayload {
+/**
+ * Compare (M5.4): a request with `compare: [a, b, c?]` gets one stream that
+ * multiplexes 2 or 3 replies. Every event then carries `lane`, the index of
+ * its model in `compare`; each lane has its own meta, tokens, usage, error
+ * and `done`, and the stream ends with one `done` without a lane. Without
+ * `compare` no event carries `lane`, so the stream is byte-identical to before.
+ */
+export interface Laned {
+	lane?: number;
+}
+
+/** Most lanes a compare request may ask for. */
+export const MAX_COMPARE_LANES = 3;
+
+export interface TextPayload extends Laned {
 	text: string;
 }
 
-export interface UsagePayload {
+export interface UsagePayload extends Laned {
 	promptTokens?: number;
 	completionTokens?: number;
 }
 
-export interface ErrorPayload {
+export interface ErrorPayload extends Laned {
 	message: string;
 }
 
@@ -42,7 +59,7 @@ export type StreamEvent =
 	| { type: "token"; data: TextPayload }
 	| { type: "usage"; data: UsagePayload }
 	| { type: "error"; data: ErrorPayload }
-	| { type: "done"; data: Record<string, never> };
+	| { type: "done"; data: Laned };
 
 export type StreamEventName = StreamEvent["type"];
 

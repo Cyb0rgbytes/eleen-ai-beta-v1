@@ -224,6 +224,12 @@ Streaming: the newest token is appended without a caret animation; a 1px `--acce
 
 Usage: on the v2 stream, the actions row ends with the output token count in `--fs-xs` `--text-faint` ("212 tokens"). Not shown for v1.
 
+### Compare (M5.4)
+
+A "Compare" ghost button in the composer's controls row, after the picker, opens a `--surface-solid` dialog (the keys form's shell) listing the models as checkboxes: two or three may be chosen, locked ones show their reason and cannot be. While on, the button reads "Compare 3", is pressed, and carries `--accent-text` on `--accent-soft`. Guests get the sign-in modal.
+
+A compare turn is one group in the column: a small head ("Answers from 3 models", then the navigator, which counts the whole group as one version), then one lane per model. From 1024px the lanes are equal columns and the tabs hide; below, a pill tab row shows one lane at a time. Each lane is headed by its model's name and holds an ordinary reply panel without the avatar, with Copy, Speak and usage but no Regenerate or rating. The lane the thread continues from has an `--accent-line` border and "Continuing from this answer"; the others offer "Continue with this answer". Each lane waits on its own skeleton lines and ends on its own (complete, stopped or error).
+
 ### Jump to latest
 
 A pill, `--surface-solid` with a `--line` border and `--r-pill`, centred above the composer. It appears when the user has scrolled more than 160px up from the bottom while a reply is streaming, reads "Jump to latest" with a down arrow, and scrolls to the end on click or Enter. It hides when the user is back within the stick threshold.
@@ -237,6 +243,12 @@ Off-canvas on viewports under 1024px, pinned at 280px above. `--bg-deep` fill, s
 The UI for `/api/v1/keys`, which shipped in M3.4 part two.
 
 A `--surface-solid` dialog listing the four providers. Each row: provider name, a masked field showing the stored key's last four, a Replace action and a Remove action. Adding a key shows one field with a label above it, inline validation below it on 422, and a success state that shows the last four. No placeholder-as-label.
+
+### Export (M5.3)
+
+A ghost button with the export glyph at the inline-start of the auth plate, before the theme and language toggles, shown once the chat on screen has a message. It opens the sidebar's menu pattern (`--surface-solid`, keyboard as in the sidebar) dropped under the button: Markdown, JSON, JSON with every branch (saved chats only), and Print / Save as PDF. A saved chat's options menu in the sidebar has the same three file formats under Export. Files are built in the browser; nothing is uploaded.
+
+Print (`styles/print.css`) is the conversation alone in dark ink on white, whatever the screen theme: no scene, scrim, sidebar, composer, auth plate, toasts or per-message controls, a title and date heading added for the print, and page breaks between blocks rather than inside a paragraph or code block. Bubbles keep `dir="auto"`, and the print waits for Noto Sans Arabic when the page has Arabic text.
 
 ### Toasts
 

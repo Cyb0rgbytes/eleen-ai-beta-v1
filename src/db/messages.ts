@@ -137,6 +137,12 @@ export interface NewTurn {
 	/** The new user message; absent on a regenerate. */
 	user?: { id: string; parentId: string | null; content: string; files?: FileRef[] };
 	assistant: { id: string; parentId: string; model: string };
+	/**
+	 * Compare (M5.4): more replies to the same turn, written after
+	 * `assistant`, all of them sharing compare_group `group`. `assistant`
+	 * (lane 0) becomes the active leaf.
+	 */
+	compare?: { group: string; siblings: { id: string; model: string }[] };
 }
 
 /**
@@ -156,6 +162,8 @@ export async function insertTurn(db: D1Database, userId: string, turn: NewTurn, 
 		);
 	}
 
+	// Compare lanes share one group; user rows never carry it.
+	const group = turn.compare?.group ?? null;
 	const insert = (
 		id: string,
 		parentId: string | null,
@@ -167,14 +175,30 @@ export async function insertTurn(db: D1Database, userId: string, turn: NewTurn, 
 	) =>
 		db
 			.prepare(
-				`INSERT INTO messages (id, conversation_id, user_id, parent_id, seq, role, content, search_text, model, status, created_at, files)
-				SELECT ?1, ?2, ?3, ?4, COALESCE(MAX(seq), 0) + 1, ?5, ?6, ?7, ?8, ?9, ?10, ?11
+				`INSERT INTO messages (id, conversation_id, user_id, parent_id, seq, role, content, search_text, model, status, compare_group, created_at, files)
+				SELECT ?1, ?2, ?3, ?4, COALESCE(MAX(seq), 0) + 1, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12
 				FROM messages WHERE conversation_id = ?2 AND user_id = ?3`,
 			)
-			.bind(id, turn.conversationId, userId, parentId, role, content, normalizeForSearch(content), model, status, now, files.length ? JSON.stringify(files) : null);
+			.bind(
+				id,
+				turn.conversationId,
+				userId,
+				parentId,
+				role,
+				content,
+				normalizeForSearch(content),
+				model,
+				status,
+				role === "assistant" ? group : null,
+				now,
+				files.length ? JSON.stringify(files) : null,
+			);
 
 	if (turn.user) statements.push(insert(turn.user.id, turn.user.parentId, "user", turn.user.content, "complete", null, turn.user.files));
 	statements.push(insert(turn.assistant.id, turn.assistant.parentId, "assistant", "", "streaming", turn.assistant.model));
+	for (const sibling of turn.compare?.siblings ?? []) {
+		statements.push(insert(sibling.id, turn.assistant.parentId, "assistant", "", "streaming", sibling.model));
+	}
 
 	statements.push(
 		db
@@ -200,6 +224,10 @@ export interface ReplyOutcome {
  * Fill in a streamed reply once it has ended, and make it the conversation's
  * visible leaf. Only a row still marked 'streaming' is written, so a reply is
  * finished exactly once.
+ *
+ * `activate: false` (compare lanes after the first, M5.4) leaves the active
+ * leaf alone: otherwise whichever model finished last would decide what the
+ * user sees next, rather than lane 0 or the answer they continue with.
  */
 export async function finishReply(
 	db: D1Database,
@@ -208,6 +236,7 @@ export async function finishReply(
 	messageId: string,
 	outcome: ReplyOutcome,
 	now = Date.now(),
+	activate = true,
 ): Promise<void> {
 	await db.batch([
 		db
@@ -224,9 +253,11 @@ export async function finishReply(
 				outcome.status,
 				outcome.completionTokens,
 			),
-		db
-			.prepare("UPDATE conversations SET active_leaf_id = ?3, updated_at = ?4 WHERE id = ?1 AND user_id = ?2")
-			.bind(conversationId, userId, messageId, now),
+		activate
+			? db
+					.prepare("UPDATE conversations SET active_leaf_id = ?3, updated_at = ?4 WHERE id = ?1 AND user_id = ?2")
+					.bind(conversationId, userId, messageId, now)
+			: db.prepare("UPDATE conversations SET updated_at = ?3 WHERE id = ?1 AND user_id = ?2").bind(conversationId, userId, now),
 	]);
 }
 

@@ -55,6 +55,7 @@ import {
 	planSavedTurn,
 	recordReply,
 } from "./chat/saved";
+import { compareRefusal, runCompare } from "./chat/compare";
 import { effectiveConsent, getConsent } from "./db/consent";
 import { listMemory } from "./db/memory";
 import { purgeExpiredConversations } from "./db/conversations";
@@ -759,33 +760,45 @@ export async function handleChatRequest(
 		// validateChatBody has already rejected an unknown id with a 422, so
 		// this cannot be null; the fallback is for the type system.
 		const spec = resolveModel(body.model) ?? UTILITY_MODEL;
-		if (!canUse(spec, userId)) {
-			return new Response(
-				JSON.stringify({
-					error: `${spec.label} is available to signed-in users.`,
-					model: spec.id,
-					reason: "sign-in",
-				}),
-				{ status: 403, headers: { "content-type": "application/json" } },
-			);
+		// Compare (M5.4): every model listed answers; otherwise just `spec`.
+		const specs = body.compare ? body.compare.map((id) => resolveModel(id) ?? UTILITY_MODEL) : [spec];
+
+		// Compare is for signed-in users: its quota has no guest allowance,
+		// and a guest's chat is not saved, so there is no tree to keep the
+		// answers in. Refused as a model would be, so clients show sign-in.
+		if (body.compare && userId === "guest") {
+			return modelForbidden("Comparing models is available to signed-in users.", specs[0]!.id, "sign-in");
 		}
 
-		// A premium model runs only on the caller's own key. Looked up before
-		// any work is done on the request so a missing key costs nothing.
-		let userKey: string | undefined;
-		if (spec.billing === "user-key" && spec.provider !== "workers-ai") {
-			const stored = env.KEY_ENCRYPTION_KEY ? await loadKey(env, userId, spec.provider) : null;
-			if (!stored) {
-				return new Response(
-					JSON.stringify({
-						error: `${spec.label} runs only with your own ${spec.provider} API key. Add one at /api/v1/keys.`,
-						model: spec.id,
-						reason: "key-required",
-					}),
-					{ status: 403, headers: { "content-type": "application/json" } },
-				);
+		const userKeys: (string | undefined)[] = [];
+		for (const lane of specs) {
+			if (!canUse(lane, userId)) {
+				return modelForbidden(`${lane.label} is available to signed-in users.`, lane.id, "sign-in");
 			}
-			userKey = stored;
+
+			// A premium model runs only on the caller's own key. Looked up before
+			// any work is done on the request so a missing key costs nothing.
+			let userKey: string | undefined;
+			if (lane.billing === "user-key" && lane.provider !== "workers-ai") {
+				const stored = env.KEY_ENCRYPTION_KEY ? await loadKey(env, userId, lane.provider) : null;
+				if (!stored) {
+					return modelForbidden(
+						`${lane.label} runs only with your own ${lane.provider} API key. Add one at /api/v1/keys.`,
+						lane.id,
+						"key-required",
+					);
+				}
+				userKey = stored;
+			}
+			userKeys.push(userKey);
+		}
+		const userKey = userKeys[0];
+
+		// One unit per model, charged once, before any model runs. The route
+		// has already charged this request to `chat` like any other.
+		if (body.compare) {
+			const limit = await checkRateLimit(request, env, ctx, "compare", userId, specs.length);
+			if (!limit.allowed) return tooManyRequests(limit);
 		}
 
 		// 0. Account and consent. A signed-in user's turn is saved when they
@@ -834,6 +847,9 @@ export async function handleChatRequest(
 				score: assessment.score,
 				matched: assessment.matched,
 			});
+			if (body.compare) {
+				return new Response(compareRefusal(specs.length, refusalResponse()), { headers: SSE_HEADERS });
+			}
 			return sseRefusal(encoder, refusalResponse());
 		}
 
@@ -858,9 +874,12 @@ export async function handleChatRequest(
 		if (fileIds.length && userId === "guest") {
 			throw new ValidationError([{ field: "files", message: "require sign-in" }]);
 		}
+		// Compare lanes share one context, and the image parts go only to a
+		// single model's call: every lane gets the images' descriptions instead.
+		const fileSpec = body.compare ? { ...spec, vision: false } : spec;
 		const turnFiles =
 			fileIds.length || plan?.threadFiles.length
-				? await loadTurnFiles(env, userId, spec, fileIds, plan?.threadFiles ?? [])
+				? await loadTurnFiles(env, userId, fileSpec, fileIds, plan?.threadFiles ?? [])
 				: null;
 		const fileContext = turnFiles ? buildFileContext(turnFiles.loaded, nonce) : null;
 		if (fileContext?.withheld.length) {
@@ -951,6 +970,28 @@ export async function handleChatRequest(
 			}),
 		});
 
+		// 6. Compare (M5.4): every lane runs at once on one multiplexed stream,
+		//    each screened and, for a saved turn, recorded on its own
+		//    (src/chat/compare.ts). Steps 7 to 9 happen inside, per lane.
+		if (body.compare) {
+			const compared = await runCompare({
+				env,
+				ctx,
+				userId,
+				specs,
+				userKeys,
+				messages,
+				canary,
+				maxTokens,
+				plan,
+				...(turnFiles?.refs.length ? { files: turnFiles.refs } : {}),
+			});
+			if (consent.memory && !plan?.replyTo) {
+				ctx.waitUntil(rememberFromTurn(env, userId, recentTurns, facts, compared.saved?.userMessageId ?? null));
+			}
+			return new Response(compared.body, { headers: SSE_HEADERS });
+		}
+
 		// 6. Run the model through its provider.
 		const run = await runChat(env, spec, {
 			messages,
@@ -1022,6 +1063,14 @@ export async function handleChatRequest(
 			{ status: 500, headers: { "content-type": "application/json" } },
 		);
 	}
+}
+
+/** 403 for a model this caller may not use; the body is a ModelForbiddenBody. */
+function modelForbidden(error: string, model: string, reason: "sign-in" | "key-required"): Response {
+	return new Response(JSON.stringify({ error, model, reason }), {
+		status: 403,
+		headers: { "content-type": "application/json" },
+	});
 }
 
 /** Emit a refusal as a complete stream in the client's protocol. */

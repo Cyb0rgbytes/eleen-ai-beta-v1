@@ -195,6 +195,55 @@ export async function commitSavedTurn(
 	};
 }
 
+/** A saved compare turn (M5.4): one user message, one reply row per lane. */
+export interface CompareTurnMeta {
+	conversationId: string;
+	userMessageId?: string;
+	compareGroup: string;
+	/** Indexed by lane. */
+	assistantMessageIds: string[];
+}
+
+/**
+ * Write a compare turn's rows in one transaction: the user message (absent
+ * on a regenerate) and an empty 'streaming' reply per model, siblings that
+ * share a compare_group. Lane 0 is the active leaf until the user continues
+ * from another lane.
+ */
+export async function commitCompareTurn(
+	db: D1Database,
+	userId: string,
+	plan: SavedTurnPlan,
+	models: readonly string[],
+	/** The new user turn's attachments (M5.2). */
+	files: FileRef[] = [],
+): Promise<CompareTurnMeta> {
+	const userMessageId = plan.user ? crypto.randomUUID() : undefined;
+	const compareGroup = crypto.randomUUID();
+	const assistantMessageIds = models.map(() => crypto.randomUUID());
+	const title = plan.firstTurn && plan.user ? fallbackTitle(plan.user.content) : undefined;
+	const [first, ...rest] = models;
+
+	await insertTurn(db, userId, {
+		conversationId: plan.conversationId,
+		createWithTitle: plan.create ? (title ?? "") : undefined,
+		titleIfEmpty: title,
+		user:
+			plan.user && userMessageId
+				? { id: userMessageId, parentId: plan.user.parentId, content: plan.user.content, ...(files.length ? { files } : {}) }
+				: undefined,
+		assistant: { id: assistantMessageIds[0]!, parentId: (userMessageId ?? plan.replyTo) as string, model: first! },
+		compare: { group: compareGroup, siblings: rest.map((model, i) => ({ id: assistantMessageIds[i + 1]!, model })) },
+	});
+
+	return {
+		conversationId: plan.conversationId,
+		...(userMessageId ? { userMessageId } : {}),
+		compareGroup,
+		assistantMessageIds,
+	};
+}
+
 /** Accumulates what the client was actually sent, via filterModelStream's observer. */
 export function createReplyCollector() {
 	const collected = { text: "", reasoning: "", blocked: false, completionTokens: null as number | null };
@@ -293,10 +342,15 @@ export async function finishSavedTurn(
 	plan: SavedTurnPlan,
 	ids: SavedTurnMeta,
 	outcome: ReplyOutcome,
+	/**
+	 * Compare lanes after the first (M5.4): neither move the active leaf nor
+	 * title the conversation, which lane 0 does once.
+	 */
+	{ primary = true }: { primary?: boolean } = {},
 ): Promise<void> {
-	await finishReply(env.DB, userId, plan.conversationId, ids.assistantMessageId, outcome);
+	await finishReply(env.DB, userId, plan.conversationId, ids.assistantMessageId, outcome, Date.now(), primary);
 
-	if (!plan.firstTurn || !plan.user || outcome.status !== "complete") return;
+	if (!primary || !plan.firstTurn || !plan.user || outcome.status !== "complete") return;
 	const fallback = fallbackTitle(plan.user.content);
 	const title = await generateTitle(env, plan.user.content);
 	if (!title || title === fallback) return;

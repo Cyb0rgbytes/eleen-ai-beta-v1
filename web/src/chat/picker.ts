@@ -43,7 +43,7 @@ const MODE_TEXT: Record<ResponseMode, MessageKey> = {
 /** Only a tier choice is remembered; premium access is re-checked each visit. */
 const STORAGE_KEY = "eleen.model";
 
-type Lock = "sign-in" | "key-required" | null;
+export type Lock = "sign-in" | "key-required" | null;
 
 interface Row {
 	value: string;
@@ -52,6 +52,16 @@ interface Row {
 	detail: string;
 	lock: Lock;
 	provider?: KeyProvider;
+}
+
+export interface CompareOption {
+	/** Sent in `compare`: a tier name or a premium model id. */
+	value: string;
+	/** The model's own name, which is what a compare lane is headed with. */
+	name: string;
+	/** The tier or provider, as the picker shows it. */
+	detail: string;
+	lock: Lock;
 }
 
 export interface PickerOptions {
@@ -70,6 +80,10 @@ export interface Picker {
 	close(options?: { restoreFocus?: boolean }): void;
 	focusTrigger(): void;
 	selected(): string;
+	/** Compare (M5.4): every row as a choice, with the name its lane shows and any lock. */
+	choices(): CompareOption[];
+	/** A model id's display name from the listing, or null before it loads. */
+	labelFor(modelId: string): string | null;
 	/** Resolves once the listing has loaded or failed. */
 	readonly ready: Promise<void>;
 }
@@ -430,6 +444,15 @@ export function initPicker(root: HTMLElement, options: PickerOptions): Picker {
 		close,
 		focusTrigger: () => trigger.focus(),
 		selected: () => effective(),
+		choices: () =>
+			rows.map((row) => ({
+				value: row.value,
+				// A tier row is named by its model when the listing has loaded.
+				name: row.provider ? row.label : row.detail || row.label,
+				detail: row.provider ? row.detail : row.label,
+				lock: row.lock,
+			})),
+		labelFor: (modelId) => doc?.models.find((m) => m.id === modelId)?.label ?? null,
 		ready,
 	};
 }

@@ -81,7 +81,8 @@ const CHAT_RESPONSE = {
 			"carries a JSON object with a `response` string holding the next token " +
 			"delta and the stream terminates with `data: [DONE]`. With `protocol` 2 the " +
 			"stream uses named events: `meta`, `reasoning`, `token`, `usage`, `error`, " +
-			"`done`, each with a JSON `data:` payload.",
+			"`done`, each with a JSON `data:` payload. A `compare` request multiplexes " +
+			"several replies onto one stream, each event tagged with its `lane`.",
 		content: {
 			"text/event-stream": {
 				schema: { type: "string" },
@@ -373,6 +374,25 @@ export const OPENAPI_DOCUMENT = {
 						description:
 							"Saved chat: regenerate the answer to this user message as a new " +
 							"sibling. Requires `conversationId`; `messages` may then be empty.",
+					},
+					compare: {
+						type: "array",
+						minItems: 2,
+						maxItems: 3,
+						uniqueItems: true,
+						items: { type: "string" },
+						description:
+							"Compare: 2 or 3 distinct model ids or tier names that all answer this " +
+							"turn, side by side. Authenticated callers only (a guest gets a 403 " +
+							"with `reason` `sign-in`), `protocol` 2 only, and not combined with " +
+							"`model`; each model must be one the caller may use. Charged to the " +
+							"`compare` quota at one unit per model. The single stream then " +
+							"multiplexes the replies: every event carries `lane`, the model's index " +
+							"here; each lane has its own `meta` (with `model`, and for a saved turn " +
+							"`assistantMessageId` and a shared `compareGroup`), tokens, `usage`, " +
+							"`error` and `done`, and the stream ends with one `done` without a " +
+							"lane. A saved turn stores the replies as siblings sharing " +
+							"`compareGroup`; the first lane is the active leaf.",
 					},
 					files: {
 						type: "array",

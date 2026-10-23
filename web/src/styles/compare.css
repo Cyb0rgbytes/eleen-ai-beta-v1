@@ -1,0 +1,349 @@
+/*
+ * Compare (M5.4): 2 or 3 models answering one message (DESIGN.md section 7).
+ * Columns from 1024px, tabs below; the markup is the same and only this
+ * file decides. Logical properties only; the Continue arrow carries
+ * data-mirror, so it flips in RTL through the shared .icon rule.
+ */
+
+/* ── The compare toggle in the composer's controls row ─────────────────── */
+
+#compare-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	padding: 4px 10px;
+	font-size: 0.8rem;
+	line-height: 1;
+	color: var(--text-dim);
+	background: none;
+	border: 1px solid transparent;
+	border-radius: var(--r-pill);
+}
+
+#compare-btn:hover {
+	background: var(--field);
+	border-color: var(--line-strong);
+}
+
+#compare-btn[aria-pressed="true"] {
+	color: var(--accent-text);
+	border-color: var(--accent-line);
+	background: var(--accent-soft);
+}
+
+#compare-btn .icon {
+	inline-size: 1rem;
+	block-size: 1rem;
+}
+
+@media (max-width: 400px) {
+	.compare-btn-label {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+}
+
+/* ── The chooser: the keys dialog's shell, a list of models ───────────── */
+
+.compare-options {
+	display: flex;
+	flex-direction: column;
+	margin: 0;
+	padding: 0;
+	border: none;
+}
+
+.compare-option {
+	display: flex;
+	align-items: center;
+	gap: var(--sp-2);
+	padding-block: var(--sp-1);
+	border-block-start: 1px solid var(--line);
+	cursor: pointer;
+}
+
+.compare-option.is-locked {
+	cursor: not-allowed;
+}
+
+.compare-option input {
+	inline-size: 1.1rem;
+	block-size: 1.1rem;
+	margin: 0;
+	accent-color: var(--accent);
+}
+
+.compare-option-text {
+	display: flex;
+	flex-direction: column;
+	min-inline-size: 0;
+}
+
+.compare-option-name {
+	font-weight: 500;
+}
+
+.compare-option-detail {
+	font-size: var(--fs-xs);
+	color: var(--text-faint);
+}
+
+.compare-option.is-locked .compare-option-name {
+	color: var(--text-dim);
+}
+
+.compare-status {
+	margin: 0;
+	font-size: var(--fs-sm);
+	color: var(--text-dim);
+}
+
+.compare-actions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: var(--sp-1);
+}
+
+.compare-actions button {
+	padding: 6px var(--sp-3);
+	font-size: var(--fs-sm);
+	font-weight: 500;
+	color: var(--text);
+	background: var(--field);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--r-pill);
+}
+
+.compare-actions .compare-apply {
+	color: var(--on-accent);
+	background: var(--accent);
+	border-color: var(--accent);
+}
+
+.compare-actions .compare-off {
+	margin-inline-end: auto;
+	color: var(--danger);
+}
+
+.compare-actions button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+/* ── A compare turn ────────────────────────────────────────────────────── */
+
+.compare-turn {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-1);
+	margin-block-end: 1.25rem;
+	pointer-events: auto;
+}
+
+.compare-turn:last-child {
+	margin-block-end: 0;
+}
+
+.compare-head {
+	display: flex;
+	align-items: center;
+	gap: var(--sp-1);
+	min-block-size: 1.75rem;
+	font-size: var(--fs-xs);
+	color: var(--text-dim);
+	text-shadow: var(--shadow-text);
+}
+
+.compare-title {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	font-weight: 500;
+}
+
+.compare-title .icon {
+	inline-size: 1rem;
+	block-size: 1rem;
+	color: var(--accent-text);
+}
+
+.compare-head .branch-nav {
+	margin-inline-start: auto;
+}
+
+/* Tabs, below 1024px: one lane at a time. */
+.compare-tabs {
+	display: flex;
+	gap: 0.25rem;
+	inline-size: fit-content;
+	max-inline-size: 100%;
+	overflow-x: auto;
+	scrollbar-width: none;
+	padding: 3px;
+	background: var(--surface);
+	backdrop-filter: var(--blur-panel);
+	-webkit-backdrop-filter: var(--blur-panel);
+	border: 1px solid var(--line);
+	border-radius: var(--r-pill);
+}
+
+.compare-tabs::-webkit-scrollbar {
+	display: none;
+}
+
+.compare-tab {
+	flex: 0 0 auto;
+	padding: 0.3rem 0.8rem;
+	font-size: var(--fs-sm);
+	font-weight: 500;
+	white-space: nowrap;
+	color: var(--text-dim);
+	background: none;
+	border: 1px solid transparent;
+	border-radius: var(--r-pill);
+	transition: background-color var(--dur-state) var(--ease);
+}
+
+.compare-tab[aria-selected="true"] {
+	color: var(--accent-text);
+	background: var(--accent-soft);
+	border-color: var(--accent-line);
+}
+
+.compare-lanes {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--sp-2);
+	align-items: start;
+}
+
+.compare-lane {
+	display: none;
+	flex-direction: column;
+	gap: 0.35rem;
+	min-inline-size: 0;
+}
+
+.compare-lane.is-current {
+	display: flex;
+}
+
+/* Columns, from 1024px: every lane, side by side, and no tabs. */
+@media (min-width: 1024px) {
+	.compare-tabs {
+		display: none;
+	}
+
+	.compare-lanes {
+		grid-template-columns: repeat(var(--lanes, 2), minmax(0, 1fr));
+	}
+
+	.compare-lane {
+		display: flex;
+	}
+}
+
+.compare-lane-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--sp-1);
+	min-block-size: 1.5rem;
+	padding-inline: 0.25rem;
+	font-size: var(--fs-xs);
+	color: var(--text-dim);
+	text-shadow: var(--shadow-text);
+}
+
+.compare-lane-model {
+	overflow: hidden;
+	font-weight: 600;
+	color: var(--text);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.compare-lane-chosen {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	color: var(--accent-text);
+	white-space: nowrap;
+}
+
+.compare-lane-chosen .icon {
+	inline-size: 0.9rem;
+	block-size: 0.9rem;
+}
+
+/* A lane's reply fills its column: no avatar gutter, no width cap. */
+.compare-reply {
+	max-inline-size: 100%;
+	margin: 0;
+	grid-template-columns: minmax(0, 1fr);
+	column-gap: 0;
+}
+
+.compare-reply > .ai-avatar {
+	display: none;
+}
+
+.compare-reply > *:not(.ai-avatar) {
+	grid-column: 1;
+}
+
+.compare-lane.is-chosen .compare-reply > .message-body {
+	border-color: var(--accent-line);
+}
+
+.compare-skeleton {
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+	padding-block: 0.25rem;
+}
+
+.compare-lane-foot {
+	display: flex;
+}
+
+.compare-continue {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	padding: 4px 10px;
+	font-size: var(--fs-sm);
+	font-weight: 500;
+	color: var(--accent-text);
+	background: none;
+	border: 1px solid var(--line-strong);
+	border-radius: var(--r-pill);
+}
+
+.compare-continue:hover:not(:disabled) {
+	background: var(--accent-soft);
+	border-color: var(--accent-line);
+}
+
+.compare-continue:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.compare-continue .icon {
+	inline-size: 0.9rem;
+	block-size: 0.9rem;
+}
+
+@media (pointer: coarse) {
+	.compare-tab,
+	.compare-continue,
+	#compare-btn {
+		min-block-size: 44px;
+	}
+}
