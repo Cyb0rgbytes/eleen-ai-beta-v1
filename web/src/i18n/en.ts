@@ -249,6 +249,17 @@ export const en = {
 	historyOffOpen: "Open Memory and privacy",
 	folderCancel: "Cancel",
 	// End M4.4 sidebar
+	// Recently deleted
+	sectionDeleted: "Recently deleted",
+	deletedHint: "Deleted chats can be restored for {days} days, then they are removed for good.",
+	deletedEmpty: "Nothing deleted recently.",
+	chatRestore: "Restore",
+	chatRestoreLabel: "Restore {title}",
+	chatDeleteForever: "Delete forever",
+	chatDeleteForeverLabel: "Delete {title} forever",
+	chatDeleteForeverConfirm: "Delete \"{title}\" for good? This cannot be undone.",
+	chatPurged: "Deleted for good.",
+	// End Recently deleted
 } as const;
 
 export type MessageKey = keyof typeof en;

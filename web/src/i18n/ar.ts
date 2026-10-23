@@ -247,4 +247,15 @@ export const ar: Partial<Record<MessageKey, string>> = {
 	historyOffOpen: "فتح الذاكرة والخصوصية",
 	folderCancel: "إلغاء",
 	// End M4.4 sidebar
+	// Recently deleted
+	sectionDeleted: "المحذوفة مؤخرًا",
+	deletedHint: "يمكن استعادة المحادثات المحذوفة خلال {days} يومًا، ثم تُزال نهائيًا.",
+	deletedEmpty: "لا توجد محادثات محذوفة مؤخرًا.",
+	chatRestore: "استعادة",
+	chatRestoreLabel: "استعادة {title}",
+	chatDeleteForever: "حذف نهائي",
+	chatDeleteForeverLabel: "حذف {title} نهائيًا",
+	chatDeleteForeverConfirm: "حذف \"{title}\" نهائيًا؟ لا يمكن التراجع عن ذلك.",
+	chatPurged: "تم الحذف نهائيًا.",
+	// End Recently deleted
 };

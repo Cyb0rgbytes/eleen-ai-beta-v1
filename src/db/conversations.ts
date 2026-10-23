@@ -5,7 +5,12 @@
  * Every statement filters by user_id, including the ones that also name an
  * id: the id is the client's claim, the user_id is the server's.
  */
-import { ConversationDetail, ConversationSummary } from "../shared/history";
+import {
+	ConversationDetail,
+	ConversationSummary,
+	DELETED_RETENTION_DAYS,
+	DeletedConversationList,
+} from "../shared/history";
 import { listMessages } from "./messages";
 
 export const PAGE_SIZE = 50;
@@ -222,7 +227,8 @@ export async function updateConversation(
 
 /**
  * Soft delete hides the conversation everywhere but keeps its rows, so a
- * mistaken delete can be undone. A purge removes it and, by cascade, every
+ * mistaken delete can be undone for DELETED_RETENTION_DAYS, after which the
+ * daily purge removes it. A purge removes it and, by cascade, every
  * message and its search index entries. A purge also reaches a conversation
  * that is already soft-deleted.
  */
@@ -242,16 +248,104 @@ export async function deleteConversation(
 	return result.meta.changes > 0;
 }
 
-/** Undo a soft delete. Null if it is not the caller's, not deleted, or purged. */
-export async function restoreConversation(db: D1Database, userId: string, id: string): Promise<ConversationSummary | null> {
+export const DELETED_RETENTION_MS = DELETED_RETENTION_DAYS * 24 * 60 * 60_000;
+
+/**
+ * Undo a soft delete. Null if it is not the caller's, not deleted, purged,
+ * or past the retention window (it is then waiting for the purge, and
+ * restoring it would contradict what the Recently deleted list promised).
+ */
+export async function restoreConversation(
+	db: D1Database,
+	userId: string,
+	id: string,
+	now = Date.now(),
+): Promise<ConversationSummary | null> {
 	const row = await db
 		.prepare(
-			`UPDATE conversations SET deleted_at = NULL WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL
+			`UPDATE conversations SET deleted_at = NULL
+			WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL AND deleted_at > ?
 			RETURNING ${COLUMNS}`,
 		)
-		.bind(id, userId)
+		.bind(id, userId, now - DELETED_RETENTION_MS)
 		.first<ConversationRow>();
 	return row ? toSummary(row) : null;
+}
+
+interface DeletedRow extends ConversationRow {
+	deleted_at: number;
+}
+
+function encodeDeletedCursor(row: DeletedRow): string {
+	return btoa(JSON.stringify(["d", row.deleted_at, row.id])).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** Null for anything that is not a deleted-list cursor this module made. */
+export function decodeDeletedCursor(value: string): { deletedAt: number; id: string } | null {
+	try {
+		const parsed = JSON.parse(atob(value.replace(/-/g, "+").replace(/_/g, "/"))) as unknown;
+		if (!Array.isArray(parsed) || parsed.length !== 3 || parsed[0] !== "d") return null;
+		const [, deletedAt, id] = parsed as unknown[];
+		if (!Number.isSafeInteger(deletedAt) || typeof id !== "string") return null;
+		return { deletedAt: deletedAt as number, id };
+	} catch {
+		return null;
+	}
+}
+
+/** The caller's soft-deleted conversations still inside the window, most recently deleted first. */
+export async function listDeletedConversations(
+	db: D1Database,
+	userId: string,
+	options: { cursor?: { deletedAt: number; id: string } | null; limit?: number; now?: number } = {},
+): Promise<DeletedConversationList> {
+	const limit = options.limit ?? PAGE_SIZE;
+	const now = options.now ?? Date.now();
+	const binds: unknown[] = [userId, now - DELETED_RETENTION_MS];
+	let after = "";
+	if (options.cursor) {
+		binds.push(options.cursor.deletedAt, options.cursor.id);
+		after = "AND (deleted_at < ?3 OR (deleted_at = ?3 AND id < ?4))";
+	}
+	binds.push(limit + 1);
+	const { results } = await db
+		.prepare(
+			`SELECT ${COLUMNS}, deleted_at FROM conversations
+			WHERE user_id = ?1 AND deleted_at IS NOT NULL AND deleted_at > ?2 ${after}
+			ORDER BY deleted_at DESC, id DESC LIMIT ?${binds.length}`,
+		)
+		.bind(...binds)
+		.all<DeletedRow>();
+	const page = results.slice(0, limit);
+	const last = page[page.length - 1];
+	return {
+		conversations: page.map((row) => ({ ...toSummary(row), deletedAt: row.deleted_at })),
+		nextCursor: results.length > limit && last ? encodeDeletedCursor(last) : null,
+	};
+}
+
+/**
+ * Remove, for good, every conversation deleted longer ago than the window,
+ * across all users (the daily cron). Messages and their search entries go
+ * with them by cascade. Batched so one run stays small; returns the count.
+ */
+export async function purgeExpiredConversations(db: D1Database, now = Date.now(), batch = 200, maxBatches = 25): Promise<number> {
+	let purged = 0;
+	for (let i = 0; i < maxBatches; i++) {
+		// RETURNING, not meta.changes: changes also counts the cascaded
+		// message and search-index rows.
+		const { results } = await db
+			.prepare(
+				`DELETE FROM conversations WHERE id IN (
+					SELECT id FROM conversations WHERE deleted_at IS NOT NULL AND deleted_at <= ? LIMIT ?
+				) RETURNING id`,
+			)
+			.bind(now - DELETED_RETENTION_MS, batch)
+			.all<{ id: string }>();
+		purged += results.length;
+		if (results.length < batch) break;
+	}
+	return purged;
 }
 
 /** Every conversation the caller has, live or soft-deleted, for good. */

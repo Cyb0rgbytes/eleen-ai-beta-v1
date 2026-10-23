@@ -54,6 +54,11 @@
 	"observability": {
 		"enabled": true
 	},
+	// Daily at 03:17 UTC: purge conversations deleted more than 30 days ago
+	// (the scheduled handler in src/index.ts).
+	"triggers": {
+		"crons": ["17 3 * * *"]
+	},
 	// Models always run on Cloudflare, so local dev calls (and is billed for)
 	// real inference. Stated explicitly rather than left as a warning.
 	"ai": {

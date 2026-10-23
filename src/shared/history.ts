@@ -12,6 +12,7 @@
  *   DELETE /api/v1/memory/:id               -> 204
  *
  *   GET    /api/v1/conversations            ?folder=<id>|none&cursor= -> ConversationList
+ *   GET    /api/v1/conversations?deleted=1  &cursor= -> DeletedConversationList, the last 30 days
  *   POST   /api/v1/conversations            { title? } -> { conversation: ConversationSummary }
  *   DELETE /api/v1/conversations            -> 204, deletes all of the caller's history
  *   GET    /api/v1/conversations/:id        -> ConversationDetail
@@ -80,6 +81,19 @@ export interface ConversationSummary {
 export interface ConversationList {
 	/** Pinned first, then most recently updated. */
 	conversations: ConversationSummary[];
+	nextCursor: string | null;
+}
+
+/** How long a deleted conversation can be restored before it is purged for good. */
+export const DELETED_RETENTION_DAYS = 30;
+
+export interface DeletedConversation extends ConversationSummary {
+	deletedAt: number;
+}
+
+/** GET /api/v1/conversations?deleted=1: most recently deleted first. */
+export interface DeletedConversationList {
+	conversations: DeletedConversation[];
 	nextCursor: string | null;
 }
 

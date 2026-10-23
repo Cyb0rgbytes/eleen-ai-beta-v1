@@ -16,6 +16,7 @@ import type {
 	ConversationDetail,
 	ConversationList,
 	ConversationSummary,
+	DeletedConversationList,
 	Folder,
 	MemoryList,
 	SearchResponse,
@@ -298,6 +299,75 @@ describe("conversations", () => {
 		expect((await api("DELETE", `/api/v1/conversations/${c.id}?purge=1`, ALICE)).status).toBe(204);
 		expect((await api("POST", restore, ALICE)).status).toBe(404);
 		expect((await api("POST", "/api/v1/conversations/not-a-uuid/restore", ALICE)).status).toBe(404);
+	});
+
+	it("lists recently deleted chats, newest deletion first, within 30 days", async () => {
+		const a = await newConversation(ALICE, "A");
+		const b = await newConversation(ALICE, "B");
+		const old = await newConversation(ALICE, "Old");
+		await newConversation(ALICE, "Live");
+		const now = Date.now();
+		const day = 24 * 60 * 60_000;
+		await env.DB.prepare("UPDATE conversations SET deleted_at = ? WHERE id = ?").bind(now - 2 * day, a.id).run();
+		await env.DB.prepare("UPDATE conversations SET deleted_at = ? WHERE id = ?").bind(now - day, b.id).run();
+		await env.DB.prepare("UPDATE conversations SET deleted_at = ? WHERE id = ?").bind(now - 31 * day, old.id).run();
+
+		const list = await api<DeletedConversationList>("GET", "/api/v1/conversations?deleted=1", ALICE);
+		expect(list.status).toBe(200);
+		expect(list.body.conversations.map((c) => c.title)).toEqual(["B", "A"]);
+		expect(list.body.conversations[0]!.deletedAt).toBe(now - day);
+		// The live list is unchanged, and nobody else sees them.
+		expect((await api<ConversationList>("GET", "/api/v1/conversations", ALICE)).body.conversations.map((c) => c.title)).toEqual(["Live"]);
+		expect((await api<DeletedConversationList>("GET", "/api/v1/conversations?deleted=1", BOB)).body.conversations).toEqual([]);
+		expect((await api("POST", `/api/v1/conversations/${a.id}/restore`, BOB)).status).toBe(404);
+		// Past the window it can no longer be restored, only purged.
+		expect((await api("POST", `/api/v1/conversations/${old.id}/restore`, ALICE)).status).toBe(404);
+		expect((await api("GET", "/api/v1/conversations?deleted=1&cursor=garbage", ALICE)).status).toBe(422);
+	});
+
+	it("pages the deleted list with its own cursor", async () => {
+		const now = Date.now();
+		await env.DB.prepare("INSERT INTO users (user_id, created_at, last_seen_at) VALUES (?1, ?2, ?2)").bind(ALICE, now).run();
+		await env.DB.batch(
+			Array.from({ length: 53 }, (_, i) =>
+				env.DB.prepare(
+					"INSERT INTO conversations (id, user_id, title, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?)",
+				).bind(crypto.randomUUID(), ALICE, `d${i}`, now, now, now - Math.floor(i / 2)),
+			),
+		);
+		const page1 = await api<DeletedConversationList>("GET", "/api/v1/conversations?deleted=1", ALICE);
+		expect(page1.body.conversations).toHaveLength(50);
+		const page2 = await api<DeletedConversationList>("GET", `/api/v1/conversations?deleted=1&cursor=${page1.body.nextCursor}`, ALICE);
+		expect(page2.body.conversations).toHaveLength(3);
+		expect(new Set([...page1.body.conversations, ...page2.body.conversations].map((c) => c.id)).size).toBe(53);
+	});
+
+	it("purges only conversations deleted more than 30 days ago, with their messages", async () => {
+		const expired = await savedTurn(ALICE, "expired pineapple");
+		const recent = await savedTurn(ALICE, "recent pineapple");
+		const live = await savedTurn(BOB, "live pineapple");
+		const now = Date.now();
+		const day = 24 * 60 * 60_000;
+		await env.DB.prepare("UPDATE conversations SET deleted_at = ? WHERE id = ?").bind(now - 31 * day, expired.conversationId).run();
+		await env.DB.prepare("UPDATE conversations SET deleted_at = ? WHERE id = ?").bind(now - 29 * day, recent.conversationId).run();
+
+		const { purgeExpiredConversations } = await import("../../src/db/conversations");
+		expect(await purgeExpiredConversations(env.DB, now, 1)).toBe(1);
+		expect(await rows("SELECT id FROM conversations WHERE id = ?", expired.conversationId)).toEqual([]);
+		expect(await rows("SELECT id FROM messages WHERE conversation_id = ?", expired.conversationId)).toEqual([]);
+		expect(await rows("SELECT rowid FROM messages_fts WHERE messages_fts MATCH 'expired'")).toEqual([]);
+		expect(await rows("SELECT id FROM conversations WHERE id IN (?, ?)", recent.conversationId, live.conversationId)).toHaveLength(2);
+	});
+
+	it("runs the purge from the scheduled handler", async () => {
+		const turn = await savedTurn(ALICE, "hello");
+		await env.DB.prepare("UPDATE conversations SET deleted_at = ? WHERE id = ?").bind(Date.now() - 40 * 24 * 60 * 60_000, turn.conversationId).run();
+		const worker = (await import("../../src/index")).default;
+		const waits: Promise<unknown>[] = [];
+		const ctx = { waitUntil: (p: Promise<unknown>) => waits.push(p), passThroughOnException() {}, props: {} } as unknown as ExecutionContext;
+		await worker.scheduled!({ cron: "17 3 * * *", scheduledTime: Date.now(), noRetry() {} } as ScheduledController, env, ctx);
+		await Promise.all(waits);
+		expect(await rows("SELECT id FROM conversations WHERE id = ?", turn.conversationId)).toEqual([]);
 	});
 
 	it("reads a reply stuck in streaming as stopped once it is stale", async () => {

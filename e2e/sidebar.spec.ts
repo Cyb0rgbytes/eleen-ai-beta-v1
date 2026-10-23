@@ -34,9 +34,11 @@ interface Conv {
 	createdAt: number;
 	updatedAt: number;
 	deleted?: boolean;
+	deletedAt?: number;
 }
 
 interface Api {
+	clock: number;
 	requests: { method: string; path: string; body: unknown }[];
 	conversations: Conv[];
 	folders: { id: string; name: string; position: number }[];
@@ -54,6 +56,7 @@ const conv = (id: string, title: string, updatedAt: number, extra: Partial<Conv>
 
 async function mockApi(page: Page, { signedIn = true }: { signedIn?: boolean } = {}): Promise<Api> {
 	const api: Api = {
+		clock: 0,
 		requests: [],
 		conversations: [
 			conv("c1", "Pinned plan", 50, { pinned: true }),
@@ -70,7 +73,7 @@ async function mockApi(page: Page, { signedIn = true }: { signedIn?: boolean } =
 	await page.route("**/api/v1/consent", (route) =>
 		route.fulfill({ json: { consent: { history: true, memory: false, policyVersion: 1, updatedAt: 1 }, policyVersion: 1 } }),
 	);
-	const summary = ({ deleted: _deleted, ...c }: Conv) => c;
+	const summary = ({ deleted: _deleted, deletedAt: _deletedAt, ...c }: Conv) => c;
 	const visible = () =>
 		api.conversations
 			.filter((c) => !c.deleted)
@@ -91,6 +94,14 @@ async function mockApi(page: Page, { signedIn = true }: { signedIn?: boolean } =
 				.map((c) => ({ conversationId: c.id, messageId: `m-${c.id}`, title: c.title, snippet: `How to brew tea well, from ${c.title}`, createdAt: 1 }));
 			return route.fulfill({ json: { results } });
 		}
+		if (!id && url.searchParams.get("deleted") === "1") {
+			// Like the server: most recently deleted first.
+			const gone = api.conversations
+				.filter((c) => c.deleted)
+				.sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0))
+				.map((c) => ({ ...summary(c), deletedAt: c.deletedAt }));
+			return route.fulfill({ json: { conversations: gone, nextCursor: null } });
+		}
 		if (!id) {
 			const folder = url.searchParams.get("folder");
 			const list = visible().filter((c) => !folder || c.folderId === folder);
@@ -107,7 +118,11 @@ async function mockApi(page: Page, { signedIn = true }: { signedIn?: boolean } =
 			return route.fulfill({ json: { conversation: summary(target) } });
 		}
 		if (request.method() === "DELETE") {
-			target.deleted = true;
+			if (url.searchParams.get("purge") === "1") api.conversations = api.conversations.filter((c) => c !== target);
+			else {
+				target.deleted = true;
+				target.deletedAt = ++api.clock;
+			}
 			return route.fulfill({ status: 204 });
 		}
 		return route.fulfill({ json: { conversation: { ...summary(target), activeLeafId: null }, messages: [] } });
@@ -210,6 +225,43 @@ test("delete removes a chat at once, and Undo restores it", async ({ page }) => 
 	expect(api.requests.filter((r) => r.method !== "GET").map((r) => `${r.method} ${r.path}`)).toEqual([
 		"DELETE /api/v1/conversations/c3",
 		"POST /api/v1/conversations/c3/restore",
+	]);
+});
+
+test("after the Undo toast is gone, Recently deleted restores a chat or deletes it for good", async ({ page }) => {
+	const api = await mockApi(page);
+	await page.goto("/");
+	for (const title of ["Weekend trip", "Tea brewing guide"]) {
+		const menu = await openOptions(page, title);
+		await menu.getByRole("menuitem", { name: "Delete" }).click();
+		await expect(item(page, title)).toHaveCount(0);
+	}
+	// Let both toasts go: Undo is no longer on screen.
+	await expect(page.locator(".toast", { hasText: "Chat deleted." })).toHaveCount(0, { timeout: 15_000 });
+
+	const toggle = sidebar(page).getByRole("button", { name: "Recently deleted" });
+	await expect(toggle).toHaveAttribute("aria-expanded", "false");
+	await toggle.click();
+	const deleted = sidebar(page).locator(".sidebar-deleted-item");
+	await expect(deleted.locator(".sidebar-title")).toHaveText(["Tea brewing guide", "Weekend trip"]);
+	await expect(sidebar(page).locator(".sidebar-deleted-body .sidebar-hint")).toContainText("30 days");
+
+	await sidebar(page).getByRole("button", { name: "Restore Weekend trip" }).click();
+	await expect(sidebar(page).locator(".is-recent .sidebar-title")).toContainText(["Weekend trip"]);
+	await expect(deleted.locator(".sidebar-title")).toHaveText(["Tea brewing guide"]);
+
+	await sidebar(page).getByRole("button", { name: "Delete Tea brewing guide forever" }).click();
+	const confirm = sidebar(page).locator(".sidebar-deleted-body .sidebar-confirm");
+	await expect(confirm).toContainText('Delete "Tea brewing guide" for good?');
+	await confirm.getByRole("button", { name: "Delete forever" }).click();
+	await expect(deleted).toHaveCount(0);
+	await expect(sidebar(page).locator(".sidebar-deleted-body .is-empty")).toHaveText("Nothing deleted recently.");
+
+	expect(api.requests.filter((r) => r.method !== "GET").map((r) => `${r.method} ${r.path}`)).toEqual([
+		"DELETE /api/v1/conversations/c3",
+		"DELETE /api/v1/conversations/c2",
+		"POST /api/v1/conversations/c3/restore",
+		"DELETE /api/v1/conversations/c2",
 	]);
 });
 

@@ -15,11 +15,13 @@ import {
 	MAX_TITLE_CHARS,
 	createConversation,
 	decodeCursor,
+	decodeDeletedCursor,
 	deleteAllConversations,
 	deleteConversation,
 	getConversation,
 	getConversationDetail,
 	listConversations,
+	listDeletedConversations,
 	restoreConversation,
 	updateConversation,
 } from "../db/conversations";
@@ -140,6 +142,14 @@ export const handleConversations = historyRoute(async (request, env, _ctx, userI
 	if (request.method === "GET") {
 		const url = new URL(request.url);
 		const failures: ValidationFailure[] = [];
+
+		// Recently deleted: its own list and cursor, never mixed with live ones.
+		if (url.searchParams.get("deleted") === "1") {
+			const rawDeleted = url.searchParams.get("cursor");
+			const deletedCursor = rawDeleted ? decodeDeletedCursor(rawDeleted) : null;
+			if (rawDeleted && !deletedCursor) throw new ValidationError([{ field: "cursor", message: "is not a cursor from this API" }]);
+			return reply(200, await listDeletedConversations(env.DB, userId, { cursor: deletedCursor }));
+		}
 
 		const folder = url.searchParams.get("folder") ?? undefined;
 		if (folder !== undefined && folder !== "none" && !isUuid(folder)) {

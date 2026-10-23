@@ -16,6 +16,9 @@ export type Theme = "light" | "dark";
 
 export const THEME_KEY = "eleen.theme";
 
+/** Fired on <html> when applyTheme() changes data-theme. detail: { theme }. */
+export const THEME_CHANGE_EVENT = "eleen:theme-change";
+
 /** The toggle's cycle, starting from the default. */
 export const THEME_ORDER: readonly ThemePref[] = ["system", "light", "dark"];
 
@@ -61,7 +64,11 @@ export function resolveTheme(pref: ThemePref, systemLight = systemPrefersLight()
 
 export function applyTheme(pref: ThemePref): Theme {
 	const theme = resolveTheme(pref);
-	document.documentElement.dataset.theme = theme;
+	const root = document.documentElement;
+	const changed = root.dataset.theme !== theme;
+	root.dataset.theme = theme;
+	// Parts that cannot read CSS variables (Clerk's popups) re-theme on this.
+	if (changed) root.dispatchEvent(new CustomEvent(THEME_CHANGE_EVENT, { detail: { theme } }));
 	return theme;
 }
 
