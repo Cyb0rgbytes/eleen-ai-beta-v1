@@ -314,6 +314,10 @@ export const en = {
 	uploadFailed: "The file could not be uploaded.",
 	attachDefaultPrompt: "Please take a look at the attached file.",
 	// End M5.2 uploads
+	// S2 hardening
+	imageOffer: "Generate image?",
+	imageOfferHint: "This reply asks for an image. Generate it: {prompt}",
+	// End S2 hardening
 } as const;
 
 export type MessageKey = keyof typeof en;

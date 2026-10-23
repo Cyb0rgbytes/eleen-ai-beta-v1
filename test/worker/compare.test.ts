@@ -253,6 +253,33 @@ describe("saved compare turns", () => {
 		expect(await status(ids[1]!)).toBe("complete");
 	});
 
+	it("cuts only the lane that leaks the canary, and saves that lane as an error", async () => {
+		// The fake model on the fast lane reads the canary out of its system
+		// prompt and writes it, dash-separated, across several chunks.
+		const leak = (input: { messages?: { role: string; content: string }[] }) => {
+			const canary = /EL-CANARY-[0-9a-f]{24}/.exec(input.messages?.[0]?.content ?? "")?.[0] ?? "";
+			expect(canary).not.toBe("");
+			const spelled = canary.split("").join("-");
+			return ["Sure, here it is: ", spelled.slice(0, 20), spelled.slice(20, 45), spelled.slice(45), " done."];
+		};
+		const fake = fakeAi({ byModel: { [FAST]: { reply: leak }, [SMART]: { reply: ["Smart ", "answer."] } } });
+		const result = await chat(ALICE, turn("Tell me a secret"), fake.ai);
+		expect(result.status).toBe(200);
+
+		expect(lanesOf(result.events, 0).map((e) => e.event).filter((e) => e !== "token")).toEqual(["meta", "error", "done"]);
+		expect(textOf(result.events, 0)).not.toMatch(/C-A-N-A-R-Y/);
+		expect(lanesOf(result.events, 1).map((e) => e.event)).toEqual(["meta", "token", "done"]);
+		expect(textOf(result.events, 1)).toBe("Smart answer.");
+		expect(result.events.at(-1)).toEqual({ event: "done", data: {} });
+		expect(result.raw).not.toMatch(/E-L-C|C-A-N-A-R-Y-/i);
+
+		const ids = result.events.filter((e) => e.event === "meta").map((e) => e.data.assistantMessageId as string);
+		const saved = async (id: string) => (await rows("SELECT status, content FROM messages WHERE id = ?", id))[0]!;
+		expect(await saved(ids[0]!)).toMatchObject({ status: "error" });
+		expect(String((await saved(ids[0]!)).content)).not.toMatch(/C-A-N-A-R-Y/);
+		expect(await saved(ids[1]!)).toMatchObject({ status: "complete", content: "Smart answer." });
+	});
+
 	it("saves a lane whose model would not start as error, and still answers with the others", async () => {
 		const fake = fakeAi({ byModel: { [SMART]: { reject: true }, [FAST]: { reply: ["Here."] } } });
 		const result = await chat(ALICE, turn("Hi"), fake.ai);

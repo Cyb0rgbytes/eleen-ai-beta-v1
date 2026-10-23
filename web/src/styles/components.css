@@ -787,6 +787,28 @@ header {
 	opacity: 1;
 }
 
+/* S2: an image the reply asked for, from a turn that carried a file or was
+   hardened. It waits for a click instead of generating on its own. */
+.image-offer {
+	display: inline-flex;
+	align-items: center;
+	margin-block-start: var(--sp-2);
+	padding-block: 0.45rem;
+	padding-inline: 0.9rem;
+	font-size: 0.82rem;
+	color: var(--text);
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-soft);
+	border-radius: 999px;
+	cursor: pointer;
+}
+
+.image-offer:hover,
+.image-offer:focus-visible {
+	color: var(--text-strong);
+	border-color: var(--accent);
+}
+
 /* Feedback: quiet until the message is hovered or focused. */
 .message-feedback {
 	display: flex;

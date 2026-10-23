@@ -79,6 +79,7 @@ export function parseFrame(eventName: string | null, data: string): StreamEvent 
 					...(id(parsed.userMessageId) ? { userMessageId: parsed.userMessageId as string } : {}),
 					...(id(parsed.assistantMessageId) ? { assistantMessageId: parsed.assistantMessageId as string } : {}),
 					...(id(parsed.compareGroup) ? { compareGroup: parsed.compareGroup as string } : {}),
+					...(parsed.contained === true ? { contained: true as const } : {}),
 					...lane,
 				},
 			};

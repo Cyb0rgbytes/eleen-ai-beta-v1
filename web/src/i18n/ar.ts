@@ -312,4 +312,8 @@ export const ar: Partial<Record<MessageKey, string>> = {
 	uploadFailed: "تعذّر رفع الملف.",
 	attachDefaultPrompt: "يرجى الاطلاع على الملف المرفق.",
 	// End M5.2 uploads
+	// S2 hardening
+	imageOffer: "إنشاء الصورة؟",
+	imageOfferHint: "يطلب هذا الرد صورة. أنشئها: {prompt}",
+	// End S2 hardening
 };

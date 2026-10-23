@@ -19,7 +19,7 @@
  * blocked the stream is cut and replaced with a refusal, never truncated
  * silently.
  */
-import { createOutputFilter, refusalResponse } from "./guard";
+import { createCanaryWatch, createOutputFilter, refusalResponse } from "./guard";
 import { ChunkParser, ModelEvent } from "./parse";
 import { SseEncoder } from "./sse";
 
@@ -49,8 +49,11 @@ export function filterModelStream(
 	options: StreamOptions,
 ): ReadableStream<Uint8Array> {
 	const { parser, encoder, observer } = options;
-	const textFilter = createOutputFilter(options.canary);
-	const reasoningFilter = createOutputFilter(options.canary);
+	// One canary watch across both: a canary split between the model's
+	// thinking and its answer is still one canary (S2).
+	const watch = createCanaryWatch(options.canary);
+	const textFilter = createOutputFilter(options.canary, watch);
+	const reasoningFilter = createOutputFilter(options.canary, watch);
 	const decoder = new TextDecoder();
 	const textEncoder = new TextEncoder();
 

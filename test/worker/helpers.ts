@@ -34,7 +34,7 @@ export interface FakeAiOptions {
 	/** What the memory call answers. */
 	facts?: string;
 	/** Compare (M5.4): a reply and an ending per model id, over `reply` and `end`. */
-	byModel?: Record<string, { reply?: string[]; end?: StreamEnd; reject?: boolean }>;
+	byModel?: Record<string, { reply?: string[] | ((input: AiCall["input"]) => string[]); end?: StreamEnd; reject?: boolean }>;
 }
 
 function modelStream(chunks: string[], end: StreamEnd): ReadableStream<Uint8Array> {
@@ -66,7 +66,8 @@ export function fakeAi(options: FakeAiOptions = {}) {
 			if (input.stream) {
 				const own = options.byModel?.[model];
 				if (own?.reject) throw new Error("model unavailable");
-				return modelStream(own?.reply ?? options.reply ?? ["Hello", " there."], own?.end ?? options.end ?? "complete");
+				const reply = typeof own?.reply === "function" ? own.reply(input) : own?.reply;
+				return modelStream(reply ?? options.reply ?? ["Hello", " there."], own?.end ?? options.end ?? "complete");
 			}
 			const text = JSON.stringify(input.messages ?? []);
 			if (text.includes("You name chat conversations")) return { response: options.title ?? "A Generated Title" };
