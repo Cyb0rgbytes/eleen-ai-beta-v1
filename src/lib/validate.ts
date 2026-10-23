@@ -9,6 +9,7 @@
 import { Attachment, ChatMessage } from "../types";
 import { resolveModel } from "../ai/registry";
 import { Protocol, isProtocol } from "../ai/sse";
+import { MAX_COMPARE_LANES } from "../shared/stream";
 
 export const MAX_MESSAGES = 40;
 export const MAX_CONTENT_CHARS = 8000;
@@ -122,6 +123,8 @@ export function validateChatBody(raw: unknown): {
 	conversationId?: string;
 	parentId?: string | null;
 	replyTo?: string;
+	/** M5.4: 2–3 distinct registry model ids answering side by side. */
+	compare?: string[];
 } {
 	const failures: ValidationFailure[] = [];
 	const body = (raw ?? {}) as Record<string, unknown>;
@@ -265,6 +268,12 @@ export function validateChatBody(raw: unknown): {
 		failures.push({ field: "protocol", message: "must be 1 or 2" });
 	}
 
+	// M5.4 compare: 2 or 3 distinct registry models answer the same turn,
+	// multiplexed on one v2 stream. Ids and tier names both resolve, and
+	// distinctness is checked on what they resolve to ("fast" and the Fast
+	// model's id are the same model). Access is the handler's to check.
+	const compare = validateCompare(body, failures);
+
 	if (body.voice !== undefined && typeof body.voice !== "boolean") {
 		failures.push({ field: "voice", message: "must be a boolean" });
 	}
@@ -287,7 +296,28 @@ export function validateChatBody(raw: unknown): {
 		conversationId: isUuid(body.conversationId) ? body.conversationId.toLowerCase() : undefined,
 		parentId: isUuid(body.parentId) ? body.parentId.toLowerCase() : body.parentId === null ? null : undefined,
 		replyTo: regenerate ? (body.replyTo as string).toLowerCase() : undefined,
+		compare,
 	};
+}
+
+/** M5.4: `compare` as resolved registry ids, or undefined when absent. */
+function validateCompare(body: Record<string, unknown>, failures: ValidationFailure[]): string[] | undefined {
+	if (body.compare === undefined) return undefined;
+	const list = body.compare;
+	if (!Array.isArray(list) || list.length < 2 || list.length > MAX_COMPARE_LANES) {
+		failures.push({ field: "compare", message: `must be an array of 2 to ${MAX_COMPARE_LANES} models` });
+		return undefined;
+	}
+	const ids: string[] = [];
+	list.forEach((entry, index) => {
+		const spec = typeof entry === "string" && entry !== "" ? resolveModel(entry) : null;
+		if (!spec) failures.push({ field: `compare[${index}]`, message: "is not a known model or tier" });
+		else if (ids.includes(spec.id)) failures.push({ field: `compare[${index}]`, message: "repeats a model already listed" });
+		else ids.push(spec.id);
+	});
+	if (body.protocol !== 2) failures.push({ field: "compare", message: "requires protocol 2" });
+	if (body.model !== undefined) failures.push({ field: "compare", message: "cannot be combined with model" });
+	return ids.length === list.length ? ids : undefined;
 }
 
 export function validatePrompt(raw: unknown, field = "prompt", max = MAX_PROMPT_CHARS): string {

@@ -224,6 +224,12 @@ Streaming: the newest token is appended without a caret animation; a 1px `--acce
 
 Usage: on the v2 stream, the actions row ends with the output token count in `--fs-xs` `--text-faint` ("212 tokens"). Not shown for v1.
 
+### Compare (M5.4)
+
+A "Compare" ghost button in the composer's controls row, after the picker, opens a `--surface-solid` dialog (the keys form's shell) listing the models as checkboxes: two or three may be chosen, locked ones show their reason and cannot be. While on, the button reads "Compare 3", is pressed, and carries `--accent-text` on `--accent-soft`. Guests get the sign-in modal.
+
+A compare turn is one group in the column: a small head ("Answers from 3 models", then the navigator, which counts the whole group as one version), then one lane per model. From 1024px the lanes are equal columns and the tabs hide; below, a pill tab row shows one lane at a time. Each lane is headed by its model's name and holds an ordinary reply panel without the avatar, with Copy, Speak and usage but no Regenerate or rating. The lane the thread continues from has an `--accent-line` border and "Continuing from this answer"; the others offer "Continue with this answer". Each lane waits on its own skeleton lines and ends on its own (complete, stopped or error).
+
 ### Jump to latest
 
 A pill, `--surface-solid` with a `--line` border and `--r-pill`, centred above the composer. It appears when the user has scrolled more than 160px up from the bottom while a reply is streaming, reads "Jump to latest" with a down arrow, and scrolls to the end on click or Enter. It hides when the user is back within the stick threshold.

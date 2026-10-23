@@ -258,4 +258,23 @@ export const ar: Partial<Record<MessageKey, string>> = {
 	chatDeleteForeverConfirm: "حذف \"{title}\" نهائيًا؟ لا يمكن التراجع عن ذلك.",
 	chatPurged: "تم الحذف نهائيًا.",
 	// End Recently deleted
+	// M5.4 compare
+	compare: "مقارنة",
+	compareOn: "مقارنة {count}",
+	compareButtonLabel: "مقارنة النماذج",
+	compareButtonOnLabel: "تجري المقارنة بين {count} نماذج. للتغيير أو الإيقاف",
+	compareTitle: "مقارنة النماذج",
+	compareIntro: "اختر نموذجين أو ثلاثة. يجيب كل منها عن رسائلك التالية جنبًا إلى جنب.",
+	compareCount: "تم اختيار {count} من 3",
+	compareApply: "قارن",
+	compareOff: "إيقاف",
+	compareCancel: "إلغاء",
+	compareStarted: "ستُرسل رسالتك التالية إلى {count} نماذج.",
+	compareEnded: "عدت إلى نموذج واحد.",
+	compareTurnLabel: "إجابات من {count} نماذج",
+	compareTabs: "النماذج",
+	compareContinue: "المتابعة بهذه الإجابة",
+	compareContinuing: "المتابعة من هذه الإجابة",
+	compareUnavailable: "أحد النماذج التي اخترتها غير متاح لك. غيّر المقارنة وحاول مرة أخرى.",
+	// End M5.4 compare
 };

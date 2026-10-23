@@ -56,6 +56,7 @@ const ICONS = {
 	"pencil-simple": { mirror: false }, // edit a sent message
 	"caret-left": { mirror: true }, // branch navigator: previous version
 	"caret-right": { mirror: true }, // branch navigator: next version
+	columns: { mirror: false }, // compare models side by side (M5.4)
 };
 
 const SOURCE = "node_modules/@phosphor-icons/core/assets/regular";

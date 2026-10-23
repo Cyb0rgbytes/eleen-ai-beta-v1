@@ -260,6 +260,25 @@ export const en = {
 	chatDeleteForeverConfirm: "Delete \"{title}\" for good? This cannot be undone.",
 	chatPurged: "Deleted for good.",
 	// End Recently deleted
+	// M5.4 compare
+	compare: "Compare",
+	compareOn: "Compare {count}",
+	compareButtonLabel: "Compare models",
+	compareButtonOnLabel: "Comparing {count} models. Change or turn off",
+	compareTitle: "Compare models",
+	compareIntro: "Choose 2 or 3 models. Each answers your next messages, side by side.",
+	compareCount: "{count} of 3 chosen",
+	compareApply: "Compare",
+	compareOff: "Turn off",
+	compareCancel: "Cancel",
+	compareStarted: "Your next message goes to {count} models.",
+	compareEnded: "Back to one model.",
+	compareTurnLabel: "Answers from {count} models",
+	compareTabs: "Models",
+	compareContinue: "Continue with this answer",
+	compareContinuing: "Continuing from this answer",
+	compareUnavailable: "One of the models you chose is not available to you. Change the comparison and try again.",
+	// End M5.4 compare
 } as const;
 
 export type MessageKey = keyof typeof en;
