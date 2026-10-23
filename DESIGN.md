@@ -264,7 +264,7 @@ Bottom inline-end, `--surface-solid`, one line, auto-dismiss at 4s with a visibl
   - Empty-state greeting and prompt cards: same rise, staggered 40 ms per element.
 - Prompt card hover: `translateY(-2px)`, the border moves to `--accent-line`, and `--glow-card-hover` fades in on the card's own layer.
 - `@media (prefers-reduced-motion: reduce)` sets every transition to `0ms` and removes the streaming pulse, the composer sweep and the avatar halo.
-- The scene itself is the motion layer. On `prefers-reduced-motion`, `saveData`, under four cores, or on a coarse pointer, the scene is skipped and a static WebP poster of the robot takes its place at `z-index: 0` (M5.5).
+- The scene itself is the motion layer. On `prefers-reduced-motion`, `saveData`, under four cores, or on a coarse pointer, the scene is skipped and a static WebP poster of the robot takes its place at `z-index: 0` (M5.5). Where the live scene does load, its viewer is fetched only after the load event and the first paint, when the browser is idle (`requestIdleCallback` with a 2.5 s timeout), so it never competes with the poster, the bundle or the fonts.
 
 ## 9. Accessibility floor
 
@@ -304,4 +304,5 @@ Model output is attacker-influenced: a prompt injection in a document or search 
 - The frontend builds with Vite from `web/` into `dist/`, which the Worker serves. `web/public/` holds files copied verbatim: the classic `chat.js` and `webmcp.js` scripts, the logo, `robots.txt`.
 - Playwright end-to-end tests live in `e2e/`. The smoke suite runs against a local `wrangler dev`; the screenshot suite (M4.5) runs against production with local CSS routed in, so the real scene renders behind the change under review.
 - Amended 2026-10-22: `e2e/theme.spec.ts` is that suite's first part. It runs locally under reduced motion (the poster stands in for the scene), loads a mocked conversation in all four combinations, asserts the resolved tokens, `dir`, `lang`, the mirrored layout and the toggles' persistence, and saves `test-results/theme/{dark,light}-{ltr,rtl}.png` plus two phone shots for review. They are not pixel baselines; the scene moves.
-- Lighthouse before and after the Spline deferral (M5.5), with LCP as the headline number.
+- Lighthouse before and after the Spline deferral (M5.5), with LCP as the headline number. Measured 2026-10-24 against local `wrangler dev`: the LCP element is the header lockup, not the poster; Chrome skips the poster as a low-entropy image (about 0.03 bits per pixel), so the lockup ships as a right-sized WebP.
+- Installable (M5.5): `web/public/manifest.webmanifest` and a service worker built from `web/sw.js`. The worker precaches only hashed build output and the offline page, is network-first for pages, and never answers `/api`, `/mcp`, `/.well-known` or any other origin. A new worker waits for the reader to accept an update, and never takes over an open chat on its own.

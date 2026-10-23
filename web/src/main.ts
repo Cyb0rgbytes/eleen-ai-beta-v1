@@ -27,6 +27,7 @@ import { t } from "./i18n";
 import { createKeysDialog, type KeysDialog } from "./keys/dialog";
 import { initPrivacy } from "./privacy/init";
 import { initPrefs } from "./prefs/controls";
+import { initServiceWorker } from "./pwa/register";
 import { initScene } from "./scene/spline";
 import { initSidebar } from "./sidebar";
 import { revealIn } from "./ui/motion";
@@ -77,6 +78,7 @@ function onAuthChange(state: AuthState, previous: AuthState): void {
 async function boot(): Promise<void> {
 	initPrefs({ hasConversation: () => (window.chat?.history().length ?? 0) > 1 });
 	initScene();
+	initServiceWorker();
 
 	const messages = document.getElementById("chat-messages");
 	if (!messages) throw new Error("#chat-messages is missing");

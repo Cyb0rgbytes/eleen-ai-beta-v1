@@ -56,6 +56,17 @@
 	}
 }
 
+/* Phones: the plate sits in the page flow above the header, and these 44px
+   toggles arrive with the script, so the plate grew 10px after first paint
+   and pushed the whole page down (Lighthouse mobile CLS 0.16, M5.5). The
+   plate reserves its final height from the start. 44px + 2 x 6px padding +
+   2 x 1px border. */
+@media (max-width: 768px) and (pointer: coarse) {
+	.auth-container {
+		min-block-size: 58px;
+	}
+}
+
 /* Phones: the plate also holds the sign-in pair, so the language button
    shows only its glyph. The name stays in the accessibility tree. */
 @media (max-width: 480px) {
