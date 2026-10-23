@@ -51,10 +51,19 @@ test("the manifest is served as JSON, with the security headers, and is linked f
 });
 
 test("on localhost the worker is not registered unless asked", async ({ page }) => {
+	test.skip(/eleenai\.xyz/.test(process.env.E2E_BASE_URL ?? ""), "on production the worker is meant to register");
 	await page.goto("/");
 	await page.waitForLoadState("load");
 	await page.waitForTimeout(500);
 	expect(await page.evaluate(() => navigator.serviceWorker.getRegistrations().then((r) => r.length))).toBe(0);
+});
+
+test("on production the worker registers by itself", async ({ page }) => {
+	test.skip(!/eleenai\.xyz/.test(process.env.E2E_BASE_URL ?? ""), "only production-like origins register it unasked");
+	await page.goto("/");
+	await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+	const scope = await page.evaluate(() => navigator.serviceWorker.getRegistration().then((r) => r?.scope ?? null));
+	expect(scope).toBe(new URL("/", page.url()).href);
 });
 
 test("the worker registers, serves the build from its cache, and never answers /api", async ({ page }) => {
