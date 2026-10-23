@@ -238,6 +238,12 @@ The UI for `/api/v1/keys`, which shipped in M3.4 part two.
 
 A `--surface-solid` dialog listing the four providers. Each row: provider name, a masked field showing the stored key's last four, a Replace action and a Remove action. Adding a key shows one field with a label above it, inline validation below it on 422, and a success state that shows the last four. No placeholder-as-label.
 
+### Export (M5.3)
+
+A ghost button with the export glyph at the inline-start of the auth plate, before the theme and language toggles, shown once the chat on screen has a message. It opens the sidebar's menu pattern (`--surface-solid`, keyboard as in the sidebar) dropped under the button: Markdown, JSON, JSON with every branch (saved chats only), and Print / Save as PDF. A saved chat's options menu in the sidebar has the same three file formats under Export. Files are built in the browser; nothing is uploaded.
+
+Print (`styles/print.css`) is the conversation alone in dark ink on white, whatever the screen theme: no scene, scrim, sidebar, composer, auth plate, toasts or per-message controls, a title and date heading added for the print, and page breaks between blocks rather than inside a paragraph or code block. Bubbles keep `dir="auto"`, and the print waits for Noto Sans Arabic when the page has Arabic text.
+
 ### Toasts
 
 Bottom inline-end, `--surface-solid`, one line, auto-dismiss at 4s with a visible dismiss control. Icons from the inline SVG set, never emoji glyphs; the mojibake incident came from a `charset` header, but emoji in UI strings is not worth the risk in either case.

@@ -260,6 +260,20 @@ export const en = {
 	chatDeleteForeverConfirm: "Delete \"{title}\" for good? This cannot be undone.",
 	chatPurged: "Deleted for good.",
 	// End Recently deleted
+	// M5.3 export
+	exportChat: "Export chat",
+	chatExport: "Export",
+	exportMarkdown: "Markdown (.md)",
+	exportJson: "JSON (.json)",
+	exportJsonTree: "JSON with every branch (.json)",
+	exportPrint: "Print / Save as PDF",
+	exportYou: "You",
+	exportAssistant: "EleenAI",
+	exportedOn: "Exported from EleenAI on {date}",
+	exportDone: "Chat exported.",
+	exportNothing: "Nothing to export yet.",
+	exportFailed: "Could not export that chat. Try again.",
+	// End M5.3 export
 } as const;
 
 export type MessageKey = keyof typeof en;

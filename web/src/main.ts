@@ -21,6 +21,7 @@ import { initPicker, type Picker } from "./chat/picker";
 import { watchReader } from "./chat/scroll";
 import { initVoiceOutToggle } from "./chat/speak";
 import { initVoice } from "./chat/voice";
+import { initExportControl } from "./export/control";
 import { t } from "./i18n";
 import { createKeysDialog, type KeysDialog } from "./keys/dialog";
 import { initPrivacy } from "./privacy/init";
@@ -112,6 +113,7 @@ async function boot(): Promise<void> {
 	initVoice(chat);
 	initVoiceOutToggle(chat.speaker);
 	window.chat = chat;
+	initExportControl(chat);
 	registerWebMcp(chat);
 	// After the chat and privacy: the sidebar drives one and opens the other.
 	initSidebar({ chat, openPrivacy: () => void privacy.openPanel() });

@@ -130,13 +130,18 @@ for (const theme of ["dark", "light"] as const) {
 			await expect(reply.locator(".message-body").first()).toHaveAttribute("dir", "auto");
 			expect(await reply.locator("pre").first().evaluate((el) => getComputedStyle(el).direction)).toBe("ltr");
 
-			// The toggles open the auth plate, on its inline-start side.
+			// The toggles open the auth plate, on its inline-start side; with a
+			// conversation on screen, the Export button (M5.3) comes just before them.
+			const exporter = await page.locator(".export-control").boundingBox();
 			const prefs = await page.locator(".prefs").boundingBox();
 			const plate = await page.locator(".auth-container").boundingBox();
-			if (!prefs || !plate) throw new Error("missing toggle boxes");
+			if (!exporter || !prefs || !plate) throw new Error("missing toggle boxes");
 			const plateStart = dir === "ltr" ? plate.x : plate.x + plate.width;
+			const exportStart = dir === "ltr" ? exporter.x : exporter.x + exporter.width;
+			const exportEnd = dir === "ltr" ? exporter.x + exporter.width : exporter.x;
 			const prefsStart = dir === "ltr" ? prefs.x : prefs.x + prefs.width;
-			expect(Math.abs(plateStart - prefsStart)).toBeLessThan(16);
+			expect(Math.abs(plateStart - exportStart)).toBeLessThan(16);
+			expect(Math.abs(exportEnd - prefsStart)).toBeLessThan(16);
 
 			// Playwright empties test-results/ at the start of each run, so these are always the latest.
 			await page.screenshot({ path: `test-results/theme/${theme}-${dir}.png`, fullPage: true });
@@ -158,6 +163,18 @@ for (const dir of ["ltr", "rtl"] as const) {
 		// The language name is visually hidden here but still names the button.
 		await expect(page.locator("#lang-toggle")).toHaveAccessibleName(dir === "rtl" ? "English" : "العربية");
 		await page.screenshot({ path: `test-results/theme/phone-light-${dir}.png` });
+
+		// With a conversation the Export button (M5.3) joins the plate, which still fits.
+		await mockChat(page);
+		await page.locator("#user-input").fill("Hi");
+		await page.locator("#send-button").click();
+		await expect(page.locator("#export-button")).toBeVisible();
+		const withExport = await page.locator(".auth-container").boundingBox();
+		if (!withExport) throw new Error("no auth plate");
+		expect(withExport.x).toBeGreaterThanOrEqual(0);
+		expect(withExport.x + withExport.width).toBeLessThanOrEqual(360);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+		await page.locator(".auth-container").screenshot({ path: `test-results/theme/phone-light-${dir}-export.png` });
 	});
 }
 

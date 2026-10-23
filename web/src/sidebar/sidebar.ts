@@ -86,6 +86,8 @@ export interface SidebarOptions {
 	toggle?: HTMLButtonElement;
 	scrim?: HTMLElement;
 	turnRefreshMs?: number;
+	/** Export a saved chat (M5.3); defaults to export/actions.ts, loaded on first use. */
+	exportConversation?(id: string, format: "md" | "json" | "json-tree"): void;
 }
 
 export interface Sidebar {
@@ -134,6 +136,10 @@ export function createSidebar(options: SidebarOptions): Sidebar {
 	const { chat } = options;
 	const api: SidebarApi = options.api ?? historyApi;
 	const turnRefreshMs = options.turnRefreshMs ?? TURN_REFRESH_MS;
+	const exportChat =
+		options.exportConversation ??
+		((id: string, format: "md" | "json" | "json-tree") =>
+			void import("../export/actions").then((actions) => actions.exportSaved(id, format)));
 
 	const panel = options.panel ?? ensure("sidebar", () => el("aside", "sidebar"));
 	const scrim = options.scrim ?? ensure("sidebar-scrim", () => el("div", "sidebar-scrim"), panel);
@@ -725,6 +731,14 @@ export function createSidebar(options: SidebarOptions): Sidebar {
 				],
 			});
 		}
+		items.push({
+			label: t("chatExport"),
+			submenu: () => [
+				{ label: t("exportMarkdown"), onSelect: () => exportChat(id, "md") },
+				{ label: t("exportJson"), onSelect: () => exportChat(id, "json") },
+				{ label: t("exportJsonTree"), onSelect: () => exportChat(id, "json-tree") },
+			],
+		});
 		items.push({ label: t("chatDelete"), onSelect: () => void remove(id) });
 		return items;
 	}

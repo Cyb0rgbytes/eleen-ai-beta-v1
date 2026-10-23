@@ -258,4 +258,18 @@ export const ar: Partial<Record<MessageKey, string>> = {
 	chatDeleteForeverConfirm: "حذف \"{title}\" نهائيًا؟ لا يمكن التراجع عن ذلك.",
 	chatPurged: "تم الحذف نهائيًا.",
 	// End Recently deleted
+	// M5.3 export
+	exportChat: "تصدير المحادثة",
+	chatExport: "تصدير",
+	exportMarkdown: "Markdown (.md)",
+	exportJson: "JSON (.json)",
+	exportJsonTree: "JSON بكل الفروع (.json)",
+	exportPrint: "طباعة / حفظ بصيغة PDF",
+	exportYou: "أنت",
+	exportAssistant: "EleenAI",
+	exportedOn: "صُدّرت من EleenAI في {date}",
+	exportDone: "تم تصدير المحادثة.",
+	exportNothing: "لا يوجد ما يُصدَّر بعد.",
+	exportFailed: "تعذّر تصدير هذه المحادثة. حاول مرة أخرى.",
+	// End M5.3 export
 };

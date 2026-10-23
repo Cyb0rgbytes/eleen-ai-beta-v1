@@ -1,0 +1,242 @@
+/*
+ * The Export button (M5.3, web/src/export/control.ts), and print: what
+ * "Print / Save as PDF" and the browser's own Print produce.
+ */
+
+.export-control {
+	position: relative;
+	display: flex;
+	align-items: center;
+}
+
+/* The sidebar's menu, dropped under the button instead of inline. */
+.export-control > .sidebar-menu {
+	position: absolute;
+	inset-block-start: calc(100% + 4px);
+	inset-inline-end: 0;
+	min-inline-size: 15rem;
+	margin: 0;
+}
+
+.export-control > .sidebar-menu .sidebar-menu-item {
+	white-space: nowrap;
+}
+
+/* Phones: the plate already holds the toggles and the sign-in pair. To make
+   room for Export, Login and Logout show only their glyph, as the language
+   toggle does (theme.css); the words stay as their accessible names. */
+@media (max-width: 480px) {
+	.auth-container:has(> .export-control:not([hidden])) {
+		gap: 4px;
+	}
+
+	.auth-container:has(> .export-control:not([hidden])) :is(#login-button, #logout-button) {
+		padding-inline: 0.6rem;
+	}
+
+	.auth-container:has(> .export-control:not([hidden])) :is(#login-button, #logout-button) > span {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+}
+
+/* Added only while printing (export/actions.ts printCurrent). */
+.print-header {
+	display: none;
+}
+
+/*
+ * Print: the conversation alone, in dark ink on white, whichever theme is
+ * on screen. No scene, scrim, sidebar, composer, auth plate, toasts or
+ * per-message controls. Page breaks fall between paragraphs and code
+ * blocks, never inside one that fits on a page.
+ * Arabic shapes as on screen: bubbles keep dir="auto", and the
+ * self-hosted Noto Sans Arabic is in the same font stack.
+ */
+@media print {
+	:root,
+	:root[data-theme="light"],
+	:root[data-theme="dark"] {
+		color-scheme: light;
+		--text: #111122;
+		--text-strong: #000000;
+		--text-dim: #3a3a55;
+		--text-faint: #55556f;
+		--accent-text: #3a32b8;
+		--link-line: rgb(58 50 184 / 0.4);
+		--assistant-bubble: transparent;
+		--user-bubble: #f1f1f7;
+		--user-bubble-line: #d6d6e4;
+		--on-user-bubble: #111122;
+		--surface-code: #f6f6fa;
+		--surface-sunken: #f6f6fa;
+		--code-fill: #efeff6;
+		--line: #d6d6e4;
+		--line-strong: #c4c4d6;
+		--shadow-bubble: none;
+		--glow-avatar: none;
+		--tok-comment: #5f6382;
+		--tok-keyword: #5b3fd6;
+		--tok-string: #0f7a52;
+		--tok-number: #a14a07;
+		--tok-function: #0e6e8f;
+		--tok-type: #b0246f;
+		--tok-property: #3b3f8f;
+		--tok-punct: #5a5d80;
+	}
+
+	@page {
+		margin: 16mm 14mm;
+	}
+
+	html,
+	body {
+		background: #ffffff !important;
+		color: var(--text);
+		min-height: 0;
+		padding: 0;
+		overflow: visible;
+	}
+
+	#spline-bg,
+	#spline-loader,
+	#chat-scrim,
+	.auth-container,
+	.auth-dock,
+	#sidebar,
+	#sidebar-scrim,
+	#sidebar-toggle,
+	.gateway-container > header,
+	.gateway-container > footer,
+	.message-input,
+	.toast,
+	.jump-pill,
+	.message-actions,
+	.message-tools,
+	.message-feedback,
+	.turn-actions,
+	.branch-nav,
+	.suggestion-chips,
+	.code-head button,
+	.empty-state,
+	.thinking-indicator,
+	.skeleton-panel,
+	.conversation-loading,
+	dialog {
+		display: none !important;
+	}
+
+	.gateway-container,
+	.chat-container,
+	#chat-messages,
+	.chat-messages {
+		position: static;
+		display: block;
+		block-size: auto;
+		max-block-size: none;
+		max-inline-size: none;
+		overflow: visible !important;
+		margin: 0;
+		padding: 0;
+		mask-image: none;
+		-webkit-mask-image: none;
+	}
+
+	.print-header {
+		display: block;
+		margin-block-end: 6mm;
+		padding-block-end: 3mm;
+		border-block-end: 1px solid var(--line);
+	}
+
+	.print-header h1 {
+		font-size: 1.4rem;
+		font-weight: 600;
+		line-height: 1.3;
+		color: var(--text-strong);
+	}
+
+	.print-header p {
+		margin-block-start: 1mm;
+		font-size: 0.8rem;
+		color: var(--text-faint);
+	}
+
+	.message,
+	.user-turn {
+		animation: none !important;
+		transition: none !important;
+		opacity: 1 !important;
+		transform: none !important;
+		box-shadow: none !important;
+		backdrop-filter: none !important;
+	}
+
+	.message {
+		margin-block: 0 4mm;
+	}
+
+	/* Page breaks: a whole turn is not kept together, since a reply longer
+	   than the space left would then leave most of a page blank. Instead a
+	   question stays with the start of its answer, and paragraphs, list
+	   items, tables and code blocks are not split where they fit. */
+	.user-message,
+	.message-body > *,
+	.message-body li,
+	.message-body tr {
+		break-inside: avoid;
+	}
+
+	.user-turn,
+	.user-message {
+		break-after: avoid;
+	}
+
+	/* Backgrounds are dropped in print by default; keep these few. */
+	.ai-avatar,
+	.user-message,
+	.code-block,
+	.message-body pre,
+	.message-body code {
+		-webkit-print-color-adjust: exact;
+		print-color-adjust: exact;
+	}
+
+	.message-body pre,
+	.code-block {
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+		overflow: visible;
+	}
+
+	.message-body,
+	.message-body * {
+		box-shadow: none !important;
+		backdrop-filter: none !important;
+	}
+
+	.assistant-message .message-body {
+		border: 1px solid var(--line);
+	}
+
+	.user-message {
+		border: 1px solid var(--user-bubble-line);
+	}
+
+	.ai-avatar {
+		background: var(--text-dim) !important;
+		color: #ffffff;
+	}
+
+	.reasoning {
+		display: none;
+	}
+
+	a {
+		color: var(--accent-text);
+	}
+}
