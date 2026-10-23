@@ -47,6 +47,9 @@ const ICONS = {
 	sun: { mirror: false }, // theme: light
 	moon: { mirror: false }, // theme: dark
 	translate: { mirror: false }, // language toggle
+	"pencil-simple": { mirror: false }, // edit a sent message
+	"caret-left": { mirror: true }, // branch navigator: previous version
+	"caret-right": { mirror: true }, // branch navigator: next version
 };
 
 const SOURCE = "node_modules/@phosphor-icons/core/assets/regular";
