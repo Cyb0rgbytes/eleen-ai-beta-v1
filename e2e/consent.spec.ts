@@ -201,9 +201,13 @@ test("the privacy page is linked from the footer and needs no script", async ({ 
 	for (const words of ["Cloudflare D1", "Voice recordings", "Spoken replies", "stays in your browser tab", "encrypted"]) {
 		await expect(page.locator("section#en")).toContainText(words);
 	}
-	expect(await page.locator("script").count()).toBe(0);
+	// None of ours. On production the zone injects its two scripts (JavaScript
+	// Detections and the Web Analytics beacon), each with the document's nonce.
+	expect(await page.locator("script:not([nonce])").count()).toBe(0);
 	// The site stylesheet applied: the heading takes the token colour, not
-	// the browser's default black.
+	// the browser's default black. After the click the URL commits before
+	// the stylesheet lands, so wait for the load (it flaked on production).
+	await page.waitForLoadState("load");
 	const heading = await page.locator("section#en h1").evaluate((h) => getComputedStyle(h).color);
 	expect(heading).not.toBe("rgb(0, 0, 0)");
 	await expect.poll(() => page.locator(".policy-top img").evaluate((img) => (img as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
