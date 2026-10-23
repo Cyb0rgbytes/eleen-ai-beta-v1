@@ -74,6 +74,45 @@ describe("readEvents on v2", () => {
 	});
 });
 
+describe("readEvents on a compare stream (M5.4)", () => {
+	const lane0 = createEncoder(2, { lane: 0 });
+	const lane1 = createEncoder(2, { lane: 1 });
+
+	it("keys every event to its lane and reads past a lane's done to the stream's", async () => {
+		const out = await collect(
+			body([
+				lane0.meta({ model: "a", compareGroup: "g1", assistantMessageId: "m0" }),
+				lane1.meta({ model: "b" }),
+				lane1.token("B"),
+				lane1.done(),
+				lane0.token("A"),
+				lane0.usage({ completionTokens: 1 }),
+				lane0.error("cut"),
+				lane0.done(),
+				v2.done(),
+				v2.token("after"),
+			]),
+		);
+		expect(out).toEqual([
+			{ type: "meta", data: { protocol: 2, model: "a", compareGroup: "g1", assistantMessageId: "m0", lane: 0 } },
+			{ type: "meta", data: { protocol: 2, model: "b", lane: 1 } },
+			{ type: "token", data: { text: "B", lane: 1 } },
+			{ type: "done", data: { lane: 1 } },
+			{ type: "token", data: { text: "A", lane: 0 } },
+			{ type: "usage", data: { completionTokens: 1, lane: 0 } },
+			{ type: "error", data: { message: "cut", lane: 0 } },
+			{ type: "done", data: { lane: 0 } },
+			{ type: "done", data: {} },
+		]);
+	});
+
+	it("ignores a lane that is not a small whole number", () => {
+		for (const lane of [-1, 1.5, 3, "0", null]) {
+			expect(parseFrame("token", JSON.stringify({ text: "x", lane }))).toEqual({ type: "token", data: { text: "x" } });
+		}
+	});
+});
+
 describe("readEvents on v1", () => {
 	it("maps the published framing onto token and done", async () => {
 		const out = await collect(body([v1.token("TLS"), v1.token(" session"), v1.done()]));

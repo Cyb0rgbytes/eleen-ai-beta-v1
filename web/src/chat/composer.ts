@@ -12,6 +12,7 @@ import { setIcon } from "../ui/icons";
 import { pressFeedback } from "../ui/motion";
 import { showToast } from "../ui/toast";
 import type { ChatApi } from "./controller";
+import { initAttachments } from "./attachments";
 
 function autosize(input: HTMLTextAreaElement): void {
 	input.style.blockSize = "auto";
@@ -37,6 +38,8 @@ export function initComposer(chat: ChatApi): Composer {
 
 	input.addEventListener("input", () => autosize(input));
 	autosize(input);
+	// Attach, drag and drop, paste (M5.2).
+	initAttachments();
 
 	input.addEventListener("keydown", (event) => {
 		if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {

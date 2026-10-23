@@ -44,6 +44,10 @@ Base URL: `https://eleenai.xyz`
 - `protocol` is optional: `1` (default) for the framing below, `2` for named
   events (`meta`, `reasoning`, `token`, `usage`, `error`, `done`) that carry
   a reasoning model's thinking separately from its answer.
+- `compare` is optional, authenticated only: 2 or 3 distinct model ids or
+  tier names that all answer the turn (needs `protocol` 2, not combined with
+  `model`). Every event then carries `lane`, the model's index; each lane
+  ends with its own `done`, and the stream with a `done` that has no lane.
 - `attachments` is optional, up to 5 entries of
   `{ "data": "<base64>", "mimeType": "...", "name": "..." }`.
 - The request body is limited to 6 MiB.

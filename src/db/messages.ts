@@ -7,6 +7,7 @@
  * as normalizeForSearch(content): the FTS index is built over it.
  */
 import { MessageStatus, SearchHit, StoredMessage } from "../shared/history";
+import type { FileRef } from "../shared/files";
 import { normalizeForSearch, toMatchQuery } from "./search";
 
 interface MessageRow {
@@ -21,6 +22,22 @@ interface MessageRow {
 	compare_group: string | null;
 	completion_tokens: number | null;
 	created_at: number;
+	files: string | null;
+}
+
+/** The files column (migrations/0004): a JSON FileRef[] or NULL. Anything unreadable is no files. */
+export function parseFiles(raw: string | null | undefined): FileRef[] {
+	if (!raw) return [];
+	try {
+		const parsed: unknown = JSON.parse(raw);
+		if (!Array.isArray(parsed)) return [];
+		return parsed.filter(
+			(f): f is FileRef =>
+				typeof f === "object" && f !== null && typeof (f as FileRef).id === "string" && typeof (f as FileRef).name === "string",
+		);
+	} catch {
+		return [];
+	}
 }
 
 function toStored(row: MessageRow): StoredMessage {
@@ -36,6 +53,7 @@ function toStored(row: MessageRow): StoredMessage {
 		compareGroup: row.compare_group,
 		completionTokens: row.completion_tokens,
 		createdAt: row.created_at,
+		...(parseFiles(row.files).length ? { files: parseFiles(row.files) } : {}),
 	};
 }
 
@@ -43,7 +61,7 @@ function toStored(row: MessageRow): StoredMessage {
 export async function listMessages(db: D1Database, userId: string, conversationId: string): Promise<StoredMessage[]> {
 	const { results } = await db
 		.prepare(
-			`SELECT id, parent_id, seq, role, content, reasoning, model, status, compare_group, completion_tokens, created_at
+			`SELECT id, parent_id, seq, role, content, reasoning, model, status, compare_group, completion_tokens, created_at, files
 			FROM messages WHERE conversation_id = ? AND user_id = ? ORDER BY seq`,
 		)
 		.bind(conversationId, userId)
@@ -76,6 +94,8 @@ export interface ThreadMessage {
 	role: "user" | "assistant";
 	content: string;
 	status: MessageStatus;
+	/** JSON FileRef[] on a user turn that had attachments (M5.2). */
+	files?: string | null;
 }
 
 /**
@@ -93,15 +113,15 @@ export async function loadThread(
 ): Promise<ThreadMessage[]> {
 	const { results } = await db
 		.prepare(
-			`WITH RECURSIVE thread(id, parent_id, role, content, status, depth) AS (
-				SELECT id, parent_id, role, content, status, 0 FROM messages
+			`WITH RECURSIVE thread(id, parent_id, role, content, status, files, depth) AS (
+				SELECT id, parent_id, role, content, status, files, 0 FROM messages
 				WHERE id = ?1 AND user_id = ?2 AND conversation_id = ?3
 				UNION ALL
-				SELECT m.id, m.parent_id, m.role, m.content, m.status, t.depth + 1
+				SELECT m.id, m.parent_id, m.role, m.content, m.status, m.files, t.depth + 1
 				FROM messages m JOIN thread t ON m.id = t.parent_id
 				WHERE m.user_id = ?2 AND m.conversation_id = ?3 AND t.depth + 1 < ?4
 			)
-			SELECT role, content, status FROM thread ORDER BY depth DESC`,
+			SELECT role, content, status, files FROM thread ORDER BY depth DESC`,
 		)
 		.bind(leafId, userId, conversationId, limit)
 		.all<ThreadMessage>();
@@ -115,8 +135,14 @@ export interface NewTurn {
 	/** Set the title only while it is still empty (first turn of a conversation). */
 	titleIfEmpty?: string;
 	/** The new user message; absent on a regenerate. */
-	user?: { id: string; parentId: string | null; content: string };
+	user?: { id: string; parentId: string | null; content: string; files?: FileRef[] };
 	assistant: { id: string; parentId: string; model: string };
+	/**
+	 * Compare (M5.4): more replies to the same turn, written after
+	 * `assistant`, all of them sharing compare_group `group`. `assistant`
+	 * (lane 0) becomes the active leaf.
+	 */
+	compare?: { group: string; siblings: { id: string; model: string }[] };
 }
 
 /**
@@ -136,17 +162,43 @@ export async function insertTurn(db: D1Database, userId: string, turn: NewTurn, 
 		);
 	}
 
-	const insert = (id: string, parentId: string | null, role: "user" | "assistant", content: string, status: MessageStatus, model: string | null) =>
+	// Compare lanes share one group; user rows never carry it.
+	const group = turn.compare?.group ?? null;
+	const insert = (
+		id: string,
+		parentId: string | null,
+		role: "user" | "assistant",
+		content: string,
+		status: MessageStatus,
+		model: string | null,
+		files: FileRef[] = [],
+	) =>
 		db
 			.prepare(
-				`INSERT INTO messages (id, conversation_id, user_id, parent_id, seq, role, content, search_text, model, status, created_at)
-				SELECT ?1, ?2, ?3, ?4, COALESCE(MAX(seq), 0) + 1, ?5, ?6, ?7, ?8, ?9, ?10
+				`INSERT INTO messages (id, conversation_id, user_id, parent_id, seq, role, content, search_text, model, status, compare_group, created_at, files)
+				SELECT ?1, ?2, ?3, ?4, COALESCE(MAX(seq), 0) + 1, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12
 				FROM messages WHERE conversation_id = ?2 AND user_id = ?3`,
 			)
-			.bind(id, turn.conversationId, userId, parentId, role, content, normalizeForSearch(content), model, status, now);
+			.bind(
+				id,
+				turn.conversationId,
+				userId,
+				parentId,
+				role,
+				content,
+				normalizeForSearch(content),
+				model,
+				status,
+				role === "assistant" ? group : null,
+				now,
+				files.length ? JSON.stringify(files) : null,
+			);
 
-	if (turn.user) statements.push(insert(turn.user.id, turn.user.parentId, "user", turn.user.content, "complete", null));
+	if (turn.user) statements.push(insert(turn.user.id, turn.user.parentId, "user", turn.user.content, "complete", null, turn.user.files));
 	statements.push(insert(turn.assistant.id, turn.assistant.parentId, "assistant", "", "streaming", turn.assistant.model));
+	for (const sibling of turn.compare?.siblings ?? []) {
+		statements.push(insert(sibling.id, turn.assistant.parentId, "assistant", "", "streaming", sibling.model));
+	}
 
 	statements.push(
 		db
@@ -172,6 +224,10 @@ export interface ReplyOutcome {
  * Fill in a streamed reply once it has ended, and make it the conversation's
  * visible leaf. Only a row still marked 'streaming' is written, so a reply is
  * finished exactly once.
+ *
+ * `activate: false` (compare lanes after the first, M5.4) leaves the active
+ * leaf alone: otherwise whichever model finished last would decide what the
+ * user sees next, rather than lane 0 or the answer they continue with.
  */
 export async function finishReply(
 	db: D1Database,
@@ -180,6 +236,7 @@ export async function finishReply(
 	messageId: string,
 	outcome: ReplyOutcome,
 	now = Date.now(),
+	activate = true,
 ): Promise<void> {
 	await db.batch([
 		db
@@ -196,9 +253,11 @@ export async function finishReply(
 				outcome.status,
 				outcome.completionTokens,
 			),
-		db
-			.prepare("UPDATE conversations SET active_leaf_id = ?3, updated_at = ?4 WHERE id = ?1 AND user_id = ?2")
-			.bind(conversationId, userId, messageId, now),
+		activate
+			? db
+					.prepare("UPDATE conversations SET active_leaf_id = ?3, updated_at = ?4 WHERE id = ?1 AND user_id = ?2")
+					.bind(conversationId, userId, messageId, now)
+			: db.prepare("UPDATE conversations SET updated_at = ?3 WHERE id = ?1 AND user_id = ?2").bind(conversationId, userId, now),
 	]);
 }
 

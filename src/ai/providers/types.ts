@@ -11,6 +11,17 @@ export interface ProviderRequest {
 	route: string;
 	/** The caller's own provider key. Required for user-key models. */
 	userKey?: string;
+	/**
+	 * Images for the newest user turn (M5.2). Only ever set for a model whose
+	 * registry entry has `vision`; other models get a text description instead.
+	 */
+	images?: ImagePart[];
+}
+
+/** An uploaded image, base64, for a vision model. */
+export interface ImagePart {
+	mimeType: string;
+	data: string;
 }
 
 export interface ChatRun {

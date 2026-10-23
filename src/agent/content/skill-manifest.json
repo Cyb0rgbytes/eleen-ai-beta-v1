@@ -4,8 +4,8 @@
       "name": "eleenai-chat",
       "type": "skill-md",
       "description": "Converse with the EleenAI assistant over its HTTP API, including SSE stream parsing, response modes, file attachments, and the guest versus authenticated tiers.",
-      "bytes": 3713,
-      "digest": "sha256:ebb4c1cbe035bc6a027a70dcaf83cbf4fc38bff0fc1bc3d26abeecc93ef3db18"
+      "bytes": 4013,
+      "digest": "sha256:061b488fd2b61c3db759d0a966e046d51373dbddb9e3cbe5a367fcd76ad2e4a5"
     },
     {
       "name": "eleenai-image-generation",

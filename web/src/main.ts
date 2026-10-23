@@ -14,6 +14,7 @@ import "./styles/index.css";
 import { authState, initAuth, openSignIn, type AuthState } from "./auth/clerk";
 import { initAuthControls, renderAuth } from "./auth/controls";
 import { initComposer, type Composer } from "./chat/composer";
+import { initCompareToggle, type CompareToggle } from "./chat/compare-toggle";
 import { createChat, type ChatApi } from "./chat/controller";
 import { createEmptyState, setGreetingName } from "./chat/empty";
 import { initJumpPill } from "./chat/jump";
@@ -48,6 +49,7 @@ function enableComposerFallback(): void {
 
 let picker: Picker | null = null;
 let keys: KeysDialog | null = null;
+let compareToggle: CompareToggle | null = null;
 
 /** The picker's locks and the keys form follow the auth state. */
 let applied: AuthState["status"] | null = null;
@@ -56,6 +58,7 @@ function applyAuth(state: AuthState): void {
 	applied = state.status;
 	const signedIn = state.status === "signed-in";
 	picker?.setSignedIn(signedIn);
+	compareToggle?.setSignedIn(signedIn);
 	if (signedIn) void keys?.refresh();
 	else keys?.reset();
 }
@@ -92,6 +95,7 @@ async function boot(): Promise<void> {
 			jump.setBusy(busy);
 		},
 		emptyState,
+		labelFor: (modelId) => picker?.labelFor(modelId) ?? null,
 	});
 	// The static welcome in the HTML is the no-JavaScript fallback.
 	messages.replaceChildren(emptyState());
@@ -107,6 +111,14 @@ async function boot(): Promise<void> {
 			onModeChange: (mode) => chat.setMode(mode),
 			openSignIn: () => void openSignIn(),
 			openKeys: (provider) => keys?.open(provider),
+		});
+	}
+	const compareButton = document.getElementById("compare-btn");
+	if (compareButton instanceof HTMLButtonElement) {
+		compareToggle = initCompareToggle(compareButton, {
+			chat,
+			choices: () => picker?.choices() ?? [],
+			openSignIn: () => void openSignIn(),
 		});
 	}
 	const privacy = initPrivacy({ closePicker: () => picker?.close({ restoreFocus: false }), focusPicker: () => picker?.focusTrigger() });

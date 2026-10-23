@@ -19,6 +19,13 @@ export interface Env {
 	SPLINE_ASSETS: R2Bucket;
 
 	/**
+	 * Private R2 bucket (`eleen-uploads`) for files users attach (M5.2).
+	 * Every key is under u/{userId}/, so a lookup can only reach the
+	 * caller's own objects (src/files/store.ts).
+	 */
+	UPLOADS: R2Bucket;
+
+	/**
 	 * Clerk secret key for server-side session verification.
 	 * Set via `wrangler secret put CLERK_SECRET_KEY` for production.
 	 * Set in `.dev.vars` for local development.

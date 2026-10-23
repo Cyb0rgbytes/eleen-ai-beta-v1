@@ -11,6 +11,7 @@
  * description that lies about the API is worse than none at all.
  */
 import { API_VERSION, ORIGIN } from "./config";
+import { MAX_FILE_BYTES, MAX_FILES_PER_TURN, UPLOAD_TYPES } from "../shared/files";
 
 const ERROR_SCHEMA = {
 	type: "object",
@@ -80,7 +81,8 @@ const CHAT_RESPONSE = {
 			"carries a JSON object with a `response` string holding the next token " +
 			"delta and the stream terminates with `data: [DONE]`. With `protocol` 2 the " +
 			"stream uses named events: `meta`, `reasoning`, `token`, `usage`, `error`, " +
-			"`done`, each with a JSON `data:` payload.",
+			"`done`, each with a JSON `data:` payload. A `compare` request multiplexes " +
+			"several replies onto one stream, each event tagged with its `lane`.",
 		content: {
 			"text/event-stream": {
 				schema: { type: "string" },
@@ -373,6 +375,34 @@ export const OPENAPI_DOCUMENT = {
 							"Saved chat: regenerate the answer to this user message as a new " +
 							"sibling. Requires `conversationId`; `messages` may then be empty.",
 					},
+					compare: {
+						type: "array",
+						minItems: 2,
+						maxItems: 3,
+						uniqueItems: true,
+						items: { type: "string" },
+						description:
+							"Compare: 2 or 3 distinct model ids or tier names that all answer this " +
+							"turn, side by side. Authenticated callers only (a guest gets a 403 " +
+							"with `reason` `sign-in`), `protocol` 2 only, and not combined with " +
+							"`model`; each model must be one the caller may use. Charged to the " +
+							"`compare` quota at one unit per model. The single stream then " +
+							"multiplexes the replies: every event carries `lane`, the model's index " +
+							"here; each lane has its own `meta` (with `model`, and for a saved turn " +
+							"`assistantMessageId` and a shared `compareGroup`), tokens, `usage`, " +
+							"`error` and `done`, and the stream ends with one `done` without a " +
+							"lane. A saved turn stores the replies as siblings sharing " +
+							"`compareGroup`; the first lane is the active leaf.",
+					},
+					files: {
+						type: "array",
+						maxItems: MAX_FILES_PER_TURN,
+						items: { type: "string", format: "uuid" },
+						description:
+							"Signed in only: ids from POST /api/v1/files attached to this turn. Each must be the " +
+							"caller's (404 otherwise). In a saved chat, files on earlier turns of the thread are " +
+							"read again automatically. Not allowed with `replyTo`.",
+					},
 				},
 				required: ["messages"],
 			},
@@ -396,6 +426,19 @@ export const OPENAPI_DOCUMENT = {
 					policyVersion: { type: "integer", description: "Ask again when consent.policyVersion is lower." },
 				},
 				required: ["consent", "policyVersion"],
+			},
+			UploadedFile: {
+				type: "object",
+				description: "An uploaded file (M5.2). Its bytes are stored privately and never served back.",
+				properties: {
+					id: { type: "string", format: "uuid" },
+					name: { type: "string", maxLength: 128 },
+					type: { type: "string", enum: [...UPLOAD_TYPES] },
+					size: { type: "integer", maximum: MAX_FILE_BYTES },
+					kind: { type: "string", enum: ["document", "image"] },
+					chars: { type: "integer", description: "Characters of text extracted for the model, when there is any." },
+				},
+				required: ["id", "name", "type", "size", "kind"],
 			},
 			MemoryEntry: {
 				type: "object",
@@ -910,6 +953,56 @@ export const OPENAPI_DOCUMENT = {
 					"404": { description: "No key was stored for that provider." },
 					...UNAUTHORIZED,
 				},
+			},
+		},
+		"/api/v1/files": {
+			post: {
+				tags: ["history"],
+				operationId: "uploadFile",
+				summary: "Upload a file to attach to a chat turn",
+				description:
+					"The raw bytes as the body, with the name percent-encoded in `x-file-name`, or multipart/form-data " +
+					"with a `file` field. At most 10 MB. The type is decided from the bytes (PDF, DOCX, PNG, JPEG, " +
+					"WebP, GIF, or UTF-8 text), never from the Content-Type. Pass the returned id in the chat body's " +
+					"`files` array.",
+				security: HISTORY_SECURITY,
+				requestBody: {
+					required: true,
+					content: {
+						"application/octet-stream": { schema: { type: "string", format: "binary" } },
+						"multipart/form-data": {
+							schema: { type: "object", properties: { file: { type: "string", format: "binary" } }, required: ["file"] },
+						},
+					},
+				},
+				responses: {
+					"201": { description: "Stored.", content: { "application/json": { schema: wrapped("file", "UploadedFile") } } },
+					"413": { description: "Larger than 10 MB.", content: { "application/json": { schema: ERROR_SCHEMA } } },
+					"415": { description: "Not a supported type.", content: { "application/json": { schema: ERROR_SCHEMA } } },
+					...HISTORY_ERRORS,
+				},
+			},
+		},
+		"/api/v1/files/{id}": {
+			get: {
+				tags: ["history"],
+				operationId: "getFile",
+				summary: "An uploaded file's metadata (never its contents)",
+				security: HISTORY_SECURITY,
+				parameters: [ID_PARAM],
+				responses: {
+					"200": { description: "The file.", content: { "application/json": { schema: wrapped("file", "UploadedFile") } } },
+					...NOT_FOUND,
+					...HISTORY_ERRORS,
+				},
+			},
+			delete: {
+				tags: ["history"],
+				operationId: "deleteFile",
+				summary: "Delete an uploaded file",
+				security: HISTORY_SECURITY,
+				parameters: [ID_PARAM],
+				responses: { "204": { description: "Deleted." }, ...NOT_FOUND, ...HISTORY_ERRORS },
 			},
 		},
 		"/api/v1/consent": {

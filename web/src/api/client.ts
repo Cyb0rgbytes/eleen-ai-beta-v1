@@ -57,6 +57,11 @@ export function setTokenProvider(provider: TokenProvider): void {
 	tokenProvider = provider;
 }
 
+/** The Clerk session token, for a request made outside request() (the upload's XHR, M5.2). */
+export function sessionToken(): Promise<string | null> {
+	return tokenProvider();
+}
+
 export const DEFAULT_TIMEOUT_MS = 30_000;
 
 export interface RequestOptions {

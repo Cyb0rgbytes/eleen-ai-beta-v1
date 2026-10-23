@@ -99,6 +99,13 @@
 		{
 			"binding": "SPLINE_ASSETS",
 			"bucket_name": "spline-assets"
+		},
+		// M5.2: files users attach to chats. Private (no public URL, no
+		// custom domain): bytes are only ever read back by the Worker, under
+		// u/{userId}/ (src/files/store.ts).
+		{
+			"binding": "UPLOADS",
+			"bucket_name": "eleen-uploads"
 		}
 	],
 	"upload_source_maps": true,

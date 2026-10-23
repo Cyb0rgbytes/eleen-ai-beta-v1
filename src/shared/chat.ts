@@ -45,6 +45,18 @@ export interface ChatRequestBody {
 	conversationId?: SavedTurnRequest["conversationId"];
 	parentId?: SavedTurnRequest["parentId"];
 	replyTo?: SavedTurnRequest["replyTo"];
+	/**
+	 * Compare (M5.4): 2 or 3 distinct model ids or tier names, answered side
+	 * by side on one stream whose events carry `lane` (see stream.ts).
+	 * Signed-in only, protocol 2 only, and not combined with `model`.
+	 */
+	compare?: string[];
+	/**
+	 * Ids from POST /api/v1/files attached to this turn (signed in only, at
+	 * most MAX_FILES_PER_TURN). In a saved chat, files attached to earlier
+	 * turns of the thread are read again on their own.
+	 */
+	files?: string[];
 }
 
 /** 403 body when the requested model is not available to this caller. */
