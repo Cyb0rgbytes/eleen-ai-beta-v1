@@ -7,11 +7,17 @@
     <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="/favicon-192.png" type="image/png" sizes="192x192">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <!-- Installable (M5.5): the manifest, and the browser chrome in the page's own --bg. -->
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#07071c" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#f5f5fb" media="(prefers-color-scheme: light)">
     <!-- Theme and language before first paint: a blocking same-origin script,
          because the module bundle below is deferred (web/public/prefs.js). -->
     <script src="/prefs.js"></script>
     <meta name="description" content="EleenAI, your gateway to the realm of artificial intelligence. Chat with an AI assistant powered by CSECNIX Technologies.">
-    <link rel="preload" href="/logo.png" as="image">
+    <!-- The lockup is the page's LCP element (the poster is too low in detail to count),
+         so it is a right-sized WebP fetched first (M5.5, scripts/gen-favicons.mjs). -->
+    <link rel="preload" href="/logo.webp" as="image" type="image/webp" fetchpriority="high">
     <link rel="preload" href="/scene-poster.webp" as="image" fetchpriority="high">
 
     <!-- The scene: the R2 asset host and the viewer's CDN. -->
@@ -85,7 +91,7 @@
 
     <div class="gateway-container">
         <header>
-            <img src="/logo.png" class="logo-image" alt="EleenAI, your gateway to the realm of AI">
+            <img src="/logo.webp" class="logo-image" alt="EleenAI, your gateway to the realm of AI" width="424" height="150" fetchpriority="high">
         </header>
 
         <main class="chat-container">

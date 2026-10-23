@@ -8,6 +8,12 @@
  * conditions hold, and the poster crossfades to the live scene once it has
  * rendered.
  *
+ * The viewer waits for the page (M5.5): its download starts only after the
+ * load event and the first paint, when the browser is next idle, so the
+ * poster, the app bundle and the fonts never compete with 2.3 MB of viewer.
+ * requestIdleCallback has a timeout so a busy page still gets its scene;
+ * where it does not exist (Safari) a short timer stands in.
+ *
  * The viewer is @splinetool/viewer 1.12.88 from unpkg: the package declares
  * no licence, so it is not self-hosted. It is never filtered, tinted or
  * blended (DESIGN.md section 2.1).
@@ -16,6 +22,10 @@
 const VIEWER_SRC = "https://unpkg.com/@splinetool/viewer@1.12.88/build/spline-viewer.js";
 const SCENE_URL = "https://assets.eleenai.xyz/r_4_x_bot.splinecode";
 const FADE_FALLBACK_MS = 3000;
+/** The longest requestIdleCallback may wait before the viewer loads anyway. */
+const IDLE_TIMEOUT_MS = 2500;
+/** Without requestIdleCallback: this long after the first paint. */
+const IDLE_FALLBACK_MS = 600;
 
 export type SceneMode = "live" | "poster";
 
@@ -71,6 +81,34 @@ function loadViewer(): void {
 	document.head.append(script);
 }
 
+interface IdleWindow {
+	requestIdleCallback?(callback: () => void, options?: { timeout: number }): number;
+}
+
+/**
+ * Run 	ask once the page has loaded and painted and the browser is idle.
+ * Exported for tests; win defaults to the page's window.
+ */
+export function whenIdle(task: () => void, win: Window & IdleWindow = window): void {
+	let done = false;
+	const run = () => {
+		if (done) return;
+		done = true;
+		task();
+	};
+	const afterPaint = () => {
+		// Two frames: the first paint has been committed, not just scheduled.
+		win.requestAnimationFrame(() =>
+			win.requestAnimationFrame(() => {
+				if (typeof win.requestIdleCallback === "function") win.requestIdleCallback(run, { timeout: IDLE_TIMEOUT_MS });
+				else win.setTimeout(run, IDLE_FALLBACK_MS);
+			}),
+		);
+	};
+	if (win.document.readyState === "complete") afterPaint();
+	else win.addEventListener("load", afterPaint, { once: true });
+}
+
 export function initScene(): SceneMode {
 	const bg = document.getElementById("spline-bg");
 	const loader = document.getElementById("spline-loader");
@@ -104,11 +142,13 @@ export function initScene(): SceneMode {
 		loader?.classList.add("hidden");
 	};
 	viewer.addEventListener("load", loaded, { once: true });
-	loadViewer();
 	forwardPointer(viewer);
-	// The viewer's load event is not reliable across versions; the poster
-	// stays underneath, so an early crossfade only reveals the same scene.
-	setTimeout(loaded, FADE_FALLBACK_MS);
+	whenIdle(() => {
+		loadViewer();
+		// The viewer's load event is not reliable across versions; the poster
+		// stays underneath, so an early crossfade only reveals the same scene.
+		setTimeout(loaded, FADE_FALLBACK_MS);
+	});
 	return "live";
 }
 

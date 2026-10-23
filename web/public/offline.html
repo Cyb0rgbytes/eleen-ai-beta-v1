@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#07071c" />
+    <meta name="robots" content="noindex" />
+    <title>EleenAI is offline</title>
+    <!-- Served by the service worker (web/sw.js) when a page cannot be
+         reached. Self-contained: no script, no image, no other request; it uses
+         the system's fonts. Bilingual, since it cannot know the
+         reader's language choice. Colours are the dark theme's tokens. -->
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #07071c;
+            --bg-deep: #030312;
+            --surface: #0f0f2a;
+            --line: rgb(255 255 255 / 0.08);
+            --text: #e8e8ff;
+            --text-dim: #a8a8d8;
+            --accent: #635bf6;
+            --on-accent: #ffffff;
+            --focus-ring: #00e5ff;
+        }
+        @media (prefers-color-scheme: light) {
+            :root {
+                color-scheme: light;
+                --bg: #f5f5fb;
+                --bg-deep: #e9e9f4;
+                --surface: #ffffff;
+                --line: rgb(10 10 40 / 0.08);
+                --text: #16163a;
+                --text-dim: #4a4a74;
+                --accent: #5a51f0;
+                --focus-ring: #5a51f0;
+            }
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: grid;
+            place-items: center;
+            padding: 1.5rem;
+            font-family: "Inter", "Noto Sans Arabic", "Segoe UI", system-ui, -apple-system, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background: linear-gradient(180deg, var(--bg), var(--bg-deep));
+        }
+        main {
+            inline-size: 100%;
+            max-inline-size: 30rem;
+            padding: 2rem;
+            text-align: center;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+        }
+        .brand {
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.2em;
+            color: var(--text-dim);
+        }
+        section + section {
+            margin-block-start: 1.5rem;
+            padding-block-start: 1.5rem;
+            border-block-start: 1px solid var(--line);
+        }
+        h1 { margin-block: 0.75rem 0.5rem; font-size: 1.5rem; font-weight: 600; line-height: 1.25; }
+        h2 { margin-block-end: 0.5rem; font-size: 1.25rem; font-weight: 600; line-height: 1.3; }
+        p { color: var(--text-dim); }
+        a {
+            display: inline-flex;
+            align-items: center;
+            min-block-size: 44px;
+            margin-block-start: 1.5rem;
+            padding-inline: 1.25rem;
+            font-weight: 500;
+            color: var(--on-accent);
+            text-decoration: none;
+            background: var(--accent);
+            border-radius: 999px;
+        }
+        a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        [lang="ar"] { font-size: 1.06em; }
+    </style>
+</head>
+<body>
+    <main>
+        <p class="brand">ELEENAI</p>
+        <section lang="en" dir="ltr">
+            <h1>You're offline</h1>
+            <p>EleenAI needs a connection to answer. Check your network, then try again.</p>
+        </section>
+        <section lang="ar" dir="rtl">
+            <h2>أنت غير متصل بالإنترنت</h2>
+            <p>يحتاج EleenAI إلى اتصال ليجيب. تحقّق من الشبكة ثم حاول مرة أخرى.</p>
+        </section>
+        <a href="/" id="retry">Try again · حاول مرة أخرى</a>
+    </main>
+</body>
+</html>

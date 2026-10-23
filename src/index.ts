@@ -20,6 +20,7 @@ import { handleAgentRoutes } from "./agent/router";
 import { AgentHandlers } from "./agent/deps";
 import { bearerChallenge } from "./agent/wellknown";
 import { cspMode, withSecurityHeaders } from "./lib/security-headers";
+import { isPwaPath, withPwaHeaders } from "./lib/pwa";
 import { corsHeaders, handlePreflight } from "./lib/cors";
 import {
 	ValidationError,
@@ -333,6 +334,11 @@ async function route(
 				status: 301,
 				headers: { location: "/favicon-32.png", "cache-control": "public, max-age=86400" },
 			});
+		}
+
+		// The manifest, the service worker and its offline page (M5.5).
+		if (isPwaPath(url.pathname)) {
+			return withPwaHeaders(url.pathname, await env.ASSETS.fetch(request));
 		}
 
 		// Serve static assets (frontend)

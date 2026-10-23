@@ -27,7 +27,13 @@
 			"/",
 			"/index.html",
 			"/privacy",
-			"/privacy.html"
+			"/privacy.html",
+			// M5.5: the manifest, the service worker and its offline page, for the
+			// security headers and their own content type and cache rules.
+			"/manifest.webmanifest",
+			"/sw.js",
+			"/offline",
+			"/offline.html"
 		]
 	},
 	// Import *.md as strings so agent-facing renditions (home, docs, auth, skills)

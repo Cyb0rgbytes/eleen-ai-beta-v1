@@ -260,6 +260,10 @@ export const en = {
 	chatDeleteForeverConfirm: "Delete \"{title}\" for good? This cannot be undone.",
 	chatPurged: "Deleted for good.",
 	// End Recently deleted
+	// M5.5 pwa
+	pwaUpdateReady: "A new version of EleenAI is ready.",
+	pwaUpdateReload: "Reload",
+	// End M5.5 pwa
 } as const;
 
 export type MessageKey = keyof typeof en;

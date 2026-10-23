@@ -258,4 +258,8 @@ export const ar: Partial<Record<MessageKey, string>> = {
 	chatDeleteForeverConfirm: "حذف \"{title}\" نهائيًا؟ لا يمكن التراجع عن ذلك.",
 	chatPurged: "تم الحذف نهائيًا.",
 	// End Recently deleted
+	// M5.5 pwa
+	pwaUpdateReady: "إصدار جديد من EleenAI جاهز.",
+	pwaUpdateReload: "إعادة التحميل",
+	// End M5.5 pwa
 };
