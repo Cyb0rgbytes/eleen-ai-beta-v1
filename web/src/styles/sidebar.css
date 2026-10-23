@@ -1,0 +1,494 @@
+/*
+ * The conversation sidebar (M4.4, DESIGN.md section 7). Position and
+ * z-index live in layers.css. Colours come from tokens.css; every inline
+ * direction is logical, and the slide uses --dir-sign so it mirrors in RTL.
+ */
+
+:root {
+	/* DESIGN.md section 7: pinned at 280px at 1024px and wider. */
+	--sidebar-w: 280px;
+	--sidebar-toggle: 40px;
+}
+
+/* ── Toggle ──────────────────────────────────────────────────────────── */
+
+.sidebar-toggle {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	inline-size: var(--sidebar-toggle);
+	block-size: var(--sidebar-toggle);
+	color: var(--text);
+	background: var(--surface-plate);
+	backdrop-filter: var(--blur-plate);
+	-webkit-backdrop-filter: var(--blur-plate);
+	border: 1px solid var(--line);
+	border-radius: var(--r-pill);
+	box-shadow: var(--shadow-plate);
+	transition: background-color var(--dur-state) var(--ease);
+}
+
+.sidebar-toggle:hover {
+	background: var(--field-hover);
+}
+
+.sidebar-toggle .icon {
+	inline-size: 20px;
+	block-size: 20px;
+}
+
+/* ── Panel ───────────────────────────────────────────────────────────── */
+
+.sidebar {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-2);
+	inline-size: var(--sidebar-w);
+	max-inline-size: calc(100vw - 3rem);
+	padding: var(--sp-3) var(--sp-2) var(--sp-2);
+	/* Solid: the scene does not show through it. */
+	background: var(--bg-deep);
+	border-inline-end: 1px solid var(--line);
+	color: var(--text);
+	transform: translateX(calc(-100% * var(--dir-sign, 1)));
+	visibility: hidden;
+	transition:
+		transform var(--dur-panel) var(--ease),
+		visibility 0s linear var(--dur-panel);
+}
+
+.sidebar.is-open {
+	transform: none;
+	visibility: visible;
+	transition:
+		transform var(--dur-panel) var(--ease),
+		visibility 0s;
+}
+
+.sidebar.is-drawer.is-open {
+	box-shadow: var(--shadow-toast);
+}
+
+.sidebar-scrim {
+	background: rgb(var(--scrim-rgb) / var(--scrim-bottom));
+}
+
+/* Pinned open on desktop: the chat column moves over, so the sidebar never
+   covers the composer. */
+@media (min-width: 1024px) {
+	:root[data-sidebar="open"] .gateway-container {
+		inline-size: calc(100% - var(--sidebar-w));
+		margin-inline: var(--sidebar-w) 0;
+	}
+}
+
+/* The logo keeps clear of the toggle in the corner. On phones the toggle
+   sits in the auth row above the header instead. */
+@media (min-width: 769px) {
+	:root[data-sidebar] header {
+		padding-inline-start: calc(var(--sidebar-toggle) + var(--sp-3));
+	}
+}
+
+@media (min-width: 1024px) {
+	:root[data-sidebar="open"] header {
+		padding-inline-start: var(--sp-3);
+	}
+}
+
+/* ── Head: search and New chat ───────────────────────────────────────── */
+
+.sidebar-head {
+	display: flex;
+	align-items: center;
+	min-block-size: var(--sidebar-toggle);
+	/* Room for the toggle, which sits over this corner. */
+	padding-inline-start: calc(var(--sp-3) + var(--sidebar-toggle) + var(--sp-1) - var(--sp-2));
+}
+
+.sidebar-search {
+	flex: 1;
+	min-inline-size: 0;
+	display: flex;
+	align-items: center;
+	gap: var(--sp-1);
+	block-size: var(--sidebar-toggle);
+	padding-inline: var(--sp-2);
+	color: var(--text-faint);
+	background: var(--field);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--r-pill);
+	transition: border-color var(--dur-state) var(--ease);
+}
+
+.sidebar-search:focus-within {
+	border-color: var(--accent-line);
+	outline: 2px solid var(--focus-ring);
+	outline-offset: 2px;
+}
+
+.sidebar-search-input {
+	flex: 1;
+	min-inline-size: 0;
+	font: inherit;
+	font-size: var(--fs-sm);
+	color: var(--text);
+	background: none;
+	border: none;
+}
+
+/* The ring is drawn on the field around it. */
+.sidebar-search-input:focus-visible {
+	outline: none;
+}
+
+.sidebar-search-input::placeholder {
+	color: var(--text-faint);
+}
+
+.sidebar-new {
+	display: flex;
+	align-items: center;
+	gap: var(--sp-1);
+	padding: var(--sp-1) var(--sp-2);
+	font-size: var(--fs-sm);
+	font-weight: 500;
+	color: var(--text);
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-line);
+	border-radius: var(--r-sm);
+	transition: background-color var(--dur-state) var(--ease);
+}
+
+.sidebar-new:hover {
+	background: var(--field-hover);
+}
+
+/* ── Body: sections, results, states ─────────────────────────────────── */
+
+.sidebar-body {
+	flex: 1;
+	min-block-size: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-width: thin;
+	scrollbar-color: var(--scrollbar) transparent;
+}
+
+.sidebar-sections {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-3);
+}
+
+.sidebar-section-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--sp-1);
+	min-block-size: 28px;
+	padding-inline: var(--sp-1) 2px;
+}
+
+.sidebar-heading {
+	font-size: var(--fs-xs);
+	font-weight: 500;
+	color: var(--text-faint);
+}
+
+.sidebar-list {
+	list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.sidebar-row {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	border-radius: var(--r-sm);
+	transition: background-color var(--dur-state) var(--ease);
+}
+
+.sidebar-row:hover {
+	background: var(--field);
+}
+
+.sidebar-item.is-active > .sidebar-row {
+	background: var(--accent-soft);
+}
+
+.sidebar-link {
+	flex: 1;
+	min-inline-size: 0;
+	display: flex;
+	align-items: center;
+	gap: var(--sp-1);
+	padding: 0.4rem var(--sp-1);
+	font-size: var(--fs-sm);
+	text-align: start;
+	color: var(--text-dim);
+	background: none;
+	border: none;
+	border-radius: var(--r-sm);
+}
+
+.sidebar-item.is-active .sidebar-link,
+.sidebar-link:hover {
+	color: var(--text);
+}
+
+.sidebar-title {
+	flex: 1;
+	min-inline-size: 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sidebar-icon-button {
+	flex-shrink: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	inline-size: 28px;
+	block-size: 28px;
+	color: var(--text-faint);
+	background: none;
+	border: none;
+	border-radius: var(--r-xs);
+	transition:
+		opacity var(--dur-state) var(--ease),
+		background-color var(--dur-state) var(--ease);
+}
+
+.sidebar-icon-button:hover,
+.sidebar-icon-button[aria-expanded="true"] {
+	color: var(--text);
+	background: var(--field-hover);
+}
+
+/* With a mouse the options button waits for the row; touch always shows it. */
+@media (hover: hover) {
+	.sidebar-more {
+		opacity: 0;
+	}
+
+	.sidebar-row:hover .sidebar-more,
+	.sidebar-row:focus-within .sidebar-more,
+	.sidebar-more[aria-expanded="true"] {
+		opacity: 1;
+	}
+}
+
+/* Folders: the caret points along the row while closed. */
+.sidebar-folder-toggle .icon[data-icon="caret-down"] {
+	transition: transform var(--dur-state) var(--ease);
+}
+
+.sidebar-folder-toggle[aria-expanded="false"] .icon[data-icon="caret-down"] {
+	transform: rotate(calc(-90deg * var(--dir-sign, 1)));
+}
+
+.sidebar-folder-items {
+	padding-inline-start: var(--sp-3);
+	margin-block-start: 2px;
+}
+
+.sidebar-folder.is-new {
+	display: flex;
+	padding: 2px;
+}
+
+.sidebar-rename {
+	flex: 1;
+	min-inline-size: 0;
+	margin: 2px;
+	padding: 0.3rem var(--sp-1);
+	font: inherit;
+	font-size: var(--fs-sm);
+	color: var(--text);
+	background: var(--field);
+	border: 1px solid var(--accent-line);
+	border-radius: var(--r-xs);
+}
+
+.sidebar-more-chats,
+.sidebar-text-button {
+	align-self: flex-start;
+	padding: 0.3rem var(--sp-2);
+	font-size: var(--fs-xs);
+	font-weight: 500;
+	color: var(--text);
+	background: var(--field);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--r-pill);
+	transition: background-color var(--dur-state) var(--ease);
+}
+
+.sidebar-more-chats {
+	margin-block-start: var(--sp-1);
+	margin-inline-start: var(--sp-1);
+}
+
+.sidebar-more-chats:hover,
+.sidebar-text-button:hover {
+	background: var(--field-hover);
+}
+
+.sidebar-more-chats:disabled {
+	opacity: 0.6;
+	cursor: progress;
+}
+
+.sidebar-text-button.is-danger {
+	color: var(--danger);
+	border-color: currentColor;
+}
+
+.sidebar-state,
+.sidebar-empty,
+.sidebar-hint {
+	padding: var(--sp-1);
+	font-size: var(--fs-xs);
+	color: var(--text-faint);
+}
+
+.sidebar-state.is-error {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-1);
+	color: var(--text-dim);
+}
+
+.sidebar-off {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-1);
+	padding: var(--sp-1);
+	border: 1px solid var(--line);
+	border-radius: var(--r-sm);
+}
+
+.sidebar-off .sidebar-hint {
+	padding: 0;
+	color: var(--text-dim);
+}
+
+/* ── Menus and the folder delete confirm ─────────────────────────────── */
+
+.sidebar-menu {
+	list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin-block: 2px var(--sp-1);
+	padding: 4px;
+	background: var(--surface-solid);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--r-sm);
+	box-shadow: var(--shadow-panel);
+}
+
+.sidebar-menu-item {
+	inline-size: 100%;
+	padding: 0.35rem var(--sp-1);
+	font-size: var(--fs-sm);
+	text-align: start;
+	color: var(--text);
+	background: none;
+	border: none;
+	border-inline-start: 2px solid transparent;
+	border-radius: var(--r-xs);
+}
+
+.sidebar-menu-item:hover,
+.sidebar-menu-item:focus-visible {
+	background: var(--field-hover);
+}
+
+.sidebar-menu-item[aria-checked="true"] {
+	font-weight: 600;
+	border-inline-start-color: var(--accent);
+}
+
+.sidebar-confirm {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-1);
+	margin-block: 2px var(--sp-1);
+	padding: var(--sp-1);
+	font-size: var(--fs-xs);
+	color: var(--text-dim);
+	background: var(--surface-solid);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--r-sm);
+}
+
+.sidebar-confirm-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--sp-1);
+}
+
+/* ── Search results ──────────────────────────────────────────────────── */
+
+.sidebar-hit {
+	inline-size: 100%;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: var(--sp-1);
+	text-align: start;
+	color: var(--text-dim);
+	background: none;
+	border: none;
+	border-radius: var(--r-sm);
+	transition: background-color var(--dur-state) var(--ease);
+}
+
+.sidebar-hit:hover {
+	background: var(--field);
+}
+
+.sidebar-hit-title {
+	font-size: var(--fs-sm);
+	color: var(--text);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sidebar-hit-snippet {
+	font-size: var(--fs-xs);
+	color: var(--text-faint);
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+	overflow: hidden;
+}
+
+.sidebar-hit mark {
+	color: var(--text-strong);
+	background: var(--code-fill);
+	border-radius: 2px;
+}
+
+/* ── Toast action (Undo) ─────────────────────────────────────────────── */
+
+.toast-action {
+	padding: 2px var(--sp-1);
+	margin-inline-start: var(--sp-1);
+	font-size: inherit;
+	font-weight: 500;
+	color: var(--accent-text);
+	background: none;
+	border: 1px solid var(--accent-line);
+	border-radius: var(--r-xs);
+}
+
+.toast-action:hover {
+	background: var(--accent-soft);
+}

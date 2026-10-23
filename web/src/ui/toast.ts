@@ -21,7 +21,21 @@ function dismiss(toast: HTMLElement): void {
 	setTimeout(remove, 300);
 }
 
-export function showToast(message: string, kind: ToastKind = "info", durationMs = DEFAULT_MS): HTMLElement {
+export interface ToastAction {
+	label: string;
+	onClick(): void;
+}
+
+/**
+ * `action` adds one text button before the dismiss control (the sidebar's
+ * Undo). Pressing it runs onClick and dismisses the toast.
+ */
+export function showToast(
+	message: string,
+	kind: ToastKind = "info",
+	durationMs = DEFAULT_MS,
+	options: { action?: ToastAction } = {},
+): HTMLElement {
 	const toast = document.createElement("div");
 	toast.className = `toast ${kind}`;
 	toast.setAttribute("role", kind === "error" ? "alert" : "status");
@@ -40,7 +54,20 @@ export function showToast(message: string, kind: ToastKind = "info", durationMs 
 	close.append(label);
 	close.addEventListener("click", () => dismiss(toast));
 
-	toast.append(icon(ICON[kind]), text, close);
+	toast.append(icon(ICON[kind]), text);
+	if (options.action) {
+		const { label: actionLabel, onClick } = options.action;
+		const action = document.createElement("button");
+		action.type = "button";
+		action.className = "toast-action";
+		action.textContent = actionLabel;
+		action.addEventListener("click", () => {
+			dismiss(toast);
+			onClick();
+		});
+		toast.append(action);
+	}
+	toast.append(close);
 	document.body.append(toast);
 	setTimeout(() => dismiss(toast), durationMs);
 	return toast;

@@ -26,6 +26,7 @@ import { createKeysDialog, type KeysDialog } from "./keys/dialog";
 import { initPrivacy } from "./privacy/init";
 import { initPrefs } from "./prefs/controls";
 import { initScene } from "./scene/spline";
+import { initSidebar } from "./sidebar";
 import { revealIn } from "./ui/motion";
 import { showToast } from "./ui/toast";
 import { registerWebMcp } from "./webmcp";
@@ -107,11 +108,13 @@ async function boot(): Promise<void> {
 			openKeys: (provider) => keys?.open(provider),
 		});
 	}
-	initPrivacy({ closePicker: () => picker?.close({ restoreFocus: false }), focusPicker: () => picker?.focusTrigger() });
+	const privacy = initPrivacy({ closePicker: () => picker?.close({ restoreFocus: false }), focusPicker: () => picker?.focusTrigger() });
 	initVoice(chat);
 	initVoiceOutToggle(chat.speaker);
 	window.chat = chat;
 	registerWebMcp(chat);
+	// After the chat and privacy: the sidebar drives one and opens the other.
+	initSidebar({ chat, openPrivacy: () => void privacy.openPanel() });
 
 	const header = document.querySelector(".gateway-container > header");
 	if (header) revealIn(header);

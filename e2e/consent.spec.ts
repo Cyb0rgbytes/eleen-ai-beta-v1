@@ -57,10 +57,14 @@ async function mockApi(page: Page, { signedIn, consent = null }: { signedIn: boo
 		api.entries = id ? api.entries.filter((e) => e.id !== id) : [];
 		return route.fulfill({ status: 204 });
 	});
+	// The sidebar (M4.4) reads the list and folders on every signed-in load;
+	// only the writes are recorded here.
 	await page.route("**/api/v1/conversations", async (route) => {
+		if (route.request().method() === "GET") return route.fulfill({ json: { conversations: [], nextCursor: null } });
 		record(route.request());
 		await route.fulfill({ status: 204 });
 	});
+	await page.route("**/api/v1/folders", (route) => route.fulfill({ json: { folders: [] } }));
 	return api;
 }
 

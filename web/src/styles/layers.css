@@ -7,7 +7,7 @@
  *   2     shell        .gateway-container
  *   3     loader       #spline-loader
  *   4     auth         .auth-container, .auth-dock
- *   5     sidebar      (M4.4)
+ *   5     sidebar      #sidebar, #sidebar-scrim, #sidebar-toggle (M4.4)
  *   1000  toasts       .toast
  *
  * A transparent element still receives pointer events. Every full-bleed
@@ -175,6 +175,38 @@ footer,
    poster has no badge, so poster mode keeps the corner. */
 :root[dir="rtl"] #spline-bg[data-mode="live"] ~ .auth-dock {
 	inset-block-end: calc(var(--sp-3) + 52px);
+}
+
+/* 5. Sidebar (M4.4): the panel, its off-canvas scrim and its toggle. They
+   are not full-bleed click-through layers: each one takes its own events.
+   The toggle follows the panel in the DOM, so it paints above it. */
+#sidebar,
+#sidebar-scrim,
+#sidebar-toggle {
+	position: fixed;
+	z-index: 5;
+}
+
+#sidebar {
+	inset-block: 0;
+	inset-inline-start: 0;
+}
+
+#sidebar-scrim {
+	inset: 0;
+}
+
+#sidebar-toggle {
+	inset-block-start: var(--sp-3);
+	inset-inline-start: var(--sp-3);
+}
+
+@media (max-width: 768px) {
+	/* In line with the auth row, which moves into the flow up here. */
+	#sidebar-toggle {
+		inset-block-start: var(--sp-2);
+		inset-inline-start: var(--sp-2);
+	}
 }
 
 /* 1000. Toasts. */

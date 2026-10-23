@@ -244,5 +244,6 @@ export const ar: Partial<Record<MessageKey, string>> = {
 	folderCollapse: "إخفاء {name}",
 	historyOffHint: "المحادثات لا تُحفظ. فعّل الحفظ من الذاكرة والخصوصية.",
 	historyOffOpen: "فتح الذاكرة والخصوصية",
+	folderCancel: "إلغاء",
 	// End M4.4 sidebar
 };

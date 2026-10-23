@@ -246,6 +246,7 @@ export const en = {
 	folderCollapse: "Hide {name}",
 	historyOffHint: "Chats are not being saved. Turn on saving in Memory and privacy.",
 	historyOffOpen: "Open Memory and privacy",
+	folderCancel: "Cancel",
 	// End M4.4 sidebar
 } as const;
 
