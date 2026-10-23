@@ -26,6 +26,31 @@ const AUTH_HEADER: Record<Exclude<Provider, "workers-ai">, (key: string) => Reco
 	google: (key) => ({ "x-goog-api-key": key }),
 };
 
+/**
+ * The messages in the unified (OpenAI-compatible) schema, with any images
+ * as `image_url` parts (data URLs) on the newest user turn. The gateway
+ * translates the parts for providers with another native shape.
+ */
+export function withImages(req: ProviderRequest): unknown[] {
+	const images = req.images ?? [];
+	if (!images.length) return req.messages;
+	let last = -1;
+	req.messages.forEach((m, i) => {
+		if (m.role === "user") last = i;
+	});
+	return req.messages.map((message, i) =>
+		i === last
+			? {
+					role: "user",
+					content: [
+						{ type: "text", text: message.content },
+						...images.map((image) => ({ type: "image_url", image_url: { url: `data:${image.mimeType};base64,${image.data}` } })),
+					],
+				}
+			: message,
+	);
+}
+
 export async function runGatewayCompat(env: Env, spec: ModelSpec, req: ProviderRequest): Promise<ChatRun> {
 	if (spec.provider === "workers-ai") {
 		throw new Error(`Not a third-party model: ${spec.id}`);
@@ -38,7 +63,7 @@ export async function runGatewayCompat(env: Env, spec: ModelSpec, req: ProviderR
 	const stream = await env.AI.run(
 		spec.id as Parameters<Ai["run"]>[0],
 		{
-			messages: req.messages,
+			messages: withImages(req),
 			max_tokens: req.maxTokens,
 			stream: true,
 		} as never,

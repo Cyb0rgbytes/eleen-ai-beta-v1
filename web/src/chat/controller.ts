@@ -51,6 +51,8 @@ import { openEditor } from "./edit";
 import { follow } from "./scroll";
 import { createSpeaker, shouldAutoSpeak, type Speaker } from "./speak";
 import { codeText } from "./code";
+import { appendFileChips, hasPendingUploads, hasReadyFiles, takeFiles } from "./attachments";
+import type { FileRef } from "../../../src/shared/files";
 
 const MAX_HISTORY = 20;
 /** A branch switch is saved once the clicking stops. */
@@ -68,6 +70,8 @@ interface SavedTurn {
 	parentId: string | null;
 	/** Regenerate: the user message to answer again. */
 	replyTo?: string;
+	/** Files attached to the new user turn (M5.2). */
+	files?: FileRef[];
 }
 
 export interface ChatControllerOptions {
@@ -215,6 +219,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 		const nodes = path.map((message) => {
 			if (message.role === "assistant") return replayAssistant(message);
 			const node = createUserTurn(message.content, message.id);
+			appendFileChips(node, message.files);
 			node.classList.add("is-restored");
 			return node;
 		});
@@ -246,6 +251,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 				compareGroup: null,
 				completionTokens: null,
 				createdAt: now,
+				...(turn.files?.length ? { files: turn.files } : {}),
 			});
 		}
 		const parentId = ids.userId ?? turn.replyTo ?? null;
@@ -450,8 +456,16 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 
 	async function sendMessage(text?: string, { voice = false }: SendOptions = {}): Promise<void> {
 		const input = document.getElementById("user-input") as HTMLTextAreaElement | null;
-		const message = (text ?? input?.value ?? "").trim();
-		if (!message || busy) return;
+		let message = (text ?? input?.value ?? "").trim();
+		if (busy) return;
+		// M5.2: an upload still running holds the send; finished ones go with it.
+		if (hasPendingUploads()) {
+			showToast(t("uploadWait"));
+			return;
+		}
+		if (!message && hasReadyFiles()) message = t("attachDefaultPrompt");
+		if (!message) return;
+		const files = message.toLowerCase().startsWith("/imagine ") ? [] : takeFiles();
 
 		// A chat's mode is fixed by its first message; a chat already under
 		// way never changes into the other kind.
@@ -465,6 +479,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 
 		if (saved) {
 			const userNode = createUserTurn(message);
+			appendFileChips(userNode, files);
 			append(userNode, { force: true });
 			clearInput(input, text);
 			if (imagine) {
@@ -472,11 +487,13 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 				await imagineTurn(message);
 				return;
 			}
-			await runTurn({ voice, save: { text: message, userNode, parentId: getHistoryState().activeLeafId } });
+			await runTurn({ voice, save: { text: message, userNode, parentId: getHistoryState().activeLeafId, files } });
 			return;
 		}
 
-		append(createUserMessage(message), { force: true });
+		const userNode = createUserMessage(message);
+		appendFileChips(userNode, files);
+		append(userNode, { force: true });
 		clearInput(input, text);
 		history.push({ role: "user", content: message });
 
@@ -491,7 +508,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 			}
 			return;
 		}
-		await runTurn({ voice });
+		await runTurn({ voice, files });
 	}
 
 	/**
@@ -550,8 +567,8 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 		await runTurn({ save: { text, userNode, parentId: message.parentId } });
 	}
 
-	function requestBody(save: SavedTurn | undefined, voice: boolean): ChatRequestBody {
-		const shared = { mode, model, ...(voice ? { voice: true } : {}) };
+	function requestBody(save: SavedTurn | undefined, voice: boolean, files: readonly FileRef[] = save?.files ?? []): ChatRequestBody {
+		const shared = { mode, model, ...(voice ? { voice: true } : {}), ...(files.length ? { files: files.map((f) => f.id) } : {}) };
 		if (!save) return { messages: history, ...shared };
 		const conversationId = getHistoryState().conversationId;
 		return {
@@ -566,7 +583,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 	 * Stream one assistant turn: from the client history, or, in a saved
 	 * chat, from the tree on the server. Owns busy and the turn-complete event.
 	 */
-	async function runTurn({ voice = false, save }: SendOptions & { save?: SavedTurn } = {}): Promise<void> {
+	async function runTurn({ voice = false, save, files }: SendOptions & { save?: SavedTurn; files?: FileRef[] } = {}): Promise<void> {
 		const thinking = createThinking();
 		append(thinking, { force: true });
 		// Only the newest reply offers Regenerate.
@@ -594,7 +611,7 @@ export function createChat(options: ChatControllerOptions): ChatApi {
 			};
 
 			try {
-				for await (const event of streamChat(requestBody(save, voice), {
+				for await (const event of streamChat(requestBody(save, voice, files ?? save?.files), {
 					authenticated: isSignedIn(),
 					signal: controller.signal,
 				})) {
