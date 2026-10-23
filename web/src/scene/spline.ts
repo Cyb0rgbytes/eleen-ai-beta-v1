@@ -52,12 +52,16 @@ const viewerPolicy = (window as Window & { trustedTypes?: TrustedTypesLike }).tr
 });
 
 function loadViewer(): void {
-	const prefetch = document.createElement("link");
-	prefetch.rel = "prefetch";
-	prefetch.as = "fetch";
-	prefetch.crossOrigin = "anonymous";
-	prefetch.href = SCENE_URL;
-	document.head.append(prefetch);
+	// Start the scene download while the viewer's script loads. preload, not
+	// prefetch: Chrome checks a prefetch against default-src ('self'), which
+	// blocked it (the only CSP reports of 2026-10-23); a fetch preload is
+	// checked against connect-src, which lists assets.eleenai.xyz.
+	const preload = document.createElement("link");
+	preload.rel = "preload";
+	preload.as = "fetch";
+	preload.crossOrigin = "anonymous";
+	preload.href = SCENE_URL;
+	document.head.append(preload);
 
 	const script = document.createElement("script");
 	script.type = "module";

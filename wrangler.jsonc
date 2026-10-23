@@ -110,6 +110,9 @@
 		// Workers AI calls are routed through this gateway (src/ai/gateway.ts).
 		// It must hold no provider keys: the gateway falls back to a stored key
 		// when a request carries none, which would bill the owner silently.
-		"AI_GATEWAY_ID": "eleenai-gateway"
+		"AI_GATEWAY_ID": "eleenai-gateway",
+		// "enforce" (the default) or "report": the way back to a Report-Only
+		// CSP if enforcement ever breaks the page (src/lib/security-headers.ts).
+		"CSP_MODE": "enforce"
 	}
 }

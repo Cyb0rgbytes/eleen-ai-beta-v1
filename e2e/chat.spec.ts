@@ -264,7 +264,10 @@ test("our own resources raise no CSP report", async ({ page }) => {
 	const reports: string[] = [];
 	page.on("console", (message) => {
 		const text = message.text();
-		if (/Report Only|Content Security Policy/i.test(text) && !/upgrade-insecure-requests/.test(text)) reports.push(text);
+		// Enforced violations log as "Refused to …"; Trusted Types stays Report-Only.
+		if (/Report Only|Content Security Policy|Refused to/i.test(text) && !/upgrade-insecure-requests|trusted type/i.test(text)) {
+			reports.push(text);
+		}
 	});
 	await page.route("**/api/chat/guest", (route) =>
 		route.fulfill({
