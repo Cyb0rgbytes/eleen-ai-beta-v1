@@ -204,6 +204,7 @@ export const ar: Partial<Record<MessageKey, string>> = {
 	conversationLoading: "جارٍ تحميل المحادثة",
 	conversationLoadFailed: "تعذّر فتح تلك المحادثة. حاول مرة أخرى.",
 	replyStoppedSaved: "تم الإيقاف. ما كُتب حتى الآن محفوظ.",
+	reasoningSaved: "عرض التفكير",
 	// End M4.3 branching
 	// M4.4 sidebar
 	sidebarLabel: "المحادثات",

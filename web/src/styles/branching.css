@@ -1,0 +1,169 @@
+/*
+ * Branching in saved chats (M4.3): the user-turn row with Edit, the inline
+ * editor, and the ‹ n/m › navigator (DESIGN.md sections 6 and 7).
+ * Logical properties only; the carets carry data-mirror, so they flip in
+ * RTL through the shared .icon[data-mirror] rule.
+ */
+
+/* ── User turn: bubble, then a quiet row under it ───────────────────────── */
+
+.user-turn {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	margin-block-end: 1.25rem;
+}
+
+.user-turn:last-child {
+	margin-block-end: 0;
+}
+
+.user-turn > .user-message {
+	margin-block-end: 0;
+}
+
+.turn-actions {
+	display: flex;
+	align-items: center;
+	gap: 0.2rem;
+	min-block-size: 1.75rem;
+	margin-block-start: 0.25rem;
+}
+
+.turn-actions:empty {
+	display: none;
+}
+
+/* Edit is revealed on hover or focus, like the reply tools. */
+.turn-actions .edit-button {
+	opacity: 0;
+	transition: opacity var(--dur-state) var(--ease);
+}
+
+.user-turn:hover .edit-button,
+.turn-actions:focus-within .edit-button {
+	opacity: 1;
+}
+
+@media (hover: none) {
+	.turn-actions .edit-button {
+		opacity: 1;
+	}
+}
+
+/* ── Inline editor ──────────────────────────────────────────────────────── */
+
+.turn-editor {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sp-1);
+	inline-size: min(100%, 40rem);
+	padding: 0.6rem;
+	background: var(--user-bubble);
+	border: 1px solid var(--accent-line);
+	border-radius: var(--r-md);
+	border-end-end-radius: 4px;
+	box-shadow: var(--shadow-bubble);
+}
+
+.turn-editor-input {
+	inline-size: 100%;
+	resize: vertical;
+	padding: 0.4rem 0.5rem;
+	font: inherit;
+	font-size: 0.95rem;
+	line-height: 1.6;
+	color: var(--on-user-bubble);
+	background: transparent;
+	border: none;
+	border-radius: var(--r-sm);
+	outline: none;
+}
+
+.turn-editor-input:focus-visible {
+	box-shadow: 0 0 0 2px var(--accent-line);
+}
+
+.turn-editor-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: var(--sp-1);
+}
+
+.turn-editor-actions button {
+	padding: 0.35rem 0.8rem;
+	font-size: var(--fs-sm);
+	border-radius: var(--r-pill);
+	border: 1px solid var(--line);
+	background: none;
+	color: var(--text-dim);
+}
+
+.turn-editor-actions .edit-save {
+	color: var(--on-accent);
+	background: var(--accent);
+	border-color: var(--accent);
+}
+
+.turn-editor-actions button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+/* ── ‹ n/m › navigator ──────────────────────────────────────────────────── */
+
+.branch-nav {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.1rem;
+	font-size: var(--fs-xs);
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+}
+
+.branch-button {
+	display: inline-flex;
+	padding: 0.2rem 0.25rem;
+	color: var(--text-faint);
+	background: none;
+	border: none;
+	border-radius: 6px;
+}
+
+.branch-button:hover:not(:disabled) {
+	color: var(--text-dim);
+}
+
+.branch-button:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.branch-count {
+	min-inline-size: 2.2em;
+	text-align: center;
+}
+
+/* In a reply, the navigator leads the action row and stays visible. */
+.message-actions:has(.branch-nav) {
+	justify-content: flex-start;
+}
+
+.message-actions:has(.branch-nav) .message-usage {
+	margin-inline-start: auto;
+}
+
+@media (pointer: coarse) {
+	.branch-button {
+		min-inline-size: 44px;
+		min-block-size: 44px;
+		justify-content: center;
+		align-items: center;
+	}
+}
+
+/* A conversation opened from the sidebar appears at once, not turn by turn. */
+.message.is-restored,
+.user-turn.is-restored .user-message {
+	animation: none;
+}

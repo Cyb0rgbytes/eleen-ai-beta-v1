@@ -105,6 +105,91 @@ export function createUserMessage(text: string): HTMLElement {
 }
 
 /**
+ * A user turn in a saved chat (M4.3): the bubble plus a row under it for
+ * the branch navigator and Edit. Guest chats keep the bare bubble, since
+ * there is no tree to edit into.
+ *
+ *   .user-turn[data-message-id]
+ *     .message.user-message > p[dir=auto]
+ *     .turn-actions   (navigator, edit button)
+ *
+ * The id arrives with the stream's meta event, so it is set later with
+ * setTurnId; Edit appears only once there is an id to branch from.
+ */
+export function createUserTurn(text: string, id?: string): HTMLElement {
+	const root = el("div", "user-turn");
+	const actions = el("div", "turn-actions");
+	root.append(createUserMessage(text), actions);
+	if (id) setTurnId(root, id);
+	return root;
+}
+
+/** Give a rendered turn its saved id; a user turn also gains Edit. */
+export function setTurnId(turn: HTMLElement, id: string): void {
+	turn.dataset.messageId = id;
+	if (!turn.classList.contains("user-turn")) return;
+	const actions = turn.querySelector<HTMLElement>(":scope > .turn-actions");
+	if (actions && !actions.querySelector(".edit-button")) actions.append(actionButton("edit"));
+}
+
+export interface BranchPosition {
+	index: number;
+	count: number;
+	prevId: string | null;
+	nextId: string | null;
+}
+
+/**
+ * The ‹ n/m › navigator. Buttons carry the sibling they go to in
+ * data-branch; the controller resolves it to a leaf. The visible "2/3" is
+ * hidden from assistive tech in favour of "Version 2 of 3".
+ */
+export function createBranchNav(position: BranchPosition): HTMLElement {
+	const root = el("div", "branch-nav");
+	root.setAttribute("role", "group");
+	const button = (target: string | null, glyph: "caret-left" | "caret-right", label: "branchPrevious" | "branchNext") => {
+		const b = el("button", "branch-button");
+		b.type = "button";
+		b.dataset.branch = target ?? "";
+		b.setAttribute("aria-label", t(label));
+		b.title = t(label);
+		b.append(icon(glyph));
+		if (!target) b.disabled = true;
+		return b;
+	};
+	const count = el("span", "branch-count");
+	count.setAttribute("aria-hidden", "true");
+	count.textContent = `${position.index}/${position.count}`;
+	const sr = el("span", "sr-only");
+	sr.textContent = t("branchPosition", { index: position.index, count: position.count });
+	root.append(button(position.prevId, "caret-left", "branchPrevious"), count, sr, button(position.nextId, "caret-right", "branchNext"));
+	return root;
+}
+
+/**
+ * Show (or remove) a turn's navigator. A user turn keeps it in its own row;
+ * an assistant turn at the start of its action row, which an error state
+ * does not have, so one is added for it.
+ */
+export function setBranchNav(turn: HTMLElement, position: BranchPosition | null): void {
+	turn.querySelector(".branch-nav")?.remove();
+	if (!position || position.count < 2) return;
+	const nav = createBranchNav(position);
+	if (turn.classList.contains("user-turn")) {
+		turn.querySelector(":scope > .turn-actions")?.prepend(nav);
+		return;
+	}
+	const body = turn.querySelector(":scope > .message-body");
+	if (!body) return;
+	let row = body.querySelector(":scope > .message-actions");
+	if (!row) {
+		row = el("div", "message-actions");
+		body.append(row);
+	}
+	row.prepend(nav);
+}
+
+/**
  * The wait for the first token: a skeleton shaped like the reply panel it
  * becomes (DESIGN.md principle 7), not a spinner. Same grid as an assistant
  * turn, so the reply replaces it without the layout moving.
@@ -121,6 +206,15 @@ export function createThinking(): HTMLElement {
 	const label = el("span", "sr-only");
 	label.textContent = t("thinking");
 	root.append(avatar(), panel, label);
+	return root;
+}
+
+/** Opening a saved conversation: the reply skeleton, named for what is loading. */
+export function createConversationLoading(): HTMLElement {
+	const root = createThinking();
+	root.classList.add("conversation-loading");
+	const label = root.querySelector(".sr-only");
+	if (label) label.textContent = t("conversationLoading");
 	return root;
 }
 
@@ -174,6 +268,7 @@ const ACTIONS = {
 	copy: { icon: "copy", label: "copy" },
 	regenerate: { icon: "arrow-clockwise", label: "regenerate" },
 	speak: { icon: "speaker-high", label: "speak" },
+	edit: { icon: "pencil-simple", label: "editMessage" },
 } as const;
 
 function actionButton(kind: keyof typeof ACTIONS): HTMLButtonElement {
@@ -197,8 +292,8 @@ function actionButton(kind: keyof typeof ACTIONS): HTMLButtonElement {
 interface ReasoningPanel {
 	readonly root: HTMLDetailsElement;
 	push(text: string): void;
-	/** The answer has begun, or the turn ended: stop the clock. */
-	settle(): void;
+	/** The answer has begun, or the turn ended: stop the clock. A saved reply passes its own label. */
+	settle(label?: string): void;
 }
 
 function createReasoning(): ReasoningPanel {
@@ -236,12 +331,12 @@ function createReasoning(): ReasoningPanel {
 		push(chunk) {
 			text.appendData(chunk);
 		},
-		settle() {
+		settle(saved) {
 			if (settled) return;
 			settled = true;
 			clearInterval(timer);
 			clock.remove();
-			label.textContent = t("reasoningDone", { seconds: seconds() });
+			label.textContent = saved ?? t("reasoningDone", { seconds: seconds() });
 			root.classList.add("is-done");
 			if (!touched) root.open = false;
 		},
@@ -252,10 +347,12 @@ export interface AssistantView {
 	readonly root: HTMLElement;
 	/** Append chain-of-thought text (v2 `reasoning` events). */
 	reason(text: string): void;
+	/** A saved reply's reasoning, shown collapsed and settled: its duration is not stored. */
+	restoreReasoning(text: string): void;
 	/** Re-render from the full text so far. Batched to one paint per frame. */
 	update(raw: string): void;
 	/** Final render with chips, actions and usage. Returns what was extracted. */
-	finish(raw: string, options?: { completionTokens?: number; stopped?: boolean }): Extracted;
+	finish(raw: string, options?: { completionTokens?: number; stopped?: boolean; stoppedNote?: string }): Extracted;
 	/** Replace the reply with a designed error state. */
 	fail(message: string): void;
 }
@@ -313,6 +410,13 @@ export function createAssistantMessage(): AssistantView {
 			reasoning.push(chunk);
 			markReceiving();
 		},
+		restoreReasoning(text) {
+			if (!text) return;
+			reasoning = createReasoning();
+			reasoning.push(text);
+			reasoning.settle(t("reasoningSaved"));
+			body.prepend(reasoning.root);
+		},
 		update(raw) {
 			reasoning?.settle();
 			pending = raw;
@@ -340,7 +444,7 @@ export function createAssistantMessage(): AssistantView {
 			}
 			if (options.stopped) {
 				const note = el("p", "message-note");
-				note.textContent = t("stopped");
+				note.textContent = options.stoppedNote ?? t("stopped");
 				body.append(note);
 			}
 			enhanceCode(body);
