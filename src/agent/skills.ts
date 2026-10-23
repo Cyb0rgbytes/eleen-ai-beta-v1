@@ -33,7 +33,7 @@ export const SKILLS: Skill[] = [
 		name: "eleenai-chat",
 		description:
 			"Converse with the EleenAI assistant over its HTTP API, including SSE stream " +
-			"parsing, response modes, file attachments, and the guest versus authenticated tiers.",
+			"parsing, response modes, uploaded files, and the guest versus authenticated tiers.",
 		content: CHAT_SKILL,
 	},
 	{

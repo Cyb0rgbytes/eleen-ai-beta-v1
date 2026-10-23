@@ -14,6 +14,18 @@ export const AUTHORIZED_PARTIES = [
 ];
 
 /**
+ * The request as Clerk should see it: the Authorization header and nothing
+ * the browser attaches by itself. Clerk would otherwise also accept a
+ * __session cookie, and a cookie rides along on cross-site requests (final
+ * audit #8). Every caller of authenticateRequest passes this.
+ */
+export function bearerOnly(request: Request): Request {
+	const headers = new Headers(request.headers);
+	headers.delete("cookie");
+	return new Request(request.url, { method: request.method, headers });
+}
+
+/**
  * Test seam for the REST gate: decides who a request is signed in as, in
  * place of Clerk. The history routes act on "the caller's own rows", and the
  * only way to prove one user cannot reach another's is to make requests as

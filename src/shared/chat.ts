@@ -29,7 +29,8 @@ export type ResponseMode = "balanced" | "creative" | "logical";
 /** POST body for /api/chat and /api/chat/guest. */
 export interface ChatRequestBody {
 	messages: ChatMessage[];
-	attachments?: Attachment[];
+	/** Retired (final audit #1): only an empty array is accepted. Use `files`. */
+	attachments?: [];
 	/** Response mode selected in the UI. Unknown values fall back to balanced. */
 	mode?: ResponseMode | string;
 	/** A registry model id or a tier name. Absent means the default model. */

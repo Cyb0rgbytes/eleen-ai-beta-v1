@@ -304,15 +304,6 @@ export const OPENAPI_DOCUMENT = {
 				},
 				required: ["role", "content"],
 			},
-			Attachment: {
-				type: "object",
-				properties: {
-					data: { type: "string", description: "Base64-encoded file contents." },
-					mimeType: { type: "string" },
-					name: { type: "string" },
-				},
-				required: ["data", "mimeType"],
-			},
 			ChatRequest: {
 				type: "object",
 				properties: {
@@ -322,8 +313,11 @@ export const OPENAPI_DOCUMENT = {
 					},
 					attachments: {
 						type: "array",
-						maxItems: 5,
-						items: { $ref: "#/components/schemas/Attachment" },
+						maxItems: 0,
+						deprecated: true,
+						description:
+							"Retired: inline base64 attachments are refused with 422. Upload with POST /api/v1/files " +
+							"and send the ids in `files`. An empty array is still accepted.",
 					},
 					mode: {
 						type: "string",
