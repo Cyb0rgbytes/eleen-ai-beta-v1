@@ -53,6 +53,9 @@ const ICONS = {
 	"dots-three": { mirror: false }, // sidebar: chat options
 	"push-pin": { mirror: false }, // sidebar: pinned chat
 	"folder-simple": { mirror: false }, // sidebar: folder
+	"pencil-simple": { mirror: false }, // edit a sent message
+	"caret-left": { mirror: true }, // branch navigator: previous version
+	"caret-right": { mirror: true }, // branch navigator: next version
 };
 
 const SOURCE = "node_modules/@phosphor-icons/core/assets/regular";

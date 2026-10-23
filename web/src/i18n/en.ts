@@ -206,6 +206,7 @@ export const en = {
 	conversationLoading: "Loading conversation",
 	conversationLoadFailed: "Could not open that conversation. Try again.",
 	replyStoppedSaved: "Stopped. What was written so far is saved.",
+	reasoningSaved: "Show thinking",
 	// End M4.3 branching
 	// M4.4 sidebar
 	sidebarLabel: "Conversations",
