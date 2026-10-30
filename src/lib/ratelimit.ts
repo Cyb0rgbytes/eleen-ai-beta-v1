@@ -96,6 +96,18 @@ export const RULES = {
 		user: { limit: 30, windowSeconds: HOUR },
 		failClosedForGuests: true,
 	},
+	// Studio: starting a paid job, and the page's polling of it. Polling is
+	// apart from `history` so it can't use up the sidebar's budget.
+	media: {
+		guest: { limit: 0, windowSeconds: HOUR },
+		user: { limit: 10, windowSeconds: HOUR },
+		failClosedForGuests: true,
+	},
+	mediaread: {
+		guest: { limit: 0, windowSeconds: HOUR },
+		user: { limit: 1500, windowSeconds: HOUR },
+		failClosedForGuests: true,
+	},
 	// Storing a provider key makes one call to that provider to check it.
 	keys: {
 		guest: { limit: 0, windowSeconds: HOUR },

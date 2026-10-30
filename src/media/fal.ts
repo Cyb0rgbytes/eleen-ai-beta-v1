@@ -12,20 +12,6 @@ import { Env } from "../types";
 
 const QUEUE_ORIGIN = "https://queue.fal.run";
 
-/** Text to video, the first model at launch. */
-export const MINIMAX_H3 = "minimax/h3/text-to-video";
-
-export type H3Resolution = "480P" | "768P" | "2K" | "4K";
-
-export interface H3Input {
-	prompt: string;
-	/** Seconds, 5 to 15. */
-	duration: number;
-	/** Required here: fal's default is 2K, more than twice the price of 480P. */
-	resolution: H3Resolution;
-	aspect_ratio?: "21:9" | "16:9" | "4:3" | "1:1" | "3:4" | "9:16";
-}
-
 export interface FalJob {
 	requestId: string;
 	statusUrl: string;
@@ -71,8 +57,12 @@ async function json(response: Response): Promise<Record<string, unknown>> {
 	return (await response.json()) as Record<string, unknown>;
 }
 
-/** Queue a job. `webhookUrl` is where fal reports the outcome. */
-export async function submitFal(env: Env, endpoint: string, input: H3Input, webhookUrl?: string): Promise<FalJob> {
+/**
+ * Queue a job. Inputs differ by model, so they come from the media registry,
+ * which fixes every option: a model's defaults can be its most expensive.
+ * `webhookUrl` is where fal reports the outcome.
+ */
+export async function submitFal(env: Env, endpoint: string, input: Record<string, unknown>, webhookUrl?: string): Promise<FalJob> {
 	const url = new URL(`${QUEUE_ORIGIN}/${endpoint}`);
 	if (webhookUrl) url.searchParams.set("fal_webhook", webhookUrl);
 
