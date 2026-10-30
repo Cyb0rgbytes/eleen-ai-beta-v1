@@ -8,6 +8,7 @@
  */
 import { Env } from "../types";
 import { MAX_FILE_BYTES, UploadedFile } from "../shared/files";
+import { readCapped, TooLarge } from "../lib/body";
 import { isUuid, sanitizeAttachmentName } from "../lib/validate";
 import { sniff } from "../files/sniff";
 import { ExtractionError, extractText } from "../files/extract";
@@ -35,38 +36,8 @@ const EXTENSION: Record<string, string> = {
 	"text/csv": "csv",
 };
 
-class TooLarge extends Error {}
-
-/**
- * The body, read with a hard cap. Content-Length is checked first as a fast
- * path, but a chunked body has none, so the stream itself is counted too.
- */
-async function readCapped(request: Request, max: number): Promise<Uint8Array> {
-	const declared = Number(request.headers.get("content-length"));
-	if (Number.isFinite(declared) && declared > max + 64 * 1024) throw new TooLarge();
-	if (!request.body) return new Uint8Array();
-	const reader = request.body.getReader();
-	const chunks: Uint8Array[] = [];
-	let total = 0;
-	for (;;) {
-		const { done, value } = await reader.read();
-		if (done) break;
-		total += value.byteLength;
-		// Multipart framing adds a little; the file itself is checked again below.
-		if (total > max + 64 * 1024) {
-			await reader.cancel().catch(() => {});
-			throw new TooLarge();
-		}
-		chunks.push(value);
-	}
-	const out = new Uint8Array(total);
-	let offset = 0;
-	for (const chunk of chunks) {
-		out.set(chunk, offset);
-		offset += chunk.byteLength;
-	}
-	return out;
-}
+/** Multipart framing adds a little; the file itself is checked again below. */
+const FRAMING_BYTES = 64 * 1024;
 
 function headerName(request: Request): string {
 	const raw = request.headers.get("x-file-name") ?? "";
@@ -79,7 +50,7 @@ function headerName(request: Request): string {
 
 /** The file's bytes and its client-supplied name, from a raw or multipart body. */
 async function readUpload(request: Request): Promise<{ bytes: Uint8Array; name: string } | null> {
-	const body = await readCapped(request, MAX_FILE_BYTES);
+	const body = await readCapped(request, MAX_FILE_BYTES + FRAMING_BYTES);
 	const contentType = request.headers.get("content-type") ?? "";
 	if (!/^multipart\/form-data/i.test(contentType)) return { bytes: body, name: headerName(request) };
 
