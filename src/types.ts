@@ -43,6 +43,13 @@ export interface Env {
 	GEMINI_API_KEY: string;
 
 	/**
+	 * The owner's fal key, for paid Studio generation only (src/media/fal.ts).
+	 * Set via `wrangler secret put FAL_KEY`, and in `.dev.vars` locally. Never
+	 * stored in the AI Gateway. Without it, fal calls fail before any request.
+	 */
+	FAL_KEY?: string;
+
+	/**
 	 * AI Gateway name. Every Workers AI call is routed through it for logging
 	 * and the spend limit (src/ai/gateway.ts). Optional so a missing var
 	 * degrades to direct calls rather than failing requests.

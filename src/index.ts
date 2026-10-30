@@ -44,6 +44,7 @@ import {
 	handleSearch,
 } from "./api/history";
 import { handleFile, handleFiles } from "./api/files";
+import { handlePaymentWebhook, WEBHOOK_PREFIX } from "./billing/webhook";
 import { FileNotFound, loadTurnFiles } from "./files/chat";
 import { buildFileContext } from "./files/context";
 import { ensureAccount, memoryProfile, rememberFromTurn } from "./chat/memory";
@@ -374,6 +375,13 @@ async function route(
 		// ── CSP violation reports ────────────────────────────────────────
 		if (url.pathname === "/api/csp-report") {
 			return handleCspReport(request, env);
+		}
+
+		// ── Payment webhooks ─────────────────────────────────────────────
+		// Above the auth gate and rate limit: the signature is the sender's
+		// authentication, and it has no user (src/billing/webhook.ts).
+		if (url.pathname.startsWith(WEBHOOK_PREFIX)) {
+			return handlePaymentWebhook(request, env, url.pathname.slice(WEBHOOK_PREFIX.length));
 		}
 
 		// ── Route table ──────────────────────────────────────────────────
