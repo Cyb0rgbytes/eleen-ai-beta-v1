@@ -1,0 +1,126 @@
+/*
+ * The Studio page (web/studio.html). The site's fonts and tokens, with no
+ * scene. Logical properties only, so Arabic mirrors by itself.
+ */
+@import "./fonts.css";
+@import "./tokens.css";
+@import "./base.css";
+
+.studio {
+	max-inline-size: 44rem;
+	margin-inline: auto;
+	padding: var(--sp-4) var(--sp-3);
+}
+
+.studio-top {
+	padding-block-end: var(--sp-3);
+	margin-block-end: var(--sp-4);
+	border-block-end: 1px solid var(--line);
+}
+
+.studio-top img {
+	block-size: 40px;
+	inline-size: auto;
+	filter: var(--logo-shadow);
+}
+
+.studio h1 {
+	margin-block: 0 var(--sp-1);
+	font-size: var(--fs-xl);
+	color: var(--text-strong);
+}
+
+.studio-lead {
+	margin-block: 0 var(--sp-4);
+	color: var(--text-dim);
+}
+
+.studio-badge {
+	display: inline-block;
+	padding: 0.15rem var(--sp-1);
+	margin-block-end: var(--sp-2);
+	font-size: var(--fs-xs);
+	font-weight: 600;
+	color: var(--accent-text);
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-line);
+	border-radius: 999px;
+}
+
+.studio-back {
+	color: var(--accent-text);
+	text-underline-offset: 3px;
+}
+
+.studio-balance {
+	margin-block: 0 var(--sp-3);
+	font-size: var(--fs-sm);
+	color: var(--text-dim);
+}
+
+.studio-form {
+	display: grid;
+	gap: var(--sp-2);
+}
+
+.studio-form label {
+	display: grid;
+	gap: 0.25rem;
+	font-size: var(--fs-sm);
+	color: var(--text-dim);
+}
+
+.studio-form textarea,
+.studio-form select {
+	inline-size: 100%;
+	padding: var(--sp-1) var(--sp-2);
+	font: inherit;
+	font-size: var(--fs-md);
+	color: var(--text);
+	background: var(--surface-solid);
+	border: 1px solid var(--line-strong);
+	border-radius: 0.5rem;
+}
+
+.studio-form textarea {
+	min-block-size: 7rem;
+	resize: vertical;
+}
+
+.studio-generate {
+	justify-self: start;
+	padding: var(--sp-1) var(--sp-3);
+	font: inherit;
+	font-weight: 600;
+	color: var(--on-accent);
+	cursor: pointer;
+	background: var(--accent);
+	border: 1px solid var(--accent);
+	border-radius: 0.5rem;
+}
+
+.studio-generate:hover:not(:disabled) {
+	background: var(--accent-hover);
+}
+
+.studio-generate:disabled {
+	cursor: not-allowed;
+	opacity: 0.6;
+}
+
+.studio-status {
+	min-block-size: 1.5em;
+	margin-block: var(--sp-3) var(--sp-2);
+	color: var(--text-dim);
+}
+
+.studio-status[data-kind="error"] {
+	color: var(--danger, var(--text-strong));
+}
+
+.studio-video {
+	display: block;
+	inline-size: 100%;
+	background: var(--bg-deep);
+	border-radius: 0.5rem;
+}

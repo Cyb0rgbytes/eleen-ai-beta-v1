@@ -66,6 +66,8 @@ export default defineConfig({
 				// Named "index" so the app's chunks keep their index-* names.
 				index: fileURLToPath(new URL("./web/index.html", import.meta.url)),
 				privacy: fileURLToPath(new URL("./web/privacy.html", import.meta.url)),
+				// EleenAI Studio: its own page, sharing the app's sign-in.
+				studio: fileURLToPath(new URL("./web/studio.html", import.meta.url)),
 			},
 			output: {
 				assetFileNames: (asset) =>

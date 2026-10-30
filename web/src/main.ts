@@ -134,6 +134,8 @@ async function boot(): Promise<void> {
 
 	const header = document.querySelector(".gateway-container > header");
 	if (header) revealIn(header);
+	const studioLink = document.getElementById("studio-link");
+	if (studioLink) studioLink.textContent = t("studioLink");
 
 	initAuthControls();
 	renderAuth(authState());

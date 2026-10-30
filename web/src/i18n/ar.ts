@@ -316,4 +316,21 @@ export const ar: Partial<Record<MessageKey, string>> = {
 	imageOffer: "إنشاء الصورة؟",
 	imageOfferHint: "يطلب هذا الرد صورة. أنشئها: {prompt}",
 	// End S2 hardening
+	// Studio
+	studioLink: "جديد: استوديو EleenAI",
+	studioTitle: "استوديو EleenAI",
+	studioSoon: "قريبًا",
+	studioTeaser: "حوّل أفكارك إلى فيديو، بجانب مساعدك في المحادثة.",
+	studioBack: "العودة إلى المحادثة",
+	studioLead: "صف الفيديو واختر نموذجًا.",
+	studioBalance: "رصيدك: {credits}",
+	studioPrompt: "صف الفيديو",
+	studioModel: "النموذج (5 ثوانٍ، 768p)",
+	studioModelOption: "{label}: {credits} رصيد",
+	studioGenerate: "إنشاء الفيديو",
+	studioStarting: "جارٍ بدء الفيديو...",
+	studioWorking: "جارٍ إنشاء الفيديو. يستغرق ذلك عادةً دقيقة أو دقيقتين، ويمكنك إبقاء هذه الصفحة مفتوحة.",
+	studioDone: "الفيديو جاهز.",
+	studioFailed: "تعذّر إنشاء الفيديو. أُعيد رصيدك.",
+	// End Studio
 };
