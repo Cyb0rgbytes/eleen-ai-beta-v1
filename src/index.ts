@@ -44,6 +44,8 @@ import {
 	handleSearch,
 } from "./api/history";
 import { handleFile, handleFiles } from "./api/files";
+import { handleMediaFile, handleMediaJob, handleStudio, handleVideo } from "./api/media";
+import { MEDIA_FILE_PREFIX } from "./media/signed";
 import { handlePaymentWebhook, WEBHOOK_PREFIX } from "./billing/webhook";
 import { FileNotFound, loadTurnFiles } from "./files/chat";
 import { buildFileContext } from "./files/context";
@@ -384,6 +386,13 @@ async function route(
 			return handlePaymentWebhook(request, env, url.pathname.slice(WEBHOOK_PREFIX.length));
 		}
 
+		// ── Generated media ──────────────────────────────────────────────
+		// Above the auth gate: <video> can't send a Bearer token, so the signed
+		// URL is the credential (src/media/signed.ts).
+		if (url.pathname.startsWith(MEDIA_FILE_PREFIX)) {
+			return handleMediaFile(request, env, url);
+		}
+
 		// ── Route table ──────────────────────────────────────────────────
 		// The guest and authenticated handlers were previously duplicated —
 		// byte-identical apart from the token cap. One table keyed by tier
@@ -622,6 +631,20 @@ const ROUTES: Record<string, RouteDefinition> = {
 		bucket: "upload",
 		handler: handleFiles,
 	},
+	// Studio (src/api/media.ts). Paid, so never reachable by guests, and kept
+	// out of the MCP tools, the agent docs and OpenAPI.
+	"/api/media/studio": {
+		guest: false,
+		methods: ["GET"],
+		bucket: "mediaread",
+		handler: handleStudio,
+	},
+	"/api/media/video": {
+		guest: false,
+		methods: ["POST"],
+		bucket: "media",
+		handler: handleVideo,
+	},
 };
 
 /**
@@ -664,6 +687,13 @@ const PARAM_ROUTES: readonly (RouteDefinition & { pattern: RegExp })[] = [
 		methods: ["GET", "DELETE"],
 		bucket: "history",
 		handler: handleFile,
+	},
+	{
+		pattern: /^\/api\/media\/jobs\/([^/]+)$/,
+		guest: false,
+		methods: ["GET"],
+		bucket: "mediaread",
+		handler: handleMediaJob,
 	},
 ];
 

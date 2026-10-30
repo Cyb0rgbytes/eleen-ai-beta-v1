@@ -33,6 +33,23 @@ header {
 	object-position: right center;
 }
 
+/* The pointer to Studio, beside the logo. */
+.studio-link {
+	padding: 0.2rem var(--sp-1);
+	font-size: var(--fs-xs);
+	font-weight: 600;
+	white-space: nowrap;
+	color: var(--accent-text);
+	text-decoration: none;
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-line);
+	border-radius: 999px;
+}
+
+.studio-link:hover {
+	border-color: var(--accent-text);
+}
+
 /* ── Auth anchors ───────────────────────────────────────────────────────── */
 
 .auth-container,

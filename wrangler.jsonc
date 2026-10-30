@@ -33,6 +33,8 @@
 			"/index.html",
 			"/privacy",
 			"/privacy.html",
+			"/studio",
+			"/studio.html",
 			// M5.5: the manifest, the service worker and its offline page, for the
 			// security headers and their own content type and cache rules.
 			"/manifest.webmanifest",
@@ -117,6 +119,12 @@
 		{
 			"binding": "UPLOADS",
 			"bucket_name": "eleen-uploads"
+		},
+		// Studio's generated clips. Private, and apart from UPLOADS so deleting
+		// conversations can't remove paid media (src/api/media.ts).
+		{
+			"binding": "MEDIA",
+			"bucket_name": "eleen-media"
 		}
 	],
 	"upload_source_maps": true,
@@ -131,6 +139,9 @@
 		"AI_GATEWAY_ID": "eleenai-gateway",
 		// "enforce" (the default) or "report": the way back to a Report-Only
 		// CSP if enforcement ever breaks the page (src/lib/security-headers.ts).
-		"CSP_MODE": "enforce"
+		"CSP_MODE": "enforce",
+		// Studio's daily ceiling on provider spend: $1, in millionths of a dollar.
+		// Unset means no paid generation at all (src/lib/spend.ts).
+		"STUDIO_DAILY_SPEND_MICROS": "1000000"
 	}
 }

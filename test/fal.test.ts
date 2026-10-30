@@ -1,8 +1,9 @@
 /** The fal queue client against a fake fetch. No test reaches fal: every real call costs money. */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { FalError, FalJob, falStatus, falVideoUrl, MINIMAX_H3, submitFal } from "../src/media/fal";
+import { FalError, FalJob, falStatus, falVideoUrl, submitFal } from "../src/media/fal";
 import type { Env } from "../src/types";
 
+const MINIMAX_H3 = "minimax/h3/text-to-video";
 const KEY = "test-key-not-real";
 const env = { FAL_KEY: KEY } as Env;
 const input = { prompt: "A kitten", duration: 5, resolution: "480P" } as const;
