@@ -44,6 +44,7 @@ export const en = {
 	studioWorking: "Making your video. This usually takes a minute or two, and you can leave this page open.",
 	studioDone: "Your video is ready.",
 	studioFailed: "The video could not be made. Your credits were returned.",
+	studioBlocked: "This prompt isn't allowed in Studio. Real people, famous characters and brands, and adult content aren't supported. No credits were used.",
 	signIn: "Sign in",
 	signUp: "Sign up for free",
 	login: "Login",

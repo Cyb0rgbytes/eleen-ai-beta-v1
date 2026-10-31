@@ -181,7 +181,8 @@ export function renderStudio(root: HTMLElement, state: StudioState): void {
 			watch(id);
 		} catch (error) {
 			generate.disabled = false;
-			say(error instanceof ApiError ? error.message : t("errorGeneric"), "error");
+			if (error instanceof ApiError && error.status === 403) say(t("studioBlocked"), "error");
+			else say(error instanceof ApiError ? error.message : t("errorGeneric"), "error");
 		}
 	});
 

@@ -44,7 +44,9 @@ import {
 	handleSearch,
 } from "./api/history";
 import { handleFile, handleFiles } from "./api/files";
-import { handleMediaFile, handleMediaJob, handleStudio, handleVideo } from "./api/media";
+import { handleMediaFile, handleMediaJob, handleStudio, handleVideo, sweepMediaJobs } from "./api/media";
+import { PURGE_CRON, SWEEP_CRON } from "./lib/crons";
+import { purgeModerationLog } from "./media/moderation";
 import { MEDIA_FILE_PREFIX } from "./media/signed";
 import { handlePaymentWebhook, WEBHOOK_PREFIX } from "./billing/webhook";
 import { FileNotFound, loadTurnFiles } from "./files/chat";
@@ -289,15 +291,26 @@ export default {
 	},
 
 	/**
-	 * Daily (wrangler.jsonc triggers.crons): conversations deleted more than
+	 * Two triggers (wrangler.jsonc triggers.crons). Every 5 minutes, Studio jobs
+	 * nobody is watching are finished. Daily, conversations deleted more than
 	 * DELETED_RETENTION_DAYS ago are removed for good, as the privacy page says.
+	 * Each names its cron exactly, so adding a trigger can't run the other's work.
 	 */
-	async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-		ctx.waitUntil(
-			purgeExpiredConversations(env.DB)
-				.then((count) => console.log("Purged expired conversations", { count }))
-				.catch((error) => console.error("Purge failed:", error instanceof Error ? error.message : "unknown")),
-		);
+	async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+		if (controller.cron === SWEEP_CRON) {
+			ctx.waitUntil(
+				sweepMediaJobs(env).catch((error) => console.error("Media sweep failed:", error instanceof Error ? error.message : "unknown")),
+			);
+		} else if (controller.cron === PURGE_CRON) {
+			ctx.waitUntil(
+				purgeExpiredConversations(env.DB)
+					.then((count) => console.log("Purged expired conversations", { count }))
+					.catch((error) => console.error("Purge failed:", error instanceof Error ? error.message : "unknown")),
+			);
+			ctx.waitUntil(
+				purgeModerationLog(env.DB).catch((error) => console.error("Moderation purge failed:", error instanceof Error ? error.message : "unknown")),
+			);
+		}
 	},
 } satisfies ExportedHandler<Env>;
 

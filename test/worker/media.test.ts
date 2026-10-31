@@ -3,8 +3,11 @@
  * every real call costs money.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import { handleMediaFile, handleMediaJob, handleStudio, handleVideo } from "../../src/api/media";
+import worker from "../../src/index";
+import { PURGE_CRON, SWEEP_CRON } from "../../src/lib/crons";
+import { handleMediaFile, handleMediaJob, handleStudio, handleVideo, sweepMediaJobs } from "../../src/api/media";
 import { addCredits, balance, holdState } from "../../src/lib/credits";
 import { MEDIA_MODELS, publicModels } from "../../src/media/registry";
 import { signMediaUrl } from "../../src/media/signed";
@@ -23,6 +26,7 @@ const day = () => `2026-test-${++counter}`;
 function studioEnv(userId: string, extra: Partial<Env> = {}): Env {
 	return {
 		...(env as unknown as Env),
+		AI: { run: async () => ({ response: "ALLOW" }) } as unknown as Ai,
 		FAL_KEY: "test-key-not-real",
 		MEDIA_URL_KEY: "test-signing-key",
 		STUDIO_USER_IDS: `someone-else, ${userId}`,
@@ -304,6 +308,184 @@ describe("polling a job", () => {
 		expect(body.status).toBe("running");
 		expect(await holdState(env.DB, id)).toBe("open");
 		vi.restoreAllMocks();
+	});
+});
+
+describe("sweeping jobs nobody is watching", () => {
+	const MINUTE = 60 * 1000;
+	const age = (id: string, ms: number) =>
+		env.DB.prepare("UPDATE media_jobs SET created_at = ?2 WHERE id = ?1").bind(id, Date.now() - ms).run();
+
+	/** Other tests leave running jobs behind; this file's sweeps must not trip on them. */
+	const clearRunning = () => env.DB.prepare("UPDATE media_jobs SET status = 'failed' WHERE status = 'running'").run();
+
+	const jobStatus = async (id: string) =>
+		(await env.DB.prepare("SELECT status FROM media_jobs WHERE id = ?1").bind(id).first<{ status: string }>())?.status;
+
+	it("finishes a closed page's job: stores the clip and charges once", async () => {
+		await clearRunning();
+		fakeFal();
+		const userId = await funded();
+		const { id, testEnv } = await started(userId);
+		await age(id, 3 * MINUTE);
+		fakeFal({ status: { status: "COMPLETED" } });
+
+		expect(await sweepMediaJobs(testEnv)).toBe(1);
+		expect(await jobStatus(id)).toBe("succeeded");
+		expect(await holdState(env.DB, id)).toBe("charged");
+		expect(await balance(env.DB, userId)).toBe(1000 - model.credits);
+		expect(await sweepMediaJobs(testEnv)).toBe(0);
+	});
+
+	it("refunds a job fal reports as failed, keeping the cost reserved", async () => {
+		await clearRunning();
+		fakeFal();
+		const userId = await funded();
+		const { id, testEnv } = await started(userId);
+		await age(id, 3 * MINUTE);
+		const reserved = await spent(await jobDay(id));
+		fakeFal({ status: { status: "COMPLETED", error: "Internal error" } });
+
+		await sweepMediaJobs(testEnv);
+		expect(await jobStatus(id)).toBe("failed");
+		expect(await balance(env.DB, userId)).toBe(1000);
+		expect(await spent(await jobDay(id))).toBe(reserved);
+	});
+
+	it("leaves a recent job to its page", async () => {
+		await clearRunning();
+		const fetchMock = fakeFal();
+		const userId = await funded();
+		const { id, testEnv } = await started(userId);
+		fetchMock.mockClear();
+		expect(await sweepMediaJobs(testEnv)).toBe(0);
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(await jobStatus(id)).toBe("running");
+	});
+
+	it("keeps a job that is still working, or when fal can't be reached, inside the age limit", async () => {
+		await clearRunning();
+		fakeFal();
+		const userId = await funded();
+		const { id, testEnv } = await started(userId);
+		await age(id, 30 * MINUTE);
+
+		await sweepMediaJobs(testEnv);
+		expect(await jobStatus(id)).toBe("running");
+
+		vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("network"); }));
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		await sweepMediaJobs(testEnv);
+		expect(await jobStatus(id)).toBe("running");
+		expect(await holdState(env.DB, id)).toBe("open");
+		vi.restoreAllMocks();
+	});
+
+	it("refunds a job past the age limit, once, and doesn't charge if it then succeeds", async () => {
+		await clearRunning();
+		fakeFal();
+		const userId = await funded();
+		const { id, testEnv } = await started(userId);
+		await age(id, 61 * MINUTE);
+
+		await sweepMediaJobs(testEnv);
+		expect(await jobStatus(id)).toBe("failed");
+		expect(await holdState(env.DB, id)).toBe("released");
+
+		fakeFal({ status: { status: "COMPLETED" } });
+		await sweepMediaJobs(testEnv);
+		await poll(testEnv, userId, id);
+		expect(await balance(env.DB, userId)).toBe(1000);
+		expect(await holdState(env.DB, id)).toBe("released");
+	});
+
+	it("refunds a job whose submit never finished, past the age limit", async () => {
+		await clearRunning();
+		fakeFal();
+		const userId = await funded();
+		const { id, testEnv } = await started(userId);
+		await env.DB.prepare("UPDATE media_jobs SET request_id = NULL WHERE id = ?1").bind(id).run();
+		await age(id, 61 * MINUTE);
+		await sweepMediaJobs(testEnv);
+		expect(await balance(env.DB, userId)).toBe(1000);
+	});
+
+	it("carries on after one job fails", async () => {
+		await clearRunning();
+		fakeFal();
+		const userId = await funded();
+		const first = await started(userId);
+		const second = await started(userId);
+		await age(first.id, 5 * MINUTE);
+		await age(second.id, 4 * MINUTE);
+		await env.DB.prepare("UPDATE media_jobs SET status_url = 'https://evil.example/status' WHERE id = ?1").bind(first.id).run();
+		fakeFal({ status: { status: "COMPLETED" } });
+		vi.spyOn(console, "error").mockImplementation(() => {});
+
+		await sweepMediaJobs(first.testEnv);
+		expect(await jobStatus(first.id)).toBe("running");
+		expect(await jobStatus(second.id)).toBe("succeeded");
+		vi.restoreAllMocks();
+	});
+});
+
+describe("the scheduled handler", () => {
+	const scheduledWith = async (cron: string, testEnv: Env) => {
+		const ctx = createExecutionContext();
+		await worker.scheduled({ cron, scheduledTime: Date.now(), type: "scheduled", noRetry() {} } as ScheduledController, testEnv, ctx);
+		await waitOnExecutionContext(ctx);
+	};
+
+	async function expiredConversation(): Promise<string> {
+		const user = unique("user");
+		const id = crypto.randomUUID();
+		const now = Date.now();
+		await env.DB.batch([
+			env.DB.prepare("INSERT INTO users (user_id, created_at, last_seen_at) VALUES (?1, ?2, ?2)").bind(user, now),
+			env.DB.prepare("INSERT INTO conversations (id, user_id, title, created_at, updated_at, deleted_at) VALUES (?1, ?2, 'x', ?3, ?3, ?3)").bind(id, user, now - 40 * 24 * 60 * 60 * 1000),
+		]);
+		return id;
+	}
+
+	const conversationExists = async (id: string) =>
+		(await env.DB.prepare("SELECT id FROM conversations WHERE id = ?1").bind(id).first()) !== null;
+
+	const jobStatus = async (id: string) =>
+		(await env.DB.prepare("SELECT status FROM media_jobs WHERE id = ?1").bind(id).first<{ status: string }>())?.status;
+
+	it("the 5-minute trigger sweeps jobs and does not purge", async () => {
+		fakeFal();
+		const userId = await funded();
+		const { id, testEnv } = await started(userId);
+		await env.DB.prepare("UPDATE media_jobs SET created_at = ?2 WHERE id = ?1").bind(id, Date.now() - 180_000).run();
+		const conversation = await expiredConversation();
+		fakeFal({ status: { status: "COMPLETED" } });
+
+		await scheduledWith(SWEEP_CRON, testEnv);
+		expect(await jobStatus(id)).toBe("succeeded");
+		expect(await conversationExists(conversation)).toBe(true);
+	});
+
+	it("the daily trigger purges and does not sweep", async () => {
+		fakeFal();
+		const userId = await funded();
+		const { id, testEnv } = await started(userId);
+		await env.DB.prepare("UPDATE media_jobs SET created_at = ?2 WHERE id = ?1").bind(id, Date.now() - 180_000).run();
+		const conversation = await expiredConversation();
+		const fetchMock = fakeFal({ status: { status: "COMPLETED" } });
+		const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+		await scheduledWith(PURGE_CRON, testEnv);
+		expect(await conversationExists(conversation)).toBe(false);
+		expect(await jobStatus(id)).toBe("running");
+		expect(fetchMock).not.toHaveBeenCalled();
+		log.mockRestore();
+	});
+
+	it("does nothing for a trigger it doesn't know", async () => {
+		const conversation = await expiredConversation();
+		await scheduledWith("0 0 * * *", env as unknown as Env);
+		expect(await conversationExists(conversation)).toBe(true);
 	});
 });
 
