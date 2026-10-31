@@ -5,7 +5,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import worker, { PURGE_CRON, SWEEP_CRON } from "../../src/index";
+import worker from "../../src/index";
+import { PURGE_CRON, SWEEP_CRON } from "../../src/lib/crons";
 import { handleMediaFile, handleMediaJob, handleStudio, handleVideo, sweepMediaJobs } from "../../src/api/media";
 import { addCredits, balance, holdState } from "../../src/lib/credits";
 import { MEDIA_MODELS, publicModels } from "../../src/media/registry";

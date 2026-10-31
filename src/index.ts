@@ -45,6 +45,7 @@ import {
 } from "./api/history";
 import { handleFile, handleFiles } from "./api/files";
 import { handleMediaFile, handleMediaJob, handleStudio, handleVideo, sweepMediaJobs } from "./api/media";
+import { PURGE_CRON, SWEEP_CRON } from "./lib/crons";
 import { purgeModerationLog } from "./media/moderation";
 import { MEDIA_FILE_PREFIX } from "./media/signed";
 import { handlePaymentWebhook, WEBHOOK_PREFIX } from "./billing/webhook";
@@ -104,10 +105,6 @@ const MODEL_ID = UTILITY_MODEL.id as "@cf/meta/llama-3.1-8b-instruct-fp8";
 
 /** Fallback image generation model */
 const FALLBACK_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell";
-
-/** Must match triggers.crons in wrangler.jsonc. */
-export const SWEEP_CRON = "*/5 * * * *";
-export const PURGE_CRON = "17 3 * * *";
 
 /** Gemini API base URL */
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
