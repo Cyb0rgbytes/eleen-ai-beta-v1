@@ -45,6 +45,7 @@ import {
 } from "./api/history";
 import { handleFile, handleFiles } from "./api/files";
 import { handleMediaFile, handleMediaJob, handleStudio, handleVideo, sweepMediaJobs } from "./api/media";
+import { purgeModerationLog } from "./media/moderation";
 import { MEDIA_FILE_PREFIX } from "./media/signed";
 import { handlePaymentWebhook, WEBHOOK_PREFIX } from "./billing/webhook";
 import { FileNotFound, loadTurnFiles } from "./files/chat";
@@ -308,6 +309,9 @@ export default {
 				purgeExpiredConversations(env.DB)
 					.then((count) => console.log("Purged expired conversations", { count }))
 					.catch((error) => console.error("Purge failed:", error instanceof Error ? error.message : "unknown")),
+			);
+			ctx.waitUntil(
+				purgeModerationLog(env.DB).catch((error) => console.error("Moderation purge failed:", error instanceof Error ? error.message : "unknown")),
 			);
 		}
 	},

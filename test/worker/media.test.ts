@@ -25,6 +25,7 @@ const day = () => `2026-test-${++counter}`;
 function studioEnv(userId: string, extra: Partial<Env> = {}): Env {
 	return {
 		...(env as unknown as Env),
+		AI: { run: async () => ({ response: "ALLOW" }) } as unknown as Ai,
 		FAL_KEY: "test-key-not-real",
 		MEDIA_URL_KEY: "test-signing-key",
 		STUDIO_USER_IDS: `someone-else, ${userId}`,

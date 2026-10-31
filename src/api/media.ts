@@ -5,7 +5,8 @@
  * open to guests, and fired by the chat on the model's say-so; nothing here
  * can be reached from it, from MCP or from the agent surfaces.
  *
- * A job runs: allow-list, price check, spend reservation, credit hold, fal.
+ * A job runs: allow-list, price check, moderation, spend reservation, credit
+ * hold, fal.
  * Polling the job moves it on: when fal finishes, the clip is copied to R2 and
  * the hold is settled, and any failure releases the credits. An open page
  * polls; sweepMediaJobs does the same for jobs nobody is watching.
@@ -16,6 +17,7 @@ import { balance, hold, release, settle } from "../lib/credits";
 import { parseCeiling, releaseSpend, reserveSpend, spendDay } from "../lib/spend";
 import { FalError, FalJob, falStatus, falVideoUrl, submitFal } from "../media/fal";
 import { MEDIA_FILE_PREFIX, signMediaUrl, verifyMediaUrl } from "../media/signed";
+import { moderatePrompt } from "../media/moderation";
 import { mediaModel, publicModels } from "../media/registry";
 
 const JSON_HEADERS = { "content-type": "application/json", "cache-control": "no-store" };
@@ -160,6 +162,11 @@ export async function handleVideo(request: Request, env: Env, _ctx: ExecutionCon
 
 	const existing = await env.DB.prepare("SELECT * FROM media_jobs WHERE id = ?1").bind(id).first<JobRow>();
 	if (existing) return existing.user_id === userId ? reply(200, await jobView(env, existing)) : notFound();
+
+	// Before any money moves, so a refused prompt costs nothing.
+	const moderation = await moderatePrompt(env, userId, prompt);
+	if (moderation.outcome === "blocked") return reply(403, { error: "This prompt isn't allowed in Studio. No credits were used.", reason: "blocked" });
+	if (moderation.outcome === "unavailable") return reply(503, { error: "Studio can't check prompts right now. Try again shortly.", reason: "moderation-unavailable" });
 
 	const day = spendDay();
 	if (!(await reserveSpend(env.DB, parseCeiling(env.STUDIO_DAILY_SPEND_MICROS), model.costMicros, day))) {
