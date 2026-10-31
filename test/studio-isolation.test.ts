@@ -13,6 +13,17 @@ function sources(dir: string): [string, string][] {
 		.map((file) => [file, readFileSync(join(dir, file), "utf8")]);
 }
 
+describe("cron triggers", () => {
+	it("in wrangler.jsonc are exactly the ones the scheduled handler names", () => {
+		const configured = readFileSync("wrangler.jsonc", "utf8").match(/"crons":\s*\[([^\]]*)\]/)?.[1] ?? "";
+		const crons = [...configured.matchAll(/"([^"]+)"/g)].map((match) => match[1]).sort();
+		const index = readFileSync("src/index.ts", "utf8");
+		const named = [...index.matchAll(/export const (?:SWEEP|PURGE)_CRON = "([^"]+)"/g)].map((match) => match[1]).sort();
+		expect(crons).toHaveLength(2);
+		expect(crons).toEqual(named);
+	});
+});
+
 describe("paid routes", () => {
 	it("are not named by the MCP tools, OpenAPI, docs or skills", () => {
 		const files = sources("src/agent");

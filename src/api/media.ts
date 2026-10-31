@@ -7,9 +7,8 @@
  *
  * A job runs: allow-list, price check, spend reservation, credit hold, fal.
  * Polling the job moves it on: when fal finishes, the clip is copied to R2 and
- * the hold is settled, and any failure releases the credits. Polling drives
- * this until webhooks and the sweeper arrive, so a job nobody polls stays
- * held. That is acceptable only while the allow-list is the owner.
+ * the hold is settled, and any failure releases the credits. An open page
+ * polls; sweepMediaJobs does the same for jobs nobody is watching.
  */
 import { Env } from "../types";
 import { isUuid, validatePrompt, ValidationError, validationResponse } from "../lib/validate";
@@ -107,6 +106,30 @@ async function advanceJob(env: Env, job: JobRow): Promise<JobRow> {
 		return job;
 	}
 	return (await getJob(env.DB, job.id, job.user_id)) ?? job;
+}
+
+/** An open page finishes its own job first. */
+const SWEEP_AFTER_MS = 2 * 60 * 1000;
+/** Far past any real job. Beyond this, fal lost it or the clip can't be fetched. */
+const MAX_JOB_AGE_MS = 60 * 60 * 1000;
+/** Each job can mean a clip download, so a run stays small. The next takes the rest. */
+const SWEEP_BATCH = 20;
+
+/**
+ * Finish jobs nobody is watching, on the 5-minute cron. Oldest first, so a
+ * backlog can't starve a job. A job is refunded only on fal's word or past the
+ * age limit, and its cost stays reserved, as fal may have run it.
+ */
+export async function sweepMediaJobs(env: Env, now = Date.now()): Promise<number> {
+	const { results } = await env.DB.prepare("SELECT * FROM media_jobs WHERE status = 'running' AND created_at < ?1 ORDER BY created_at LIMIT ?2")
+		.bind(now - SWEEP_AFTER_MS, SWEEP_BATCH)
+		.all<JobRow & { created_at: number }>();
+
+	for (const job of results) {
+		const current = await advanceJob(env, job);
+		if (current.status === "running" && now - job.created_at > MAX_JOB_AGE_MS) await failJob(env, job, true);
+	}
+	return results.length;
 }
 
 /** What the Studio page needs to draw itself. A 404 for anyone not allow-listed. */
